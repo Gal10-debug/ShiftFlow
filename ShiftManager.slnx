@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ShiftManager/ShiftManager.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ShiftManager.Tests/ShiftManager.Tests.csproj" />
+  </Folder>
+</Solution>
