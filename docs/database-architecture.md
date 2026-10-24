@@ -3,7 +3,8 @@
 ## Scope and storage conventions
 
 One ASP.NET Core host, one EF Core Identity context, PostgreSQL 17 and GUID keys.
-No repositories, CQRS, API endpoints, frontend or scheduling algorithms are introduced.
+Phase 1 introduced no repositories, CQRS, API endpoints, frontend or scheduling algorithms.
+Phase 2 adds account APIs and a Hebrew React interface, described in authentication-architecture.md.
 Tables and columns use English identifiers. PostgreSQL's UTF-8 database stores Hebrew
 names and task content without special per-column encoding. All actual instants are UTC
 `DateTime` mapped to `timestamp with time zone`; `ShiftDate` is `date`, a local calendar
@@ -50,10 +51,12 @@ erDiagram
 
 Identity roles ADMIN, COORDINATOR and EMPLOYEE have deterministic GUID seeds. Lead is
 never an Identity role. Users can have multiple roles; inactive users remain for history.
-No public registration, default admin, plaintext password or custom hashing is introduced.
+Public registration, default credentials, plaintext password storage and custom hashing remain absent.
 `AddIdentityCore`, GUID role services, EF stores, data protection and default token
-providers are configured. Authentication handlers/endpoints and Hebrew Identity error
-translation belong to the next phase.
+providers are configured. Phase 2 adds cookie handlers, authentication/account endpoints and centralized Hebrew errors.
+ApplicationUser.MustChangePassword is a non-null boolean added by RequirePasswordChange
+(default false for existing records; managed creation/bootstrap explicitly set true).
+No existing business tables or historical relationships are changed.
 
 ## Database integrity
 
@@ -93,7 +96,8 @@ from centralized resources; do not expose raw database/Identity errors to users.
 
 ## Deferred service rules and concurrency
 
-No feature services are implemented in Phase 1. Future services must validate:
+Phase 1 has no scheduling/task services. Phase 2 adds transactional account services only.
+Future scheduling/task services must validate:
 
 - Employee/coordinator/admin permissions, active users, and coordinator excluded from the
   five staffing members; having multiple roles alone must not permit double counting.
@@ -155,9 +159,10 @@ use EF InMemory. PostgreSQL tests are explicitly skipped without RUN_POSTGRES_TE
 ## Limitations and next phase
 
 Publication events are not historical snapshots. No timezone database is bundled; the
-host's Asia/Jerusalem rules are authoritative. Business mutation paths and transaction
-protocols above are design requirements until implemented. There are no authentication
-endpoints, Hebrew error resources, account creation flows, scheduler or task APIs yet.
+host's Asia/Jerusalem rules are authoritative. Scheduling/task mutation paths and transaction
+protocols above remain design requirements. There are no scheduler or task APIs yet.
+Authentication, Hebrew error resources and account management are implemented in Phase 2; see authentication-architecture.md.
 Task parent edits with existing assignments deliberately require explicit reassignment.
-Next: authentication/authorization infrastructure, manager-created accounts, localized
-structured errors, and transactional availability services before scheduling/publication.
+Next: transactional availability services before scheduling/publication.
+Account writes already use their own PostgreSQL transaction/advisory-lock protocol,
+including final-active-administrator protection and immediate session-stamp revocation.
