@@ -4,3 +4,10 @@
 .env
 *.user
 TestResults/
+
+**/node_modules/
+frontend/dist/
+**/*.tsbuildinfo
+src/ShiftManager/wwwroot/
+
+.env.*
