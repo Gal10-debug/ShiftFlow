@@ -11,13 +11,26 @@ Install .NET 10 SDK and Docker Desktop. From this directory:
 dotnet tool restore
 dotnet restore
 dotnet build
-# Supply a local development password; do not commit credentials.
-export POSTGRES_PASSWORD='replace-with-your-local-password'
+# First-time setup: copy the example, then edit .env to choose your local password.
+# Skip the copy if .env already exists.
+cp -n .env.example .env
+# Load the same password for Compose and the .NET connection string.
+set -a
+. ./.env
+set +a
 docker compose up -d --wait
 export ConnectionStrings__Database="Host=localhost;Database=shiftmanager;Username=shiftmanager;Password=$POSTGRES_PASSWORD"
 dotnet ef database update --project src/ShiftManager
 dotnet run --project src/ShiftManager
 ```
+
+Compose automatically reads `.env` from the repository root. The .NET host does not,
+so load it into your terminal as shown above before migrations or startup. `.env` is
+ignored by Git. If Compose reports that `POSTGRES_PASSWORD` is missing, create `.env`
+from `.env.example` and set the password. An exported shell variable overrides `.env`;
+use `unset POSTGRES_PASSWORD` if an empty or outdated shell value is overriding it.
+For an existing PostgreSQL volume, use its original password: changing `.env` does not
+change the database account's password.
 
 The host intentionally exposes no application endpoints. Migrations are applied explicitly,
 not automatically at application startup. Roles ADMIN, COORDINATOR and EMPLOYEE are seeded;
