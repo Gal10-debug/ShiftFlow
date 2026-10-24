@@ -11,35 +11,38 @@ export default function PasswordPage({
 }) {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
-  const [currentPassword, setCurrent] = useState("");
-  const [newPassword, setNew] = useState("");
-  const [confirm, setConfirm] = useState("");
+  const [reveal, setReveal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  async function submit(e: FormEvent) {
+  async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Password managers can update DOM values without firing React change events.
+    const element = e.currentTarget;
+    const form = new FormData(element);
+    const submittedCurrent = String(form.get("currentPassword") ?? "");
+    const submittedNew = String(form.get("newPassword") ?? "");
+    const submittedConfirm = String(form.get("confirmPassword") ?? "");
     setError("");
     setSuccess("");
-    if (!currentPassword || !newPassword || !confirm) {
+    if (!submittedCurrent || !submittedNew || !submittedConfirm) {
       setError(he.required);
       return;
     }
-    if (newPassword !== confirm) {
+    if (submittedNew !== submittedConfirm) {
       setError(he.mismatch);
       return;
     }
     setBusy(true);
     try {
       const updated = await api<User>("/auth/change-password", "POST", {
-        currentPassword,
-        newPassword,
+        currentPassword: submittedCurrent,
+        newPassword: submittedNew,
       });
       resetCsrf();
       setUser(updated);
-      setCurrent("");
-      setNew("");
-      setConfirm("");
+      element.reset();
+      setReveal(false);
       setSuccess(he.passwordChanged);
       if (initial) navigate(home(updated), { replace: true });
     } catch (error) {
@@ -61,8 +64,7 @@ export default function PasswordPage({
             label={he.currentPassword}
             name="currentPassword"
             type="password"
-            value={currentPassword}
-            onChange={setCurrent}
+            reveal={reveal}
             autoComplete="current-password"
             maxLength={128}
           />
@@ -70,8 +72,7 @@ export default function PasswordPage({
             label={he.newPassword}
             name="newPassword"
             type="password"
-            value={newPassword}
-            onChange={setNew}
+            reveal={reveal}
             autoComplete="new-password"
             maxLength={128}
           />
@@ -80,11 +81,18 @@ export default function PasswordPage({
             label={he.confirmPassword}
             name="confirmPassword"
             type="password"
-            value={confirm}
-            onChange={setConfirm}
+            reveal={reveal}
             autoComplete="new-password"
             maxLength={128}
           />
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={reveal}
+              onChange={(event) => setReveal(event.target.checked)}
+            />
+            {he.showPasswords}
+          </label>
           <Notice error={error} success={success} />
           <button className="primary" disabled={busy}>
             {busy ? he.saving : he.changePassword}

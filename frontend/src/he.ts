@@ -55,6 +55,7 @@ export const he = {
     "כדי לשמור על החשבון שלך, יש לבחור סיסמה אישית לפני שממשיכים.",
   currentPassword: "סיסמה נוכחית",
   newPassword: "סיסמה חדשה",
+  showPasswords: "הצגת סיסמאות",
   confirmPassword: "אימות סיסמה חדשה",
   passwordChanged: "הסיסמה עודכנה בהצלחה.",
   saved: "השינויים נשמרו בהצלחה.",

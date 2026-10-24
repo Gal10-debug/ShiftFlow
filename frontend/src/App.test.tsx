@@ -257,3 +257,48 @@ it("shows a Hebrew not-found page", async () => {
     await screen.findByRole("heading", { name: he.notFound }),
   ).toBeVisible();
 });
+
+it("submits displayed password-manager values even without React change events", async () => {
+  current = { ...employee, mustChangePassword: true };
+  const user = userEvent.setup();
+  app("/change-password");
+  await user.type(
+    await screen.findByLabelText(he.currentPassword),
+    "TemporaryPass!2026",
+  );
+  await user.type(screen.getByLabelText(he.newPassword), "TemporaryPass!2026");
+  await user.type(
+    screen.getByLabelText(he.confirmPassword),
+    "TemporaryPass!2026",
+  );
+  const setNativeValue = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value",
+  )!.set!;
+  setNativeValue.call(
+    screen.getByLabelText(he.newPassword),
+    "PersonalSecret!2026",
+  );
+  setNativeValue.call(
+    screen.getByLabelText(he.confirmPassword),
+    "PersonalSecret!2026",
+  );
+  await user.click(screen.getByRole("button", { name: he.changePassword }));
+  await waitFor(() => expect(writes).toHaveLength(1));
+  expect(writes[0].body).toEqual({
+    currentPassword: "TemporaryPass!2026",
+    newPassword: "PersonalSecret!2026",
+  });
+});
+it("lets the user reveal password fields locally while preserving LTR", async () => {
+  current = { ...employee, mustChangePassword: true };
+  const user = userEvent.setup();
+  app("/change-password");
+  const input = await screen.findByLabelText(he.newPassword);
+  expect(input).toHaveAttribute("type", "password");
+  await user.click(screen.getByLabelText(he.showPasswords));
+  expect(input).toHaveAttribute("type", "text");
+  expect(input).toHaveAttribute("dir", "ltr");
+  await user.click(screen.getByLabelText(he.showPasswords));
+  expect(input).toHaveAttribute("type", "password");
+});

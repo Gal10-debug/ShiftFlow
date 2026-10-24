@@ -8,24 +8,26 @@ export function Field({
   autoComplete,
   maxLength = 100,
   autoFocus = false,
+  reveal = false,
 }: {
   label: string;
   name: string;
   type?: string;
-  value: string;
-  onChange: (value: string) => void;
+  value?: string;
+  onChange?: (value: string) => void;
   autoComplete?: string;
   maxLength?: number;
   autoFocus?: boolean;
+  reveal?: boolean;
 }) {
   return (
     <label className="field">
       {label}
       <input
         name={name}
-        type={type}
+        type={type === "password" && reveal ? "text" : type}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
         autoComplete={autoComplete}
         maxLength={maxLength}
         required
