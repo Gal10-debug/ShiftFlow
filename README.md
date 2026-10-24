@@ -36,6 +36,11 @@ against the migrated database. In an interactive Bash/Zsh terminal, read secrets
 putting them into command history:
 
 ```sh
+# Run from the repository root in the same terminal as the bootstrap command.
+set -a
+. ./.env
+set +a
+export ConnectionStrings__Database="Host=localhost;Database=shiftmanager;Username=shiftmanager;Password=$POSTGRES_PASSWORD"
 export BOOTSTRAP_ADMIN_USERNAME='choose-your-username'
 export BOOTSTRAP_ADMIN_FIRST_NAME='שם'
 export BOOTSTRAP_ADMIN_LAST_NAME='משפחה'
