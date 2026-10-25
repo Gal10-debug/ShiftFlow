@@ -11,7 +11,6 @@ using ShiftManager.Api;
 using ShiftManager.Data;
 using ShiftManager.Domain;
 using ShiftManager.Services;
-using Testcontainers.PostgreSql;
 
 namespace ShiftManager.Tests;
 
@@ -19,7 +18,7 @@ public sealed class AuthTests : IAsyncLifetime
 {
     private const string Password = "TestPassword!2026";
     private const string NewPassword = "PersonalSecret!2026";
-    private readonly PostgreSqlContainer database = new PostgreSqlBuilder("postgres:17-alpine").Build();
+    private readonly TestDatabase database = new();
     private WebApplicationFactory<Program> factory = null!;
     private readonly Dictionary<string, Guid> ids = [];
 

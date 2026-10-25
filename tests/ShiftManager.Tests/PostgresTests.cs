@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using ShiftManager.Data;
 using ShiftManager.Domain;
-using Testcontainers.PostgreSql;
 
 namespace ShiftManager.Tests;
 
@@ -17,7 +16,7 @@ public sealed class PostgresFactAttribute : FactAttribute
 
 public class PostgresTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer database = new PostgreSqlBuilder("postgres:17-alpine").Build();
+    private readonly TestDatabase database = new();
     private ApplicationDbContext Context() => new(new DbContextOptionsBuilder<ApplicationDbContext>()
         .UseNpgsql(database.GetConnectionString()).Options);
 

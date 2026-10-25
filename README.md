@@ -141,13 +141,79 @@ npm audit --prefix frontend
 dotnet list package --vulnerable --include-transitive
 ```
 
-Docker is required for PostgreSQL integration tests. They migrate fresh disposable databases
-and never use the development database. On macOS, if Testcontainers cannot discover Docker:
+Docker is required for PostgreSQL integration tests. By default they migrate fresh disposable
+Testcontainers databases and never use the development database. On macOS, if Testcontainers cannot discover Docker:
 
 ```sh
 export DOCKER_HOST="unix://$HOME/.docker/run/docker.sock"
 export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
 ```
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on pull requests targeting `main` and pushes to `main`.
+The independent **Backend** and **Frontend** checks build and test the application:
+
+- Backend: .NET 10, Release build with warnings as errors, PostgreSQL 17 integration tests,
+  application of migrations to a clean database, and EF pending-model-change verification.
+- Frontend: Node.js 24 LTS, cached npm downloads, `npm ci`, all Vitest tests in run mode,
+  TypeScript validation, production build, and `npm audit --audit-level=high` (high/critical
+  findings or an unavailable audit service fail the check).
+
+Actions use immutable commit pins from the official repositories. Workflow permissions are
+limited to reading contents; checkout credentials are not persisted. Superseded runs are
+cancelled, and jobs have timeouts. No repository secrets or administrator bootstrap settings
+are needed. Service credentials in the workflow are temporary and public by design.
+
+View results in the repository's **Actions → CI** or the pull request's **Checks** tab.
+Local reproduction from the repository root (.NET 10, Node.js 24, npm and Docker required):
+
+```sh
+docker run -d --name shiftflow-ci-local \
+  -e POSTGRES_DB=shiftflow_ci -e POSTGRES_USER=shiftflow_ci \
+  -e POSTGRES_PASSWORD=ci-only-disposable \
+  -p 127.0.0.1:55432:5432 \
+  --health-cmd 'pg_isready -U shiftflow_ci -d shiftflow_ci' \
+  --health-interval 5s --health-timeout 5s --health-retries 12 postgres:17-alpine
+# Wait for "healthy" before proceeding; stop if the container exits or remains unhealthy.
+docker inspect --format '{{.State.Health.Status}}' shiftflow-ci-local
+
+export CI=true RUN_POSTGRES_TESTS=1 ASPNETCORE_ENVIRONMENT=CI
+export TEST_POSTGRES_CONNECTION_STRING='Host=127.0.0.1;Port=55432;Database=shiftflow_ci;Username=shiftflow_ci;Password=ci-only-disposable'
+export ConnectionStrings__Database="$TEST_POSTGRES_CONNECTION_STRING"
+dotnet restore ShiftManager.slnx
+dotnet tool restore
+dotnet build ShiftManager.slnx -c Release --no-restore --warnaserror
+dotnet ef database update --project src/ShiftManager --configuration Release --no-build
+dotnet ef migrations has-pending-model-changes --project src/ShiftManager --configuration Release --no-build
+dotnet test ShiftManager.slnx -c Release --no-build --no-restore
+npm ci --prefix frontend
+npm test --prefix frontend
+npm run build --prefix frontend
+npm audit --prefix frontend --audit-level=high
+
+# Cleanup even when a check fails:
+docker rm -f -v shiftflow-ci-local
+unset CI RUN_POSTGRES_TESTS ASPNETCORE_ENVIRONMENT TEST_POSTGRES_CONNECTION_STRING ConnectionStrings__Database
+```
+
+The service connection must use a loopback host and the disposable `shiftflow_ci` database.
+Tests create and drop a unique `shiftflow_test_*` database per test, preserving isolation
+for parallel authentication tests and migration rollback tests. The service role needs
+permission to create/drop databases. CI fails if this connection is absent; local runs
+without it retain the existing Testcontainers path. Never point it at a development or
+production database. The separate `shiftflow_ci` database verifies the EF CLI migration path.
+Run `actionlint .github/workflows/ci.yml` locally if actionlint is installed.
+
+After the first GitHub run, configure **Settings → Rules → Rulesets** (or branch protection)
+for `main`: require a pull request, require the **Backend** and **Frontend** status checks,
+require branches to be up to date, and block force pushes and branch deletion. Select the
+actual check names shown by GitHub. Enable GitHub Actions and allow the pinned official
+`actions/checkout`, `actions/setup-dotnet`, and `actions/setup-node` actions under repository
+or organization policy. No deployment permissions or secrets are required.
+
+CI validates changes. CD delivers or deploys builds to an environment. Automated production
+deployment is intentionally deferred until a production environment exists.
 
 ## Structure and conventions
 
