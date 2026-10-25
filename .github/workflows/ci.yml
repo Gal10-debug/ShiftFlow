@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      DOTNET_NOLOGO: 'true'
+      DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+      ASPNETCORE_ENVIRONMENT: CI
+      RUN_POSTGRES_TESTS: '1'
+      # Disposable service credentials only; never use repository secrets here.
+      TEST_POSTGRES_CONNECTION_STRING: Host=127.0.0.1;Port=5432;Database=shiftflow_ci;Username=shiftflow_ci;Password=ci-only-disposable
+      ConnectionStrings__Database: Host=127.0.0.1;Port=5432;Database=shiftflow_ci;Username=shiftflow_ci;Password=ci-only-disposable
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: shiftflow_ci
+          POSTGRES_USER: shiftflow_ci
+          POSTGRES_PASSWORD: ci-only-disposable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U shiftflow_ci -d shiftflow_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore dependencies and EF tools
+        run: |
+          dotnet restore ShiftManager.slnx
+          dotnet tool restore
+      - name: Build Release with warnings as errors
+        run: dotnet build ShiftManager.slnx -c Release --no-restore --warnaserror
+      - name: Apply migrations to clean service database
+        run: dotnet ef database update --project src/ShiftManager --configuration Release --no-build
+      - name: Check for pending model changes
+        run: dotnet ef migrations has-pending-model-changes --project src/ShiftManager --configuration Release --no-build
+      - name: Run all backend tests against isolated service databases
+        run: dotnet test ShiftManager.slnx -c Release --no-build --no-restore --logger "trx;LogFileName=backend.trx"
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Test frontend
+        run: npm test
+      - name: Build production assets and validate TypeScript
+        run: npm run build
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
