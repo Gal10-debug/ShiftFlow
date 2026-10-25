@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { api, resetCsrf } from "../api";
 import { home, useAuth } from "../auth";
+import { av } from "../availability";
 import { he, message } from "../he";
 import { Notice } from "./forms";
 export default function Shell() {
@@ -32,13 +33,16 @@ export default function Shell() {
         <span className="nav-label">{he.workspace}</span>
         <nav aria-label={he.workspace}>
           {user!.roles.includes("ADMIN") && (
-            <NavLink to="/users">{he.users}</NavLink>
+            <>
+              <NavLink to="/users">{he.users}</NavLink>
+              <NavLink to="/availability-admin">{av.adminTitle}</NavLink>
+            </>
           )}
           {user!.roles.includes("COORDINATOR") && (
             <NavLink to="/coordinator">{he.coordinator}</NavLink>
           )}
           {user!.roles.includes("EMPLOYEE") && (
-            <NavLink to="/employee">{he.employee}</NavLink>
+            <NavLink to="/employee">{av.title}</NavLink>
           )}
           <NavLink to="/profile">{he.profile}</NavLink>
         </nav>

@@ -29,6 +29,9 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
   .AddSignInManager().AddDefaultTokenProviders().AddClaimsPrincipalFactory<AppClaimsFactory>();
 builder.Services.AddScoped<AppCookieEvents>();
 builder.Services.AddScoped<AccountService>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<AvailabilityService>();
+builder.Services.AddScoped<IHardBlockQuery>(services => services.GetRequiredService<AvailabilityService>());
 builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme).AddCookie(IdentityConstants.ApplicationScheme, options =>
 {
     options.Cookie.Name = builder.Environment.IsDevelopment() ? "ShiftFlow.Auth" : "__Host-ShiftFlow.Auth";
@@ -90,7 +93,7 @@ app.Use(async (context, next) =>
     catch (ApiException error)
     {
         context.Response.StatusCode = error.Status;
-        await context.Response.WriteAsJsonAsync(ApiErrors.Error(error.Code));
+        await context.Response.WriteAsJsonAsync(ApiErrors.Error(error));
     }
     catch (Exception error)
     {

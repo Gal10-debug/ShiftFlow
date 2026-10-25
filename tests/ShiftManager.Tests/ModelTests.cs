@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using ShiftManager.Data;
 using ShiftManager.Domain;
+using ShiftManager.Services;
 
 namespace ShiftManager.Tests;
 
@@ -16,7 +17,7 @@ public class ModelTests
     public void All_business_entities_have_guid_keys_and_explicit_restrict_foreign_keys()
     {
         using var db = CreateContext();
-        Type[] types = [typeof(SchedulePeriod), typeof(AvailabilityWindow), typeof(Shift), typeof(ShiftPreference),
+        Type[] types = [typeof(SchedulePeriod), typeof(AvailabilityWindow), typeof(AvailabilitySubmission), typeof(Shift), typeof(ShiftPreference),
             typeof(ShiftAssignment), typeof(TaskTemplate), typeof(ShiftTask), typeof(TaskAssignment), typeof(SchedulePublication)];
         foreach (var type in types)
         {
@@ -65,6 +66,14 @@ public class ModelTests
         Assert.Equal(date.ToDateTime(new TimeOnly(19, 0)), TimeZoneInfo.ConvertTimeFromUtc(start, zone));
         Assert.Equal(date.AddDays(1).ToDateTime(new TimeOnly(7, 0)), TimeZoneInfo.ConvertTimeFromUtc(end, zone));
     }
+
+    [Theory]
+    [InlineData("2026-10-01", "2026-09-27")]
+    [InlineData("2026-10-25", "2026-10-25")]
+    [InlineData("2027-01-01", "2026-12-27")]
+    [InlineData("2027-01-02", "2026-12-27")]
+    public void Availability_weeks_start_on_sunday_across_month_and_year_boundaries(string date, string sunday)
+        => Assert.Equal(DateOnly.Parse(sunday), AvailabilityService.WeekStart(DateOnly.Parse(date)));
 
     [Fact]
     public void Day_shift_uses_local_seven_to_nineteen()

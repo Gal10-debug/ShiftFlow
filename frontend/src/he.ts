@@ -80,6 +80,17 @@ export const he = {
   employeeBody: "הגישה שלך כעובד מאושרת. כאן יופיע בהמשך המידע האישי שלך.",
   rolesLabel: { ADMIN: "מנהל מערכת", COORDINATOR: "רכז", EMPLOYEE: "עובד" },
   errors: {
+    PERIOD_NOT_FOUND: "לא נמצאה תקופת זמינות לחודש שנבחר.",
+    WINDOW_NOT_CONFIGURED: "יש להגדיר חלון הגשה לפני הפתיחה.",
+    WINDOW_CLOSED: "חלון ההגשה אינו פתוח. לא ניתן להגיש או לעדכן זמינות.",
+    INVALID_WINDOW_TIME:
+      "יש להזין מועדים תקינים לפי שעון ישראל, עם סגירה לאחר הפתיחה. לפתיחה נדרשת סגירה עתידית; במעבר שעון יש לבחור שעה חד־משמעית.",
+    WEEKLY_BLOCK_LIMIT: "ניתן לחסום עד שלוש משמרות בשבוע, גם בחציית חודשים.",
+    PERIOD_PUBLISHED: "לא ניתן לשנות זמינות בתקופה שפורסמה.",
+    SHIFT_ALREADY_ASSIGNED:
+      "לא ניתן לחסום משמרת שכבר שובצת אליה. יש לפנות למנהל.",
+    NON_CANONICAL_SHIFT:
+      "נתוני המשמרות בחודש אינם תואמים לשעות העבודה. יש לפנות למנהל.",
     HTTPS_REQUIRED: "יש להתחבר באמצעות חיבור מאובטח.",
     INVALID_CREDENTIALS: "שם המשתמש או הסיסמה שגויים, או שלא ניתן להתחבר כעת.",
     UNAUTHENTICATED: "החיבור הסתיים. יש להתחבר מחדש.",
@@ -106,6 +117,13 @@ export const he = {
 export type Role = keyof typeof he.rolesLabel;
 export const roleNames: Role[] = ["ADMIN", "COORDINATOR", "EMPLOYEE"];
 export function message(error: unknown) {
+  if (
+    error instanceof Error &&
+    error.message === "WEEKLY_BLOCK_LIMIT" &&
+    "weekStartsOn" in error &&
+    typeof error.weekStartsOn === "string"
+  )
+    return `${he.errors.WEEKLY_BLOCK_LIMIT} השבוע שמתחיל ב־${error.weekStartsOn.split("-").reverse().join("/")}.`;
   return error instanceof Error && error.message in he.errors
     ? he.errors[error.message as keyof typeof he.errors]
     : he.errors.INTERNAL_ERROR;

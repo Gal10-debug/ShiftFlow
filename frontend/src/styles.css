@@ -691,3 +691,166 @@ legend {
     transition: none !important;
   }
 }
+
+select {
+  font: inherit;
+  color: inherit;
+  background: #fff;
+  border: 1px solid #cbd7df;
+  border-radius: 8px;
+  min-height: 42px;
+  padding: 0.45rem 0.65rem;
+  max-width: 100%;
+}
+select:focus-visible {
+  outline: 3px solid #39a9a2;
+  outline-offset: 3px;
+}
+select:disabled {
+  opacity: 1;
+  color: #294454;
+  cursor: default;
+}
+.availability-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+.availability-summary p {
+  margin-block: 0.4rem;
+}
+.availability-help {
+  padding-block: 1.2rem;
+  margin: 0;
+}
+.unsaved {
+  display: inline-block;
+  color: #7b4908;
+  background: #fff1d7;
+  border: 1px solid #e8ce9f;
+  border-radius: 6px;
+  padding: 0.15rem 0.6rem;
+}
+.calendar-weekdays,
+.calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+.calendar-weekdays {
+  text-align: center;
+  font-weight: 600;
+  color: #465e6c;
+  padding-block: 0.7rem;
+}
+.calendar-week {
+  margin-block-end: 1rem;
+}
+.week-caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: #e5eeef;
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  margin-block-end: 0.5rem;
+  font-size: 0.85rem;
+}
+.week-caption.over-limit {
+  color: #962727;
+  background: #ffe6e6;
+  border: 1px solid #c36b6b;
+}
+.calendar-day {
+  background: #fff;
+  border: 1px solid #d8e3e7;
+  border-radius: 10px;
+  padding: 0.55rem;
+  min-width: 0;
+}
+.day-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.25rem;
+  align-items: baseline;
+  margin-block-end: 0.5rem;
+}
+.day-heading strong {
+  font-size: 1.15rem;
+}
+.day-heading span {
+  font-size: 0.7rem;
+  color: #526c7b;
+}
+.shift-choice {
+  display: grid;
+  gap: 0.3rem;
+  border-inline-start: 3px solid #a9bbc4;
+  border-radius: 5px;
+  padding: 0.4rem;
+  margin-block: 0.5rem;
+}
+.shift-choice > span {
+  font-size: 0.68rem;
+  line-height: 1.45;
+  min-height: 2.1em;
+}
+.shift-choice select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0.2rem;
+  font-size: 0.82rem;
+}
+.state-preferred {
+  background: #e3f4eb;
+  border-color: #267448;
+}
+.state-blocked {
+  background: #fce9e9;
+  border-color: #a63939;
+}
+.availability-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  position: sticky;
+  bottom: 0;
+  padding: 1rem;
+  background: #f4f7faf5;
+  border-block-start: 1px solid #d3dfe5;
+}
+.availability-roster,
+.availability-detail {
+  margin-block-start: 1.5rem;
+}
+@media (max-width: 1150px) {
+  .calendar-weekdays {
+    display: none;
+  }
+  .calendar-days {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .calendar-placeholder {
+    display: none;
+  }
+  .shift-choice > span {
+    font-size: 0.8rem;
+  }
+}
+@media (max-width: 550px) {
+  .calendar-days {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .calendar-day {
+    padding: 0.65rem;
+  }
+  .availability-summary {
+    gap: 1rem;
+  }
+  .availability-actions {
+    padding-inline: 0;
+  }
+}

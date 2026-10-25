@@ -7,6 +7,8 @@ import PasswordPage from "./pages/PasswordPage";
 import Profile from "./pages/Profile";
 import Users from "./pages/Users";
 import AccessPage from "./pages/AccessPage";
+import Availability from "./pages/Availability";
+import AvailabilityAdmin from "./pages/AvailabilityAdmin";
 import InfoPage from "./pages/InfoPage";
 function Start() {
   const { user, loading } = useAuth();
@@ -29,6 +31,7 @@ export function AppRoutes() {
           <Route path="/profile" element={<Profile />} />
           <Route element={<Protected role="ADMIN" />}>
             <Route path="/users" element={<Users />} />
+            <Route path="/availability-admin" element={<AvailabilityAdmin />} />
           </Route>
           <Route element={<Protected role="COORDINATOR" />}>
             <Route
@@ -37,7 +40,8 @@ export function AppRoutes() {
             />
           </Route>
           <Route element={<Protected role="EMPLOYEE" />}>
-            <Route path="/employee" element={<AccessPage role="EMPLOYEE" />} />
+            <Route path="/employee" element={<Availability />} />
+            <Route path="/availability" element={<Availability />} />
           </Route>
           <Route path="/unauthorized" element={<InfoPage />} />
         </Route>

@@ -1,16 +1,26 @@
 using Microsoft.AspNetCore.Identity;
 namespace ShiftManager.Api;
 
-public sealed class ApiException(string code, int status = 400) : Exception(code)
+public sealed class ApiException(string code, int status = 400, DateOnly? weekStartsOn = null, int? limit = null) : Exception(code)
 {
     public string Code { get; } = code;
     public int Status { get; } = status;
+    public DateOnly? WeekStartsOn { get; } = weekStartsOn;
+    public int? Limit { get; } = limit;
 }
 
 public static class ApiErrors
 {
     public static ApiError Error(string code) => new(code, code switch
     {
+        "PERIOD_NOT_FOUND" => "לא נמצאה תקופת זמינות לחודש שנבחר.",
+        "WINDOW_NOT_CONFIGURED" => "יש להגדיר חלון הגשה לפני הפתיחה.",
+        "WINDOW_CLOSED" => "חלון ההגשה אינו פתוח. לא ניתן להגיש או לעדכן זמינות.",
+        "INVALID_WINDOW_TIME" => "יש להזין מועד פתיחה ומועד סגירה מאוחר ממנו. לפתיחה נדרש מועד סגירה עתידי.",
+        "WEEKLY_BLOCK_LIMIT" => "ניתן לחסום עד שלוש משמרות בשבוע, מיום ראשון עד שבת, גם בחציית חודשים.",
+        "PERIOD_PUBLISHED" => "לא ניתן לשנות זמינות בתקופה שפורסמה.",
+        "SHIFT_ALREADY_ASSIGNED" => "לא ניתן לחסום משמרת שכבר שובצת אליה. יש לפנות למנהל.",
+        "NON_CANONICAL_SHIFT" => "נתוני המשמרות בחודש אינם תואמים לשעות העבודה. יש לפנות למנהל.",
         "HTTPS_REQUIRED" => "יש להתחבר למערכת באמצעות חיבור מאובטח.",
         "INVALID_CREDENTIALS" => "שם המשתמש או הסיסמה שגויים, או שלא ניתן להתחבר כעת.",
         "UNAUTHENTICATED" => "יש להתחבר למערכת כדי להמשיך.",
@@ -32,6 +42,12 @@ public static class ApiErrors
         "METHOD_NOT_ALLOWED" => "הפעולה אינה נתמכת בכתובת זו.",
         _ => "אירעה שגיאה. יש לנסות שוב מאוחר יותר."
     });
+
+    public static ApiError Error(ApiException error)
+    {
+        var result = Error(error.Code);
+        return result with { WeekStartsOn = error.WeekStartsOn, Limit = error.Limit };
+    }
 
     public static void Ensure(IdentityResult result)
     {

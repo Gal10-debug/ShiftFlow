@@ -19,4 +19,8 @@ public sealed record ResetPasswordRequest([Required, StringLength(128, MinimumLe
 public sealed record UserResponse(Guid Id, string FirstName, string LastName, string Username, bool IsActive,
     bool MustChangePassword, DateTime CreatedAt, string[] Roles);
 public sealed record UserPage(UserResponse[] Items, int TotalCount, int Page, int PageSize);
-public sealed record ApiError(string Code, string Message);
+public sealed record ApiError(string Code, string Message)
+{
+    public DateOnly? WeekStartsOn { get; init; }
+    public int? Limit { get; init; }
+}

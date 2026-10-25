@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { resetCsrf, type User } from "./api";
 import { he } from "./he";
+import { av } from "./availability";
 import indexHtml from "../index.html?raw";
 
 const employee: User = {
@@ -71,6 +72,7 @@ beforeEach(() => {
         current = null;
         return new Response(null, { status: 204 });
       }
+      if (path === "/api/availability/periods") return json([]);
       if (path.startsWith("/api/access/"))
         return new Response(null, { status: 204 });
       if (path.startsWith("/api/users") && method === "GET")
@@ -157,7 +159,7 @@ it("forces first-login password change and completes the flow", async () => {
   );
   await user.click(screen.getByRole("button", { name: he.changePassword }));
   expect(
-    await screen.findByRole("heading", { name: he.employee }),
+    await screen.findByRole("heading", { name: av.title }),
   ).toBeVisible();
   expect(writes[0].path).toBe("/api/auth/change-password");
 });

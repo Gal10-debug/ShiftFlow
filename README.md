@@ -2,7 +2,9 @@
 
 Hebrew-first workforce application. Phase 1 provides PostgreSQL/EF Core scheduling data;
 Phase 2 provides cookie authentication, authorization, manager-controlled accounts and a
-Hebrew RTL React interface. Availability, scheduling and task-allocation features are deferred.
+Hebrew RTL React interface. Phase 3 adds explicit monthly availability submissions,
+administrator-controlled windows and cross-month weekly hard-block limits. Scheduling and
+task-allocation features remain deferred.
 
 ## Local setup
 
@@ -95,6 +97,37 @@ store, persist ASP.NET Core data-protection keys in protected storage, and termi
 at a correctly configured trusted proxy or Kestrel. Do not set Development in production.
 Forwarded-header trust must be configured for the actual proxy; no arbitrary proxy headers
 are trusted. See [authentication architecture](docs/authentication-architecture.md).
+
+## Availability and preferences
+
+Employees use **הזמינות שלי** (`/employee` or `/availability`) to select day/night availability.
+Calendar edits stay local until **הגש זמינות**; subsequent **עדכן זמינות** actions replace the
+entire monthly submission. An all-Available month still counts as submitted. Submitted data
+and unsaved edits have separate indicators; refreshing reloads the last successful submission.
+
+Administrators use **ניהול זמינות** (`/availability-admin`) to configure a monthly window,
+explicitly open/close it and review active employees' submission status and read-only
+preferences. Saving dates does not reopen a closed window. Reopening preserves submissions
+and permits updates until the new deadline. Only active EMPLOYEE role holders may submit;
+coordinators have no additional availability permissions.
+
+Available is the default, Preferred is a soft request, and Blocked is a hard constraint.
+Each employee may block at most three shifts per Sunday–Saturday week in Asia/Jerusalem,
+counting across month/year boundaries. The server enforces the complete replacement in
+one locked transaction. PostgreSQL also prevents assigning a blocked employee to that shift.
+The UI and window times use Israel time; actual timestamps are stored in UTC.
+
+After pulling this phase, apply the additive migration before starting the app:
+
+```sh
+dotnet tool restore
+dotnet ef database update --project src/ShiftManager
+```
+
+Keep the database connection environment from Local setup. No new secrets or CI settings
+are required. See [availability architecture](docs/availability-architecture.md) for window
+states, API routes, schema/backfill assumptions, locking, Phase 4 contracts, limitations
+and a step-by-step manual test. The existing CI reproduction commands run all new tests.
 
 ## Authentication and API
 
@@ -223,10 +256,11 @@ deployment is intentionally deferred until a production environment exists.
 - `src/ShiftManager/Security`, `Services`: cookie/claims validation, account transactions and bootstrap.
 - `frontend/src`: React Router shell, login, first-password, profile and user-management screens,
   small fetch client and centralized Hebrew resources; no global state library.
-- `tests/ShiftManager.Tests`: model, DST, PostgreSQL and authentication/security tests.
+- `tests/ShiftManager.Tests`: model, DST, PostgreSQL, authentication/security and availability/concurrency tests.
 - [Database architecture](docs/database-architecture.md),
-  [authentication architecture](docs/authentication-architecture.md).
+  [authentication architecture](docs/authentication-architecture.md),
+  [availability architecture](docs/availability-architecture.md).
 
 Hebrew is the MVP language: `lang="he"`, `dir="rtl"`, logical CSS, LTR password inputs,
 centralized visible text, he-IL date formatting as DD/MM/YYYY, 24-hour times, Israel-local
-Sunday–Saturday weeks and UTC persisted instants. No availability/schedule/task UI is present.
+Sunday–Saturday weeks and UTC persisted instants. Availability is implemented; scheduling and task execution UI remain deferred.

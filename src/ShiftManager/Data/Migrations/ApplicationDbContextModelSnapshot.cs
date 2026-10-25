@@ -264,6 +264,38 @@ namespace ShiftManager.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ShiftManager.Domain.AvailabilitySubmission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("LastSubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SchedulePeriodId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SchedulePeriodId");
+
+                    b.HasIndex("UserId", "SchedulePeriodId")
+                        .IsUnique();
+
+                    b.ToTable("AvailabilitySubmission", t =>
+                        {
+                            t.HasCheckConstraint("CK_Submission_Version", "\"Version\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("ShiftManager.Domain.AvailabilityWindow", b =>
                 {
                     b.Property<Guid>("Id")
@@ -636,6 +668,25 @@ namespace ShiftManager.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.AvailabilitySubmission", b =>
+                {
+                    b.HasOne("ShiftManager.Domain.SchedulePeriod", "SchedulePeriod")
+                        .WithMany()
+                        .HasForeignKey("SchedulePeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShiftManager.Domain.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SchedulePeriod");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ShiftManager.Domain.AvailabilityWindow", b =>

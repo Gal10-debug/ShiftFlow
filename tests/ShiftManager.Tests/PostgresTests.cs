@@ -110,7 +110,7 @@ public class PostgresTests : IAsyncLifetime
         var start = new DateTime(2026, 4, 1, 4, 0, 0, DateTimeKind.Utc);
         var shift = new Shift { SchedulePeriod = period, ShiftDate = new(2026, 4, 1), StartsAt = start, EndsAt = start.AddHours(12) };
         db.AddRange(new AvailabilityWindow { SchedulePeriod = period, OpenedByUser = user, OpensAt = start },
-            new ShiftPreference { Shift = shift, User = user },
+            new ShiftPreference { Shift = shift, User = user, PreferenceType = PreferenceType.PREFERRED },
             new ShiftAssignment { Shift = shift, User = user },
             new SchedulePublication { SchedulePeriod = period, PublishedByUser = user, VersionNumber = 1, PublishedAt = start });
         await db.SaveChangesAsync();
@@ -118,7 +118,7 @@ public class PostgresTests : IAsyncLifetime
             new SchedulePeriod { Year = 2026, Month = 4 },
             new AvailabilityWindow { SchedulePeriodId = period.Id, OpenedByUserId = user.Id, OpensAt = start },
             new Shift { SchedulePeriodId = period.Id, ShiftDate = shift.ShiftDate, StartsAt = start, EndsAt = start.AddHours(12) },
-            new ShiftPreference { ShiftId = shift.Id, UserId = user.Id },
+            new ShiftPreference { ShiftId = shift.Id, UserId = user.Id, PreferenceType = PreferenceType.PREFERRED },
             new ShiftAssignment { ShiftId = shift.Id, UserId = user.Id },
             new SchedulePublication { SchedulePeriodId = period.Id, PublishedByUserId = user.Id, VersionNumber = 1, PublishedAt = start }
         ];

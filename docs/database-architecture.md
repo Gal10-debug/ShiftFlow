@@ -1,5 +1,14 @@
 # Database architecture
 
+## Phase 3 extension
+
+[Availability architecture](availability-architecture.md) documents the implemented window,
+submission and hard-block rules. AvailabilitySubmission adds durable user/period submission
+status, UTC timestamp and version, with unique and RESTRICT constraints. Availability writes
+now use month-creation lock → period row lock → whole-employee advisory lock, a safe coarser
+alternative to the weekly-key proposal below. PostgreSQL triggers reject new assignment/block
+conflicts. Scheduling/publication/task services below remain deferred requirements.
+
 ## Scope and storage conventions
 
 One ASP.NET Core host, one EF Core Identity context, PostgreSQL 17 and GUID keys.
@@ -20,6 +29,7 @@ cannot be blank. Descriptions may be empty, but cannot be NULL.
 | SchedulePeriod | Unique calendar year/month, DRAFT or PUBLISHED, creation/update instants. Has many shifts and publications; zero or one availability window. |
 | AvailabilityWindow | One per period when present; OPEN/CLOSED with open/close instants and opening/closing users. |
 | Shift | Starts on a local ShiftDate, DAY/NIGHT, belongs to one period; optional coordinator; many preferences, staffing assignments and tasks. |
+| AvailabilitySubmission | One per user/period; official submission timestamp and monotonically increasing version, including all-Available submissions. |
 | ShiftPreference | One user/shift preference, BLOCKED or PREFERRED. No row means neutral. |
 | ShiftAssignment | One employee per shift, with per-shift lead flag; many task assignments. |
 | TaskTemplate | Reusable name/description and active flag; many optional references from shift tasks. |
@@ -163,6 +173,6 @@ host's Asia/Jerusalem rules are authoritative. Scheduling/task mutation paths an
 protocols above remain design requirements. There are no scheduler or task APIs yet.
 Authentication, Hebrew error resources and account management are implemented in Phase 2; see authentication-architecture.md.
 Task parent edits with existing assignments deliberately require explicit reassignment.
-Next: transactional availability services before scheduling/publication.
+Phase 3 now implements transactional availability services; scheduling/publication remain next.
 Account writes already use their own PostgreSQL transaction/advisory-lock protocol,
 including final-active-administrator protection and immediate session-stamp revocation.

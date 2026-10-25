@@ -49,13 +49,20 @@ export async function api<T>(
     if (!response.ok) {
       const error = (await response
         .json()
-        .catch(() => ({ code: "INTERNAL_ERROR" }))) as { code: string };
+        .catch(() => ({ code: "INTERNAL_ERROR" }))) as {
+        code: string;
+        weekStartsOn?: string;
+        limit?: number;
+      };
       if (response.status === 401 && path !== "/auth/login") {
         resetCsrf();
         window.dispatchEvent(new Event("session-expired"));
       }
       if (error.code === "CSRF_INVALID") resetCsrf();
-      throw new Error(error.code || "INTERNAL_ERROR");
+      throw Object.assign(new Error(error.code || "INTERNAL_ERROR"), {
+        weekStartsOn: error.weekStartsOn,
+        limit: error.limit,
+      });
     }
     return response.status === 204
       ? (undefined as T)
