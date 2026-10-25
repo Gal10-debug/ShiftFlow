@@ -23,4 +23,5 @@ public sealed record ApiError(string Code, string Message)
 {
     public DateOnly? WeekStartsOn { get; init; }
     public int? Limit { get; init; }
+    public Dictionary<string, string>? FieldErrors { get; init; }
 }

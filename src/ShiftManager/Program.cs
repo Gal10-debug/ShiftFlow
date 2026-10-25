@@ -72,7 +72,7 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 builder.Services.AddControllers().AddJsonOptions(options => options.JsonSerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)
-    .ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = _ => new BadRequestObjectResult(ApiErrors.Error("VALIDATION_ERROR")));
+    .ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = context => new BadRequestObjectResult(ApiErrors.Validation(context)));
 builder.Services.AddOpenApi();
 builder.Services.Configure<RequestLocalizationOptions>(options => options
     .SetDefaultCulture("he-IL").AddSupportedCultures("he-IL").AddSupportedUICultures("he-IL"));

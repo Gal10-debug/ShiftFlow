@@ -8,28 +8,71 @@ task-allocation features remain deferred.
 
 ## Local setup
 
-Requirements: .NET 10 SDK, Node.js 22.12+ (or newer supported LTS), npm and Docker Desktop.
-Preserve your existing `.env` and database password. For a fresh installation, create an
-untracked `.env` containing `POSTGRES_PASSWORD=your-local-password` before Compose startup.
+Requirements: .NET 10 SDK, a supported Node.js LTS (24 recommended; minimum 22.12), npm,
+Docker Desktop and Bash (macOS/Linux). Start Docker Desktop first.
+
+Preserve your existing `.env` and database password. On a fresh installation, create an
+untracked root `.env` with `POSTGRES_PASSWORD=<your-local-password>`. For passwords with
+special characters, use Compose dotenv quoting, for example `POSTGRES_PASSWORD='...'`.
 Do not commit secrets. Changing this value does not change the password in an existing volume.
 
+Run once after cloning, or when .NET/npm dependencies or the EF tool manifest change:
+
 ```sh
-# From the repository root; .env must contain shell-compatible assignments.
-set -a
-. ./.env
-set +a
-export ConnectionStrings__Database="Host=localhost;Database=shiftmanager;Username=shiftmanager;Password=$POSTGRES_PASSWORD"
-docker compose up -d --wait
-dotnet tool restore
-dotnet restore
-dotnet ef database update --project src/ShiftManager
-npm ci --prefix frontend
+./scripts/dev.sh setup
 ```
 
-Compose reads `.env` automatically; .NET and Vite do not load the root file. Loading it in
-your shell supplies the password for the connection string. An exported shell variable
-can override Compose's `.env` value. The existing PostgreSQL Compose service is preserved.
-Migrations are explicitly applied, never automatically run at web-host startup.
+This starts PostgreSQL and waits for health, restores .NET dependencies/tools, runs `npm ci`
+and applies migrations. It does not create an administrator or start the application servers.
+For new migrations without reinstalling tools or frontend dependencies:
+
+```sh
+./scripts/dev.sh migrate
+```
+
+Both commands preserve the existing PostgreSQL volume. Normal startup checks dependencies,
+PostgreSQL authentication and applied migration IDs and points to setup/migrate when needed;
+it never automatically installs tools, reinstalls npm packages or applies migrations.
+
+## Start development
+
+From the repository root, run one command:
+
+```sh
+./scripts/dev.sh
+```
+
+Open **http://127.0.0.1:5173**. The script starts the existing PostgreSQL Compose service,
+waits for health, configures the backend database connection and launches ASP.NET Core and
+Vite together. Backend: **http://localhost:5080**. Output from both servers appears in the
+same terminal. Ctrl+C stops both servers and their child processes. If either server exits,
+the other is stopped too and the command fails. PostgreSQL stays running so its data is
+preserved. Stop it separately when desired with `docker compose stop postgres`.
+
+The script works from any directory when invoked by its path, reports occupied ports and
+missing configuration/dependencies, and uses Compose's dotenv parser without executing `.env`
+as shell code. The root `.env` is authoritative for POSTGRES_PASSWORD, even if an older
+value was exported in your terminal. The connection string is built only in memory and is
+not passed to Vite. No credential files or application settings are generated. A password
+mismatch with an existing database is reported; the script never deletes or resets its volume.
+Do not run the script with shell tracing (`bash -x`) or print resolved Compose configuration,
+which contains secrets. Migrations remain explicit, never applied at web-host startup.
+
+Sign in using your existing administrator account. For a new database, bootstrap the first
+administrator using the separate instructions below. Vite proxies `/api` to
+`http://127.0.0.1:5080`; use the frontend origin consistently. Only Development permits HTTP
+cookies. Production requires HTTPS and Secure cookies. CI and production startup are unchanged.
+
+For a same-origin frontend build served by ASP.NET Core, stop the combined servers first,
+build with `npm run build --prefix frontend`, then run the backend with the manually configured
+local database connection described in the bootstrap section. Generated frontend assets go to
+ignored `src/ShiftManager/wwwroot`. For deployment, build frontend assets before
+`dotnet publish src/ShiftManager -c Release`. Configure `ConnectionStrings__Database` from
+a secret store, persist data-protection keys in protected storage and terminate HTTPS at
+a trusted proxy or Kestrel. Do not set Development in production. Forwarded-header trust
+must be configured for the actual proxy; arbitrary proxy headers are not trusted. See
+[authentication architecture](docs/authentication-architecture.md). Automated deployment
+remains deferred.
 
 ## Bootstrap the first administrator
 
@@ -63,41 +106,6 @@ user-management screen for additional administrators. First login requires chang
 temporary password. Passwords must be delivered to employees through a separate secure
 organizational channel; no email recovery or password delivery is implemented here.
 
-## Start development
-
-Keep the database connection environment from setup in the backend terminal:
-
-```sh
-dotnet run --project src/ShiftManager --launch-profile http
-```
-
-In a second terminal:
-
-```sh
-npm run dev --prefix frontend
-```
-
-Open **http://127.0.0.1:5173** and sign in using your bootstrap credentials, then change the
-temporary password. Vite proxies `/api` to `http://127.0.0.1:5080`; use the frontend origin
-consistently. There is no cross-origin credential/CORS configuration to maintain.
-Only Development permits HTTP cookies. Production requires HTTPS and Secure cookies.
-
-For a same-origin build served by ASP.NET Core:
-
-```sh
-npm run build --prefix frontend
-dotnet run --project src/ShiftManager --launch-profile http
-# Open http://localhost:5080
-```
-
-The frontend build writes ignored generated assets to `src/ShiftManager/wwwroot`.
-For deployment, build frontend assets before `dotnet publish src/ShiftManager -c Release`.
-Use a supported Node LTS for builds, configure `ConnectionStrings__Database` from a secret
-store, persist ASP.NET Core data-protection keys in protected storage, and terminate HTTPS
-at a correctly configured trusted proxy or Kestrel. Do not set Development in production.
-Forwarded-header trust must be configured for the actual proxy; no arbitrary proxy headers
-are trusted. See [authentication architecture](docs/authentication-architecture.md).
-
 ## Availability and preferences
 
 Employees use **הזמינות שלי** (`/employee` or `/availability`) to select day/night availability.
@@ -120,11 +128,10 @@ The UI and window times use Israel time; actual timestamps are stored in UTC.
 After pulling this phase, apply the additive migration before starting the app:
 
 ```sh
-dotnet tool restore
-dotnet ef database update --project src/ShiftManager
+./scripts/dev.sh migrate
 ```
 
-Keep the database connection environment from Local setup. No new secrets or CI settings
+The script configures the local database connection. No new secrets or CI settings
 are required. See [availability architecture](docs/availability-architecture.md) for window
 states, API routes, schema/backfill assumptions, locking, Phase 4 contracts, limitations
 and a step-by-step manual test. The existing CI reproduction commands run all new tests.
@@ -163,6 +170,18 @@ there is no mass assignment of Identity fields. Directory pagination is capped a
 Development-only OpenAPI JSON is at `/openapi/v1.json`.
 
 ## Builds and tests
+
+Validate the local startup orchestration without touching Docker or your development database:
+
+```sh
+bash -n scripts/dev.sh
+python3 scripts/test-dev.py
+```
+
+The startup tests use temporary projects and fake command-line tools to exercise failure,
+setup/migration separation, secret handling and process-group shutdown (Python 3 required
+only for these tests).
+
 
 ```sh
 dotnet build

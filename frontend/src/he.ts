@@ -31,6 +31,7 @@ export const he = {
   editRoles: "עדכון תפקידים",
   resetPassword: "איפוס סיסמה",
   initialPassword: "סיסמה זמנית",
+  usernameHelp: "1–100 תווים: אותיות, ספרות או . _ @ + - בלבד, ללא רווחים.",
   passwordHelp: "12–128 תווים, אות גדולה וקטנה באנגלית, ספרה וסימן מיוחד.",
   temporaryHelp: "המשתמש יתבקש להחליף את הסיסמה הזמנית בהתחברות הבאה.",
   search: "חיפוש",
@@ -97,6 +98,9 @@ export const he = {
     FORBIDDEN: "אין לך הרשאה לביצוע הפעולה.",
     PASSWORD_CHANGE_REQUIRED: "יש להחליף את הסיסמה הראשונית כדי להמשיך.",
     VALIDATION_ERROR: "יש לבדוק את השדות שהוזנו ואת אורכם.",
+    INVALID_USERNAME:
+      "שם המשתמש חייב להכיל 1–100 תווים: אותיות, ספרות או הסימנים . _ @ + - בלבד, ללא רווחים.",
+    INVALID_NAME: "יש להזין שם באורך 1–100 תווים שאינו מכיל רק רווחים.",
     INVALID_PASSWORD:
       "הסיסמה אינה עומדת בדרישות. יש לבחור 12–128 תווים עם אות גדולה וקטנה באנגלית, ספרה וסימן מיוחד.",
     PASSWORD_CHANGE_FAILED:
@@ -117,6 +121,31 @@ export const he = {
 export type Role = keyof typeof he.rolesLabel;
 export const roleNames: Role[] = ["ADMIN", "COORDINATOR", "EMPLOYEE"];
 export function message(error: unknown) {
+  if (
+    error instanceof Error &&
+    error.message === "VALIDATION_ERROR" &&
+    "fieldErrors" in error &&
+    error.fieldErrors &&
+    typeof error.fieldErrors === "object"
+  ) {
+    const labels: Record<string, string> = {
+      firstName: he.firstName,
+      lastName: he.lastName,
+      username: he.username,
+      initialPassword: he.initialPassword,
+      temporaryPassword: he.initialPassword,
+      roles: he.roles,
+    };
+    const details = Object.entries(error.fieldErrors).flatMap(
+      ([field, code]) =>
+        Object.hasOwn(labels, field) &&
+        typeof code === "string" &&
+        Object.hasOwn(he.errors, code)
+          ? [`${labels[field]}: ${he.errors[code as keyof typeof he.errors]}`]
+          : [],
+    );
+    if (details.length) return details.join(" ");
+  }
   if (
     error instanceof Error &&
     error.message === "WEEKLY_BLOCK_LIMIT" &&

@@ -40,12 +40,20 @@ function UserEditor({
       old?.focus();
     };
   }, []);
-  async function submit(e: FormEvent) {
+  async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Read displayed values at submission time, including password-manager autofill.
+    const form = new FormData(e.currentTarget);
+    const submittedFirst = String(form.get("firstName") ?? "");
+    const submittedLast = String(form.get("lastName") ?? "");
+    const submittedUsername = String(form.get("username") ?? "");
+    const submittedPassword = String(form.get("temporaryPassword") ?? "");
     setError("");
     if (
       ["create", "edit"].includes(editor.mode) &&
-      (!firstName.trim() || !lastName.trim() || !username.trim())
+      (!submittedFirst.trim() ||
+        !submittedLast.trim() ||
+        !submittedUsername.trim())
     ) {
       setError(he.required);
       return;
@@ -54,32 +62,52 @@ function UserEditor({
       setError(he.chooseRole);
       return;
     }
-    if (["create", "reset"].includes(editor.mode) && !password) {
+    if (["create", "reset"].includes(editor.mode) && !submittedPassword) {
       setError(he.required);
+      return;
+    }
+    if (["create", "edit"].includes(editor.mode)) {
+      if (submittedFirst.length > 100 || submittedLast.length > 100) {
+        setError(he.errors.INVALID_NAME);
+        return;
+      }
+      if (
+        submittedUsername.length > 100 ||
+        !/^[\p{L}\p{N}._@+\-]+$/u.test(submittedUsername)
+      ) {
+        setError(he.errors.INVALID_USERNAME);
+        return;
+      }
+    }
+    if (
+      ["create", "reset"].includes(editor.mode) &&
+      (submittedPassword.length < 12 || submittedPassword.length > 128)
+    ) {
+      setError(he.errors.INVALID_PASSWORD);
       return;
     }
     setBusy(true);
     try {
       if (editor.mode === "create")
         await api("/users", "POST", {
-          firstName,
-          lastName,
-          username,
-          initialPassword: password,
+          firstName: submittedFirst,
+          lastName: submittedLast,
+          username: submittedUsername,
+          initialPassword: submittedPassword,
           roles,
           isActive: active,
         });
       if (editor.mode === "edit")
         await api(`/users/${editor.user!.id}`, "PUT", {
-          firstName,
-          lastName,
-          username,
+          firstName: submittedFirst,
+          lastName: submittedLast,
+          username: submittedUsername,
         });
       if (editor.mode === "roles")
         await api(`/users/${editor.user!.id}/roles`, "PUT", { roles });
       if (editor.mode === "reset")
         await api(`/users/${editor.user!.id}/reset-password`, "POST", {
-          temporaryPassword: password,
+          temporaryPassword: submittedPassword,
         });
       setPassword("");
       saved(
@@ -135,6 +163,7 @@ function UserEditor({
               onChange={setUsername}
               autoComplete="off"
             />
+            <p className="help">{he.usernameHelp}</p>
           </>
         )}
         {["create", "roles"].includes(editor.mode) && (

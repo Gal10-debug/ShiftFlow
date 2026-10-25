@@ -146,6 +146,26 @@ public sealed class AuthTests : IAsyncLifetime
     }
 
     [PostgresFact]
+    public async Task User_creation_validation_identifies_fields_without_echoing_input_or_passwords()
+    {
+        using var client = Client(); await Login(client);
+        foreach (var (username, password, field, code) in new[] {
+            ("new user", Password, "username", "INVALID_USERNAME"),
+            ("newuser", "Short!1", "initialPassword", "INVALID_PASSWORD") })
+        {
+            var response = await Send(client, "/api/users", new { firstName = "יעל", lastName = "לוי", username, initialPassword = password, roles = new[] { "EMPLOYEE" } });
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var json = await response.Content.ReadAsStringAsync();
+            Assert.DoesNotContain(password, json);
+            if (username.Contains(' ')) Assert.DoesNotContain(username, json);
+            var error = System.Text.Json.JsonSerializer.Deserialize<ApiError>(json, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+            Assert.Equal("VALIDATION_ERROR", error.Code);
+            Assert.Equal(code, error.FieldErrors![field]);
+        }
+        Assert.Equal(HttpStatusCode.Created, (await Send(client, "/api/users", new { firstName = "יעל", lastName = "לוי", username = "newuser", initialPassword = Password, roles = new[] { "EMPLOYEE" } })).StatusCode);
+    }
+
+    [PostgresFact]
     public async Task First_login_gate_cannot_be_bypassed_and_password_change_refreshes_session()
     {
         using var client = Client(); await Login(client, "firstlogin");

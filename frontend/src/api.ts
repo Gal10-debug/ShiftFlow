@@ -53,6 +53,7 @@ export async function api<T>(
         code: string;
         weekStartsOn?: string;
         limit?: number;
+        fieldErrors?: Record<string, string>;
       };
       if (response.status === 401 && path !== "/auth/login") {
         resetCsrf();
@@ -62,6 +63,7 @@ export async function api<T>(
       throw Object.assign(new Error(error.code || "INTERNAL_ERROR"), {
         weekStartsOn: error.weekStartsOn,
         limit: error.limit,
+        fieldErrors: error.fieldErrors,
       });
     }
     return response.status === 204

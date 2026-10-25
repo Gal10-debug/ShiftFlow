@@ -26,6 +26,10 @@ const admin: User = {
 };
 let current: User | null;
 let loginFailure: boolean;
+let createFailure: {
+  code: string;
+  fieldErrors?: Record<string, string>;
+} | null;
 let writes: {
   path: string;
   body: Record<string, unknown>;
@@ -41,6 +45,7 @@ beforeEach(() => {
   resetCsrf();
   current = null;
   loginFailure = false;
+  createFailure = null;
   writes = [];
   vi.stubGlobal(
     "fetch",
@@ -54,6 +59,11 @@ beforeEach(() => {
           body: options.body ? JSON.parse(options.body as string) : {},
           headers: options.headers as Record<string, string>,
         });
+      if (path === "/api/users" && method === "POST" && createFailure)
+        return json(
+          { ...createFailure, message: "Do not display raw server values" },
+          400,
+        );
       if (path === "/api/auth/me")
         return current ? json(current) : json({ code: "UNAUTHENTICATED" }, 401);
       if (path === "/api/auth/login")
@@ -158,9 +168,7 @@ it("forces first-login password change and completes the flow", async () => {
     "PersonalSecret!2026",
   );
   await user.click(screen.getByRole("button", { name: he.changePassword }));
-  expect(
-    await screen.findByRole("heading", { name: av.title }),
-  ).toBeVisible();
+  expect(await screen.findByRole("heading", { name: av.title })).toBeVisible();
   expect(writes[0].path).toBe("/api/auth/change-password");
 });
 it("rejects password confirmation mismatch before calling the server", async () => {
@@ -303,4 +311,91 @@ it("lets the user reveal password fields locally while preserving LTR", async ()
   expect(input).toHaveAttribute("dir", "ltr");
   await user.click(screen.getByLabelText(he.showPasswords));
   expect(input).toHaveAttribute("type", "password");
+});
+
+async function fillCreateUser(
+  username = "newuser",
+  password = "TemporaryPass!2026",
+) {
+  current = admin;
+  const user = userEvent.setup();
+  app("/users");
+  await user.click(await screen.findByRole("button", { name: he.createUser }));
+  const dialog = within(screen.getByRole("dialog"));
+  await user.type(dialog.getByLabelText(he.firstName), "יעל");
+  await user.type(dialog.getByLabelText(he.lastName), "לוי");
+  await user.type(dialog.getByLabelText(he.username), username);
+  await user.type(dialog.getByLabelText(he.initialPassword), password);
+  return { user, dialog };
+}
+it("rejects a short temporary password before sending a user creation request", async () => {
+  const { user, dialog } = await fillCreateUser("newuser", "Short!1");
+  await user.click(dialog.getByRole("button", { name: he.create }));
+  expect(dialog.getByRole("alert")).toHaveTextContent(
+    he.errors.INVALID_PASSWORD,
+  );
+  expect(writes).toHaveLength(0);
+});
+it("explains invalid username characters instead of sending a bad request", async () => {
+  const { user, dialog } = await fillCreateUser("new user");
+  await user.click(dialog.getByRole("button", { name: he.create }));
+  expect(dialog.getByRole("alert")).toHaveTextContent(
+    he.errors.INVALID_USERNAME,
+  );
+  expect(writes).toHaveLength(0);
+});
+it("creates a user with displayed autofill values even without React change events", async () => {
+  current = admin;
+  const user = userEvent.setup();
+  app("/users");
+  await user.click(await screen.findByRole("button", { name: he.createUser }));
+  const dialog = within(screen.getByRole("dialog"));
+  const setNativeValue = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value",
+  )!.set!;
+  for (const [label, value] of [
+    [he.firstName, "יעל"],
+    [he.lastName, "לוי"],
+    [he.username, "autofilled"],
+    [he.initialPassword, "AutofilledPass!2026"],
+  ])
+    setNativeValue.call(dialog.getByLabelText(label), value);
+  await user.click(dialog.getByRole("button", { name: he.create }));
+  await waitFor(() => expect(writes).toHaveLength(1));
+  expect(writes[0].body).toMatchObject({
+    username: "autofilled",
+    firstName: "יעל",
+    initialPassword: "AutofilledPass!2026",
+  });
+});
+it("displays safe server field validation details in Hebrew inside the user dialog", async () => {
+  const { user, dialog } = await fillCreateUser();
+  createFailure = {
+    code: "VALIDATION_ERROR",
+    fieldErrors: {
+      initialPassword: "INVALID_PASSWORD",
+      username: "INVALID_USERNAME",
+      unknown: "raw secret",
+    },
+  };
+  await user.click(dialog.getByRole("button", { name: he.create }));
+  const alert = await dialog.findByRole("alert");
+  expect(alert).toHaveTextContent(
+    `${he.initialPassword}: ${he.errors.INVALID_PASSWORD}`,
+  );
+  expect(alert).toHaveTextContent(
+    `${he.username}: ${he.errors.INVALID_USERNAME}`,
+  );
+  expect(alert).not.toHaveTextContent("raw secret");
+  expect(alert).not.toHaveTextContent("raw server values");
+  expect(screen.queryByText(he.createdUser)).not.toBeInTheDocument();
+});
+it("distinguishes a CSRF error from user input validation", async () => {
+  const { user, dialog } = await fillCreateUser();
+  createFailure = { code: "CSRF_INVALID" };
+  await user.click(dialog.getByRole("button", { name: he.create }));
+  expect(await dialog.findByRole("alert")).toHaveTextContent(
+    he.errors.CSRF_INVALID,
+  );
 });
