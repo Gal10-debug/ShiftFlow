@@ -17,7 +17,7 @@ using ShiftManager.Services;
 
 namespace ShiftManager.Tests;
 
-public sealed class SchedulingTests : IAsyncLifetime
+public sealed partial class SchedulingTests : IAsyncLifetime
 {
     private readonly TestDatabase database = new();
     private WebApplicationFactory<Program> factory = null!;
@@ -286,7 +286,10 @@ public sealed class SchedulingTests : IAsyncLifetime
         var preference = new ShiftPreference { UserId = ids["employee"], Shift = shift, PreferenceType = PreferenceType.PREFERRED };
         var submission = new AvailabilitySubmission { UserId = ids["employee"], SchedulePeriod = period, LastSubmittedAt = clock.Now.UtcDateTime, Version = 1 };
         var assignment = new ShiftAssignment { UserId = ids["employee"], Shift = shift, IsShiftLead = true };
-        db.AddRange(preference, submission, assignment); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+        db.AddRange(preference, submission); await db.SaveChangesAsync();
+        // Seed the historical schema without asking the current EF model to write new columns.
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO \"ShiftAssignment\" (\"Id\", \"ShiftId\", \"UserId\", \"IsShiftLead\", \"CreatedAt\") VALUES ({assignment.Id}, {shift.Id}, {assignment.UserId}, TRUE, {assignment.CreatedAt})");
+        db.ChangeTracker.Clear();
         await db.Database.MigrateAsync(); Assert.False(db.Database.HasPendingModelChanges());
         using var admin = await Login(); var request = Request(await Types(admin));
         request.ShiftTypes[0] = request.ShiftTypes[0] with { Name = "שם מעודכן", Period = "NIGHT", RequiredEmployees = 9, IncludeInAutomaticScheduling = true };

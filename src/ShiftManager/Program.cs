@@ -12,6 +12,7 @@ using ShiftManager.Data;
 using ShiftManager.Domain;
 using ShiftManager.Security;
 using ShiftManager.Services;
+using ShiftManager.Services.AutomaticScheduling;
 
 var bootstrap = args.Contains("--bootstrap-admin");
 var builder = WebApplication.CreateBuilder(args.Where(arg => arg != "--bootstrap-admin").ToArray());
@@ -32,6 +33,11 @@ builder.Services.AddScoped<AccountService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<AvailabilityService>();
 builder.Services.AddScoped<SchedulingService>();
+builder.Services.AddScoped<SchedulingInputs>();
+builder.Services.AddScoped<GeneratedDraftService>();
+builder.Services.AddSingleton<GenerationQueue>();
+builder.Services.AddSingleton<IScheduleOptimizer, ScheduleOptimizer>();
+builder.Services.AddHostedService<GenerationWorker>();
 builder.Services.AddScoped<IAutomaticSchedulingConfiguration>(services => services.GetRequiredService<SchedulingService>());
 builder.Services.AddScoped<IHardBlockQuery>(services => services.GetRequiredService<AvailabilityService>());
 builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme).AddCookie(IdentityConstants.ApplicationScheme, options =>

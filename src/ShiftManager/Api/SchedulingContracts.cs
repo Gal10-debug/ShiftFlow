@@ -10,7 +10,7 @@ public sealed record ShiftTypeUpdate(Guid Id, [Required, Range(1, long.MaxValue)
 public sealed record UpdateShiftTypesRequest([Required, MinLength(51), MaxLength(51)] ShiftTypeUpdate[] ShiftTypes);
 public sealed record BoardDayResponse(DateOnly Date, int Year, int Month, Guid? SchedulePeriodId);
 public sealed record AvailabilityAnchorResponse(DateOnly Date, string Period, Guid? ShiftId);
-public sealed record BoardCellResponse(DateOnly Date, Guid? ShiftId, DateTime StartsAt, DateTime EndsAt, string State, AvailabilityAnchorResponse[]? AvailabilityAnchors = null);
+public sealed record BoardCellResponse(DateOnly Date, Guid? ShiftId, DateTime StartsAt, DateTime EndsAt, string State, AvailabilityAnchorResponse[]? AvailabilityAnchors = null, ScheduledEmployee[]? Employees = null, int? RequiredEmployees = null, int? Shortage = null);
 public sealed record BoardRowResponse(ShiftTypeResponse Definition, BoardCellResponse[] Cells);
 public sealed record WeeklyBoardResponse(DateOnly WeekStartsOn, DateOnly WeekEndsOn, string TimeZone,
     string WorkspaceState, BoardDayResponse[] Days, BoardRowResponse[] Rows);

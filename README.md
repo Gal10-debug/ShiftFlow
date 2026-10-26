@@ -4,8 +4,9 @@ Hebrew-first workforce application. Phase 1 provides PostgreSQL/EF Core scheduli
 Phase 2 provides cookie authentication, authorization, manager-controlled accounts and a
 Hebrew RTL React interface. Phase 3 adds explicit monthly availability submissions,
 administrator-controlled windows and cross-month weekly hard-block limits. Phase 4A adds an
-unpublished weekly scheduling board and 51 configurable shift-type rows. Automatic scheduling,
-assignment editing, publication and task-allocation features remain deferred.
+unpublished weekly scheduling board and 51 configurable shift-type rows. Phase 4B adds monthly
+CP-SAT automatic scheduling, staffing shortages, previews and explicit transactional draft saves.
+Manual assignment editing, publication and task-allocation features remain deferred.
 
 ## Local setup
 
@@ -137,17 +138,17 @@ are required. See [availability architecture](docs/availability-architecture.md)
 states, API routes, schema/backfill assumptions, locking, Phase 4 contracts, limitations
 and a step-by-step manual test. The existing CI reproduction commands run all new tests.
 
-## Weekly scheduling board (Phase 4A)
+## Weekly scheduling board and automatic drafts (Phases 4A–4B)
 
 Administrators open **סידור עבודה** (`/scheduling`) for a Sunday–Saturday board with exactly
 51 ordered shift-type rows and Hebrew weekday/date headers. Week navigation, a current-week
 shortcut, sticky headers/labels and two-axis scrolling support desktop/tablet and narrow screens.
-The board is explicitly unpublished and does not show or generate employee assignments.
+The board is explicitly unpublished and shows saved assignments or clearly marked unsaved previews.
 
 Open **הגדרות סוגי משמרות** to rename placeholders, change display order, classify each row
-with a time range, configure 0–1000 required employees and select future automatic participation.
+with a time range, configure 0–1000 required employees and select automatic participation.
 Save explicitly; edits remain local until saved. Swap order values as a complete unique
-permutation of 1–51. Zero means **ללא צורך באיוש** and is excluded from future automatic runs,
+permutation of 1–51. Zero means **ללא צורך באיוש** and is excluded from automatic runs,
 even if its inclusion flag is selected. No fixed five-employees rule applies to these rows.
 
 Time ranges include the existing 07:00–19:00 and 19:00–07:00, plus **06:00–09:00**,
@@ -163,8 +164,18 @@ existing availability, time shifts or employee assignments. No new CI settings a
 The administrator API provides GET `/api/admin/scheduling/board`, GET/PUT
 `/api/admin/scheduling/shift-types` and GET `/api/admin/scheduling/automatic-configuration`.
 See [scheduling architecture](docs/scheduling-architecture.md) for the schema, UTC/DST and
-monthly mapping, concurrency, the transition from legacy staffing, Phase 4B integration,
+monthly mapping, concurrency, the transition from legacy staffing, the Phase 4B engine,
 limitations and manual verification steps.
+
+Choose a month, review saved requirements, and click **צור סידור אוטומטי**. The server runs
+OR-Tools CP-SAT in a bounded background queue; the board remains usable. Review names,
+shortage labels and summary, then cancel or explicitly confirm **אישור ושמירת טיוטה**.
+Previews expire after 30 minutes and never write assignments. Drafts remain administrator-only.
+Changed inputs invalidate a preview. Excluded rows and protected assignments remain intact.
+Set `AutomaticScheduling:SolverSeconds` (environment `AutomaticScheduling__SolverSeconds`)
+to configure the shared optimization time limit (default 30 seconds). Pending lead selection
+means generated drafts are not publication-ready. Apply the `AutomaticScheduling` migration
+before running the updated app. See the architecture document for API routes and limitations.
 
 ## Authentication and API
 

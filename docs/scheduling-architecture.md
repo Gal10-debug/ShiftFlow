@@ -1,12 +1,12 @@
-# Weekly scheduling workspace (Phase 4A)
+# Scheduling workspace and automatic drafts (Phases 4A–4B)
 
 ## Scope and relationship to existing scheduling data
 
-This phase adds an unpublished ADMIN-only weekly workspace and persistent shift-type
-configuration. It does not generate, edit, publish or expose employee assignments.
-The board always identifies itself as UNPUBLISHED and renders neutral cells; it is not
-a published roster or a view of legacy ShiftAssignment data. EMPLOYEE and COORDINATOR
-cannot read the board, configuration or automatic-scheduling preparation endpoints.
+The unpublished ADMIN-only weekly workspace combines persistent shift-type configuration,
+monthly automatic scheduling previews and explicitly saved draft memberships. The board
+always identifies itself as UNPUBLISHED. EMPLOYEE and COORDINATOR cannot read the board,
+configuration, previews or saved drafts. Unmapped legacy ShiftAssignment records remain
+fixed commitments; they are not attributed to an arbitrary board row.
 
 The existing `ShiftType` enum remains DAY/NIGHT. An existing `Shift` is still one calendar
 date plus that DAY/NIGHT period, unique across the application. It belongs to the monthly
@@ -20,8 +20,7 @@ created yet). Each cell returns actual UTC boundaries and all overlapping availa
 existing Shift IDs when available. Its legacy ShiftId is filled only for the exact DAY/NIGHT
 ranges; custom ranges use AvailabilityAnchors instead. Night belongs to the starting date's month even if it ends next month.
 GET never creates SchedulePeriod/Shift records or fills missing rows; monthly infrastructure
-is created by availability configuration today and will be ensured transactionally by a
-future scheduling mutation. An existing Shift with the wrong owning period or noncanonical
+is created by availability configuration or ensured transactionally by explicit draft save. An existing Shift with the wrong owning period or noncanonical
 boundaries produces 409 NON_CANONICAL_SHIFT rather than silently changing history.
 
 ## Persistent definitions and initialization
@@ -88,7 +87,7 @@ ShiftTimeRanges.Boundaries converts start/end independently with Asia/Jerusalem 
 ShiftTimeRanges.AvailabilityAnchors exposes every canonical interval that overlaps the
 actual UTC range (touching endpoints do not overlap). Board cells expose these anchors,
 including adjacent-date/month references. For example 06:00–09:00 checks the previous
-night and current day; 15:00–23:00 checks the current day and current night. Phase 4B must
+night and current day; 15:00–23:00 checks the current day and current night. Phase 4B does
 inspect hard blocks and availability for **all** returned anchors, not just legacy Period
 or the first ShiftId. Existing availability submissions and canonical shifts are unchanged.
 No engine or employee assignment generation is introduced by adding these ranges.
@@ -143,7 +142,7 @@ PUT also uses existing CSRF protection. No new permissions or secrets are requir
 
 | Method | Route | Result |
 | --- | --- | --- |
-| GET | /api/admin/scheduling/board?date=2026-10-29 | Canonical Sunday–Saturday dates, ordered rows, existing monthly/time-shift IDs and neutral cells; date optional |
+| GET | /api/admin/scheduling/board?date=2026-10-29 | Canonical Sunday–Saturday dates, ordered rows, existing monthly/time-shift IDs, saved memberships and staffing snapshots; date optional |
 | GET | /api/admin/scheduling/shift-types | All 51 definitions in display order |
 | PUT | /api/admin/scheduling/shift-types | Atomic complete configuration replacement with per-row expectedVersion |
 | GET | /api/admin/scheduling/automatic-configuration | Positive-staffing selected rows plus explicit excluded-definition IDs |
@@ -167,25 +166,16 @@ hard-block triggers remain intact; no historical assignment is moved or deleted.
 contains only IncludeInAutomaticScheduling=true AND RequiredEmployees>0, in display order.
 ExcludedDefinitionIds includes all other rows and is an explicit do-not-touch set. Each
 included row retains identity/version, DAY/NIGHT classification, TimeRange and required count. It
-cannot generate assignments and is not a complete scheduling API. Future run inputs must
+cannot generate assignments and is not a complete scheduling API. Run inputs
 snapshot/revalidate the configuration versions within the scheduling transaction.
 
-Phase 4B must deliberately add a row-definition association to persisted assignments or
-an allocation entity referencing the existing Shift/ShiftAssignment, with appropriate
-uniqueness and migration behavior for unmapped historical assignments. This phase does
-not invent a parallel assignment store or fabricate that association for old data.
-A row's calendar date/TimeRange resolves to all overlapping canonical Shift anchors; employee
-availability and hard blocks apply to every overlapping anchor across all configured rows.
-Use IHardBlockQuery under Phase 3's period → employee lock protocol. Plan any changes to
-lead/staffing constraints explicitly; the old global lead index must not be assumed to
-mean one lead per configurable row. Excluded/zero-count rows' existing future allocations
-must remain untouched. Count changes, including zero, never authorize deleting existing
-assignments during a settings save.
-
-Remaining Phase 4B work: define run/assignment persistence, integrate eligible employees,
-availability and hard constraints, validate staffing feasibility, implement the engine,
-preview/manage drafts and reconcile conflicts. Publication, manual assignments, leads,
-coordinator tasks and deployment remain outside Phase 4A.
+Phase 4B associates existing ShiftAssignment memberships with dated SchedulingCell records,
+without inventing an association for historical assignments. Every overlapping availability
+anchor is checked, while the original canonical lead/member uniqueness rules remain intact.
+The detailed implementation, objective ordering, preview/save protocol and current manual
+verification instructions are documented in **Phase 4B: automatic draft scheduling** below.
+Publication, manual assignment editing, automatic lead selection, coordinator tasks and
+deployment remain outside this phase.
 
 ## Validation and local review
 
@@ -203,3 +193,164 @@ idempotency/restart persistence, ordering swaps, zero/positive staffing, inclusi
 concurrent stale edits, weekly boundaries/DST, authorization, deactivation, CSRF and SQL
 constraints. Frontend tests cover 51 rows/seven dates, Hebrew RTL, navigation, editing,
 save/error feedback, local drafts and role-aware access. No test or build is bypassed.
+
+## Phase 4B: automatic draft scheduling
+
+The existing 51-row board remains the administrator workspace. `Shift` remains a
+canonical DAY/NIGHT availability and task anchor (unique date/type). A
+`SchedulingCell` adds a unique definition/date, its actual UTC interval, monthly
+`SchedulePeriod`, required-staffing snapshot and configuration version. Existing
+`ShiftAssignment` is the single employee membership source: its optional cell FK
+identifies the board position; its Shift FK retains existing availability/task
+relationships. Legacy assignments without a cell are protected commitments and
+cannot be attributed to an arbitrary board row. They consume employee capacity
+but do not count toward any row's requirement. No legacy records are deleted or
+reclassified automatically.
+
+`GeneratedByRunId` records assignment provenance. Manual/legacy assignments,
+locked assignments, shift leads, assignments with tasks, excluded rows, and rows
+currently requiring zero employees are protected. Only generated, unlocked,
+non-lead memberships without tasks in included positive-demand target-month
+cells can be replaced. Configuration saves never delete assignments. Replaced
+cell snapshots update only on explicit draft save; excluded/zero rows retain
+both memberships and snapshots. Historical run summaries are retained; cells
+represent the latest saved workspace, not immutable versions of every roster.
+
+### Optimizer
+
+Google.OrTools **9.15.6755**, CP-SAT, targets .NET Standard and restores under
+.NET 10. NuGet supplies native macOS arm64/x64 and Linux x64/arm64 runtimes. CI
+uses Ubuntu 24.04 x64 with PostgreSQL 17; solver unit tests execute the native
+library, so incompatible native packaging fails CI. The official installation
+reference is https://developers.google.com/optimization/install/dotnet/ .
+
+One Boolean decision is created per legally eligible employee/cell. Constraints:
+
+* Only active users with the EMPLOYEE role are candidates. Multiple-role users
+  remain employees when explicitly granted EMPLOYEE; coordinator-only/admin-only
+  users do not. A coordinator field adds no staffing position.
+* Every overlapping canonical availability anchor is checked, including previous
+  night for a 06:00 start and both day and night for 15:00–23:00. Missing
+  availability permits assignment. Preferred selections require a submitted
+  monthly version; hard blocks include legacy rows defensively, matching Phase 3.
+  No availability drafts are persisted. The three-block Sunday–Saturday submission
+  rule remains unchanged, with no administrator override.
+* Actual UTC intervals cannot overlap or touch for the same employee. Touching
+  intervals mean consecutive shifts, including across month boundaries and for
+  custom ranges. Each optional interval is extended by one second for CP-SAT's
+  no-overlap constraint. No assumed 24-hour date arithmetic is used for work times.
+  Local endpoints resolve separately through Asia/Jerusalem (DST nights vary).
+* Existing fixed work in the target month and two adjacent dates either side is
+  an obstacle. The canonical Shift/User unique index also limits one membership
+  per availability anchor, even for otherwise disjoint custom ranges.
+* Cell assignments, including protected members, never exceed persisted demand.
+  Zero-demand and excluded rows create no candidates and are immutable.
+* Invalid protected memberships in included cells cause explicit failure. The
+  solver never fixes them by deletion. It selects no arbitrary shift leads.
+
+Four **separate lexicographic solves** maximize coverage, minimize fairness cost,
+maximize preferences, then maximize retained generated memberships. A stage's
+objective is fixed only after CP-SAT proves it optimal; otherwise return its best
+feasible solution and stop. There are no potentially unsafe weighted tradeoffs
+between objectives. Single worker, random seed 42; the wall-time limit may still
+make time-limited results machine-dependent. `AutomaticScheduling:SolverSeconds`
+defaults to 30 seconds, clamped to 0.01–300, shared across all four solves and model
+construction. Cancellation interrupts native solving. Modeling time and database
+snapshot time are not forcibly interrupted by this solver time budget; model
+construction checks cancellation and an over-budget model returns TIMEOUT.
+
+Fairness minimizes the sum of opportunity-weighted squared employee loads. Each employee's
+opportunity capacity is the maximum count of non-touching eligible intervals,
+computed by earliest-finish interval scheduling (duplicate rows don't inflate
+capacity). This is an interval-based opportunity metric; the additional legacy
+canonical-membership rule can further reduce achievable load for disjoint custom
+ranges sharing one anchor. It is not an employee quota or a coverage constraint. Each employee's cost is
+`floor(1000 * (fixedCount + newCount)^2 / (opportunityCapacity + fixedCount))`.
+Weighting squared load by capacity favors equal marginal utilization rather than
+making a small pool of highly available employees carry all assignments. Fixed work includes the
+month and boundary dates, so fairness does not ignore protected commitments.
+Employees with no legal options have no variable fairness term. Differing
+availability therefore yields proportional opportunity utilization, rather than
+requiring identical assignment counts from employees with differing eligibility.
+Preference counts employees/cells with any overlapping submitted preferred anchor.
+Stability counts exact employee/definition/date memberships retained; protected
+members never participate in churn optimization.
+
+### Preview, execution and persistence
+
+`POST /api/admin/scheduling/generation` with `{year,month}` returns 202 and a run
+ID. A bounded in-process channel (8 waiting, one worker) runs asynchronously.
+`GET /generation/{id}` returns QUEUED/RUNNING/READY/TIMEOUT/FAILED/CANCELED/SAVED,
+solver status, proven objective count, cells and summary. Paths here are relative
+to `/api/admin/scheduling`. `GET /generation/{id}/shortages` filters the result;
+`DELETE /generation/{id}` cancels/discards it. `POST /generation/{id}/save` explicitly
+saves READY results. Existing `GET /board?date=YYYY-MM-DD` includes saved cell
+memberships and staffing snapshots. All endpoints retain ADMIN authorization,
+password-change gates, cookie validation, no-store headers and CSRF on mutations.
+The bounded queue rejects simultaneous same-month generation within one process;
+saves serialize across processes in PostgreSQL. No new employee draft endpoint
+exists. Existing login rate limiting remains intact; generation adds queue bounds.
+
+Preview objects are memory-only, limited to 32 retained runs, expiring in 30 minutes.
+Generation and cancellation perform **no database writes**. Restart loses previews;
+multiple replicas require sticky routing or a future distributed queue/cache.
+Only save persists SchedulingRun audit metadata. Saved drafts survive restart and
+are retrieved through the board. Runs are shared among administrators, not tied
+to the administrator who requested generation; saving records the approving user.
+The UI polls once per second without blocking the board; progress is stage state,
+not a fabricated percentage. Network failures are visible. Cancel aborts the worker
+and drops preview cells. Navigate across Sunday–Saturday weeks to inspect the full
+month; boundary weeks include neighboring saved dates.
+
+Input reads use a repeatable-read snapshot. SHA-256 fingerprints cover configuration,
+accounts and roles, relevant canonical shifts, cells, assignments/task protection,
+preferences, submission versions, and period state. Save obtains the global
+scheduler advisory lock, adjacent month creation/period locks in chronological
+order, account/configuration lock, then all employee locks in ID order. This
+matches Phase 3's period-before-employee protocol. Re-read inputs after acquiring
+locks; reject changed inputs with STALE_PREVIEW. An independent validator rechecks
+eligibility, hard blocks, capacity, protected membership and intervals. Insert
+run/cells and replace eligible memberships in one transaction; any failure rolls
+back even the initial replacement delete. Account/role changes and configuration
+writes use the shared account lock; availability changes use month/employee locks.
+Future manual scheduling writers must join this protocol. Raw SQL by an external
+operator is outside the application lock protocol.
+
+`OPTIMAL` means all four objectives were proven. `FEASIBLE` means a legal incumbent
+was found before the budget ended; `CoverageOptimal` separately indicates whether
+coverage alone was proven. `TIMEOUT` has no solution and cannot be saved; `FAILED`
+is a solver/model/technical failure. A READY result may be understaffed. Summary
+reports required, filled, missing, understaffed cells and fully staffed cells over
+included positive-demand generated cells, including their protected members.
+Shortage is `max(0, requiredSnapshot - assignmentCount)`. No placeholders exist.
+Zero/excluded rows are outside this run summary. Hebrew singular/plural shortage
+labels appear directly in cells and in an optional scrollable shortage list.
+
+PublicationReady is always false: no lead qualification or designation policy is
+established. Existing lead memberships remain unchanged; new leads remain pending.
+No publication, employee draft access, coordinator tasks or deployment is added.
+
+### Manual verification
+
+1. Apply migrations with `dotnet ef database update --project src/ShiftManager`.
+2. Sign in as administrator, open `/scheduling`, set several included rows to
+   different required counts (e.g. 5/3/1/0), and leave another excluded. Save settings.
+3. Choose a month, expand requirements, generate, and wait for a preview. Navigate
+   weeks; inspect names, shortage labels and overall summary/list. Verify the
+   preview label and pending-lead notice. Cancel and refresh: assignments unchanged.
+4. Regenerate and explicitly confirm save. Refresh: saved-draft labels, employee
+   names and snapshots persist. Employees cannot access these administrator APIs.
+5. Generate again; change availability, account eligibility or saved configuration
+   in a second session. Attempt save: stale result rejected; regenerate.
+6. Test final-night/next-month and previous-night/first-day commitments, DST months,
+   protected/excluded memberships and a low solver time limit. FEASIBLE shortages
+   are never presented as necessarily unavoidable. TIMEOUT cannot be saved.
+7. Run `RUN_POSTGRES_TESTS=1 dotnet test ShiftManager.slnx` (Docker PostgreSQL 17),
+   `npm test --prefix frontend`, `npm run build --prefix frontend`, and EF pending
+   model checks. CI runs migrations and all integration tests on disposable DBs.
+
+The migration extends Phase 3's PostgreSQL hard-block backstop to use cell work
+intervals on membership writes and preference writes, and guards cell interval
+changes. Thus a block overlapping another canonical anchor cannot be bypassed
+by a direct administrator assignment or block insertion. Rollback restores the
+original Phase 3 trigger function and removes cell-specific triggers.

@@ -156,7 +156,8 @@ public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider cl
             var type = Enum.Parse<ShiftType>(selection.ShiftType);
             if (!shifts.TryGetValue((selection.Date, type), out var shift)) throw new ApiException("CONFLICT", 409);
             // Existing staffing must not become invalid when a new hard block is submitted.
-            if (selection.State == "BLOCKED" && await db.Set<ShiftAssignment>().AnyAsync(x => x.UserId == userId && x.ShiftId == shift.Id))
+            if (selection.State == "BLOCKED" && await db.Set<ShiftAssignment>().AnyAsync(x => x.UserId == userId &&
+                (x.SchedulingCellId == null ? x.ShiftId == shift.Id : x.Cell!.StartsAt < shift.EndsAt && x.Cell.EndsAt > shift.StartsAt)))
                 throw new ApiException("SHIFT_ALREADY_ASSIGNED", 409);
             db.Add(new ShiftPreference { UserId = userId, ShiftId = shift.Id, PreferenceType = Enum.Parse<PreferenceType>(selection.State), CreatedAt = Now, UpdatedAt = Now });
         }

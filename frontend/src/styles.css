@@ -1019,3 +1019,9 @@ select:disabled {
     min-width: 1120px;
   }
 }
+
+.staffing-shortage { background: #fff3e5; color: #713d08; }
+.schedule-grid td small, .schedule-grid td strong { display: block; margin-block: .3rem; }
+.shortage-list { max-height: 18rem; overflow: auto; }
+.automatic-generation { margin-block: 1rem; }
+.automatic-generation button { margin-inline-end: .6rem; margin-block: .4rem; }

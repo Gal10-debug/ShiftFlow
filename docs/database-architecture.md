@@ -188,3 +188,17 @@ Task parent edits with existing assignments deliberately require explicit reassi
 Phase 3 now implements transactional availability services; scheduling/publication remain next.
 Account writes already use their own PostgreSQL transaction/advisory-lock protocol,
 including final-active-administrator protection and immediate session-stamp revocation.
+
+## Automatic scheduling drafts (Phase 4B)
+
+`SchedulingCell` uniquely identifies a definition/date and stores actual UTC endpoints,
+required staffing/configuration snapshots, period and latest saved run. `ShiftAssignment`
+remains the employee membership table, with nullable cell/run provenance and `IsLocked`.
+Legacy memberships have no cell and remain protected. `SchedulingRun` stores approving
+administrator, input fingerprint, solver status/proven objectives and shortage totals.
+All FKs restrict deletion; canonical Shift/User membership and lead indexes are retained.
+Previews live only in a bounded server queue. Explicit draft save is transactional and
+uses existing period/employee locks plus account/configuration and cross-process scheduler
+locks. The additive migration extends PostgreSQL hard-block triggers to overlapping cell
+intervals. See [scheduling architecture](scheduling-architecture.md) for the full model,
+locking order, regeneration rules, limitations and manual verification.
