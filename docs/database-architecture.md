@@ -9,6 +9,16 @@ now use month-creation lock → period row lock → whole-employee advisory lock
 alternative to the weekly-key proposal below. PostgreSQL triggers reject new assignment/block
 conflicts. Scheduling/publication/task services below remain deferred requirements.
 
+## Phase 4A extension and staffing transition
+
+[Scheduling architecture](scheduling-architecture.md) documents the new ShiftTypeDefinition
+configuration and 51-row weekly workspace. Existing Shift/ShiftAssignment data is unchanged.
+The old five-staff-per-time-shift proposal below is historical and does not apply to the
+new configurable row requirements: each row has an administrator-defined count, including
+zero. No scheduler or publication validation is implemented here. Phase 4B must explicitly
+associate row definitions with allocations while preserving the existing DAY/NIGHT Shift
+anchors for availability and hard blocks and reviewing legacy lead/assignment constraints.
+
 ## Scope and storage conventions
 
 One ASP.NET Core host, one EF Core Identity context, PostgreSQL 17 and GUID keys.
@@ -30,6 +40,7 @@ cannot be blank. Descriptions may be empty, but cannot be NULL.
 | AvailabilityWindow | One per period when present; OPEN/CLOSED with open/close instants and opening/closing users. |
 | Shift | Starts on a local ShiftDate, DAY/NIGHT, belongs to one period; optional coordinator; many preferences, staffing assignments and tasks. |
 | AvailabilitySubmission | One per user/period; official submission timestamp and monotonically increasing version, including all-Available submissions. |
+| ShiftTypeDefinition | 51 persistent ordered board rows with editable name, DAY/NIGHT, staffing, automatic inclusion and version. |
 | ShiftPreference | One user/shift preference, BLOCKED or PREFERRED. No row means neutral. |
 | ShiftAssignment | One employee per shift, with per-shift lead flag; many task assignments. |
 | TaskTemplate | Reusable name/description and active flag; many optional references from shift tasks. |
@@ -110,14 +121,15 @@ Phase 1 has no scheduling/task services. Phase 2 adds transactional account serv
 Future scheduling/task services must validate:
 
 - Employee/coordinator/admin permissions, active users, and coordinator excluded from the
-  five staffing members; having multiple roles alone must not permit double counting.
+  staffing members; having multiple roles alone must not permit double counting.
 - Availability window open status and timestamps, modification permissions and closing
   metadata consistency; maximum three BLOCKED shifts per user per Sunday–Saturday week,
   counting records across all periods; blocked means a hard constraint for every manager.
 - Shift membership in its period and canonical local start/end boundaries; employee cannot
   work consecutive shifts, including period boundaries. Preferred is a soft constraint.
 - Drafts can be incomplete. Publication validates every expected day/night shift exists,
-  exactly five employees and exactly one lead on each, all hard constraints satisfied,
+  staffing according to the Phase 4A row configuration (superseding the original five-person
+  proposal) and a deliberately designed lead rule, all hard constraints satisfied,
   and writes status/version/event atomically. Soft preferences never override hard blocks.
 - Task creators/editors must be coordinators; employees only view. Task assignments must
   remain inside the corresponding shift and target a current staffing assignment. Database

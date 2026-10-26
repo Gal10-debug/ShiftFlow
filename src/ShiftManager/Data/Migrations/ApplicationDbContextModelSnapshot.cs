@@ -560,6 +560,679 @@ namespace ShiftManager.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ShiftManager.Domain.ShiftTypeDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IncludeInAutomaticScheduling")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Period")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("RequiredEmployees")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Slot")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DisplayOrder")
+                        .IsUnique();
+
+                    b.HasIndex("Slot")
+                        .IsUnique();
+
+                    b.ToTable("ShiftTypeDefinition", t =>
+                        {
+                            t.HasCheckConstraint("CK_ShiftTypeDefinition_Name", "length(btrim(\"Name\")) > 0");
+
+                            t.HasCheckConstraint("CK_ShiftTypeDefinition_Order", "\"DisplayOrder\" BETWEEN 1 AND 51");
+
+                            t.HasCheckConstraint("CK_ShiftTypeDefinition_Period", "\"Period\" IN ('DAY','NIGHT')");
+
+                            t.HasCheckConstraint("CK_ShiftTypeDefinition_Slot", "\"Slot\" BETWEEN 1 AND 51");
+
+                            t.HasCheckConstraint("CK_ShiftTypeDefinition_Staffing", "\"RequiredEmployees\" BETWEEN 0 AND 1000");
+
+                            t.HasCheckConstraint("CK_ShiftTypeDefinition_Version", "\"Version\" > 0");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000001"),
+                            DisplayOrder = 1,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 1",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 1,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000002"),
+                            DisplayOrder = 2,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 2",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 2,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000003"),
+                            DisplayOrder = 3,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 3",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 3,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000004"),
+                            DisplayOrder = 4,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 4",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 4,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000005"),
+                            DisplayOrder = 5,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 5",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 5,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000006"),
+                            DisplayOrder = 6,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 6",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 6,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000007"),
+                            DisplayOrder = 7,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 7",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 7,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000008"),
+                            DisplayOrder = 8,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 8",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 8,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000009"),
+                            DisplayOrder = 9,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 9",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 9,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000010"),
+                            DisplayOrder = 10,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 10",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 10,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000011"),
+                            DisplayOrder = 11,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 11",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 11,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000012"),
+                            DisplayOrder = 12,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 12",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 12,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000013"),
+                            DisplayOrder = 13,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 13",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 13,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000014"),
+                            DisplayOrder = 14,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 14",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 14,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000015"),
+                            DisplayOrder = 15,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 15",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 15,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000016"),
+                            DisplayOrder = 16,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 16",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 16,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000017"),
+                            DisplayOrder = 17,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 17",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 17,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000018"),
+                            DisplayOrder = 18,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 18",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 18,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000019"),
+                            DisplayOrder = 19,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 19",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 19,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000020"),
+                            DisplayOrder = 20,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 20",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 20,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000021"),
+                            DisplayOrder = 21,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 21",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 21,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000022"),
+                            DisplayOrder = 22,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 22",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 22,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000023"),
+                            DisplayOrder = 23,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 23",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 23,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000024"),
+                            DisplayOrder = 24,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 24",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 24,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000025"),
+                            DisplayOrder = 25,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 25",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 25,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000026"),
+                            DisplayOrder = 26,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 26",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 26,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000027"),
+                            DisplayOrder = 27,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 27",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 27,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000028"),
+                            DisplayOrder = 28,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 28",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 28,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000029"),
+                            DisplayOrder = 29,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 29",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 29,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000030"),
+                            DisplayOrder = 30,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 30",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 30,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000031"),
+                            DisplayOrder = 31,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 31",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 31,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000032"),
+                            DisplayOrder = 32,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 32",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 32,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000033"),
+                            DisplayOrder = 33,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 33",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 33,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000034"),
+                            DisplayOrder = 34,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 34",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 34,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000035"),
+                            DisplayOrder = 35,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 35",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 35,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000036"),
+                            DisplayOrder = 36,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 36",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 36,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000037"),
+                            DisplayOrder = 37,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 37",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 37,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000038"),
+                            DisplayOrder = 38,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 38",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 38,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000039"),
+                            DisplayOrder = 39,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 39",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 39,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000040"),
+                            DisplayOrder = 40,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 40",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 40,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000041"),
+                            DisplayOrder = 41,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 41",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 41,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000042"),
+                            DisplayOrder = 42,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 42",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 42,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000043"),
+                            DisplayOrder = 43,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 43",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 43,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000044"),
+                            DisplayOrder = 44,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 44",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 44,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000045"),
+                            DisplayOrder = 45,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 45",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 45,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000046"),
+                            DisplayOrder = 46,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 46",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 46,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000047"),
+                            DisplayOrder = 47,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 47",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 47,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000048"),
+                            DisplayOrder = 48,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 48",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 48,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000049"),
+                            DisplayOrder = 49,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 49",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 49,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000050"),
+                            DisplayOrder = 50,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 50",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 50,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000051"),
+                            DisplayOrder = 51,
+                            IncludeInAutomaticScheduling = false,
+                            Name = "משמרת 51",
+                            Period = "DAY",
+                            RequiredEmployees = 0,
+                            Slot = 51,
+                            UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Version = 1L
+                        });
+                });
+
             modelBuilder.Entity("ShiftManager.Domain.TaskAssignment", b =>
                 {
                     b.Property<Guid>("Id")

@@ -31,6 +31,8 @@ builder.Services.AddScoped<AppCookieEvents>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<AvailabilityService>();
+builder.Services.AddScoped<SchedulingService>();
+builder.Services.AddScoped<IAutomaticSchedulingConfiguration>(services => services.GetRequiredService<SchedulingService>());
 builder.Services.AddScoped<IHardBlockQuery>(services => services.GetRequiredService<AvailabilityService>());
 builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme).AddCookie(IdentityConstants.ApplicationScheme, options =>
 {

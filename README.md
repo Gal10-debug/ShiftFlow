@@ -3,8 +3,9 @@
 Hebrew-first workforce application. Phase 1 provides PostgreSQL/EF Core scheduling data;
 Phase 2 provides cookie authentication, authorization, manager-controlled accounts and a
 Hebrew RTL React interface. Phase 3 adds explicit monthly availability submissions,
-administrator-controlled windows and cross-month weekly hard-block limits. Scheduling and
-task-allocation features remain deferred.
+administrator-controlled windows and cross-month weekly hard-block limits. Phase 4A adds an
+unpublished weekly scheduling board and 51 configurable shift-type rows. Automatic scheduling,
+assignment editing, publication and task-allocation features remain deferred.
 
 ## Local setup
 
@@ -135,6 +136,30 @@ The script configures the local database connection. No new secrets or CI settin
 are required. See [availability architecture](docs/availability-architecture.md) for window
 states, API routes, schema/backfill assumptions, locking, Phase 4 contracts, limitations
 and a step-by-step manual test. The existing CI reproduction commands run all new tests.
+
+## Weekly scheduling board (Phase 4A)
+
+Administrators open **סידור עבודה** (`/scheduling`) for a Sunday–Saturday board with exactly
+51 ordered shift-type rows and Hebrew weekday/date headers. Week navigation, a current-week
+shortcut, sticky headers/labels and two-axis scrolling support desktop/tablet and narrow screens.
+The board is explicitly unpublished and does not show or generate employee assignments.
+
+Open **הגדרות סוגי משמרות** to rename placeholders, change display order, classify each row
+as DAY/NIGHT, configure 0–1000 required employees and select future automatic participation.
+Save explicitly; edits remain local until saved. Swap order values as a complete unique
+permutation of 1–51. Zero means **ללא צורך באיוש** and is excluded from future automatic runs,
+even if its inclusion flag is selected. No fixed five-employees rule applies to these rows.
+
+Apply the additive migration with `./scripts/dev.sh migrate`. It inserts `משמרת 1` through
+`משמרת 51` once, initially DAY with zero staffing and automatic participation off. Restarting
+or rerunning migrations preserves administrator edits. Configuration saves never change
+existing availability, time shifts or employee assignments. No new CI settings are required.
+
+The administrator API provides GET `/api/admin/scheduling/board`, GET/PUT
+`/api/admin/scheduling/shift-types` and GET `/api/admin/scheduling/automatic-configuration`.
+See [scheduling architecture](docs/scheduling-architecture.md) for the schema, UTC/DST and
+monthly mapping, concurrency, the transition from legacy staffing, Phase 4B integration,
+limitations and manual verification steps.
 
 ## Authentication and API
 
@@ -275,11 +300,13 @@ deployment is intentionally deferred until a production environment exists.
 - `src/ShiftManager/Security`, `Services`: cookie/claims validation, account transactions and bootstrap.
 - `frontend/src`: React Router shell, login, first-password, profile and user-management screens,
   small fetch client and centralized Hebrew resources; no global state library.
-- `tests/ShiftManager.Tests`: model, DST, PostgreSQL, authentication/security and availability/concurrency tests.
+- `tests/ShiftManager.Tests`: model, DST, PostgreSQL, authentication/security, availability and scheduling/configuration concurrency tests.
 - [Database architecture](docs/database-architecture.md),
   [authentication architecture](docs/authentication-architecture.md),
-  [availability architecture](docs/availability-architecture.md).
+  [availability architecture](docs/availability-architecture.md),
+  [scheduling architecture](docs/scheduling-architecture.md).
 
 Hebrew is the MVP language: `lang="he"`, `dir="rtl"`, logical CSS, LTR password inputs,
 centralized visible text, he-IL date formatting as DD/MM/YYYY, 24-hour times, Israel-local
-Sunday–Saturday weeks and UTC persisted instants. Availability is implemented; scheduling and task execution UI remain deferred.
+Sunday–Saturday weeks and UTC persisted instants. Availability and the unpublished scheduling workspace are implemented; assignment generation,
+publication and task execution remain deferred.

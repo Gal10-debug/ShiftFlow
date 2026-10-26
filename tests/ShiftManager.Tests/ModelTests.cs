@@ -17,7 +17,7 @@ public class ModelTests
     public void All_business_entities_have_guid_keys_and_explicit_restrict_foreign_keys()
     {
         using var db = CreateContext();
-        Type[] types = [typeof(SchedulePeriod), typeof(AvailabilityWindow), typeof(AvailabilitySubmission), typeof(Shift), typeof(ShiftPreference),
+        Type[] types = [typeof(SchedulePeriod), typeof(AvailabilityWindow), typeof(AvailabilitySubmission), typeof(ShiftTypeDefinition), typeof(Shift), typeof(ShiftPreference),
             typeof(ShiftAssignment), typeof(TaskTemplate), typeof(ShiftTask), typeof(TaskAssignment), typeof(SchedulePublication)];
         foreach (var type in types)
         {
