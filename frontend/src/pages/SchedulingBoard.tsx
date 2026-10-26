@@ -59,6 +59,7 @@ export default function SchedulingBoard() {
     };
   }, [path, reload]);
   useEffect(() => {
+    if (generation?.state === "QUEUED" || generation?.state === "RUNNING" || generation?.state === "READY") setEditing(false);
     if (generation?.state === "READY") {
       setRequestedDate(`${generation.year}-${String(generation.month).padStart(2, "0")}-01`);
     }
@@ -166,7 +167,8 @@ export default function SchedulingBoard() {
       <p className="notice scheduling-preparation">{s.preparation}</p>
       <Notice error={error} success={success} />
       <AutomaticGeneration definitions={baseline} value={generation} onChange={setGeneration}
-        onSaved={() => setReload(n => n + 1)} disabled={busy || loading || dirty || editing} />
+        onSaved={() => setReload(n => n + 1)} disabled={busy || loading || dirty}
+        disabledReason={loading ? "טוען את הגדרות המשמרות…" : busy ? "שומר את הגדרות המשמרות…" : dirty ? "יש שינויים שלא נשמרו. יש לשמור או לבטל את השינויים בהגדרות לפני יצירת סידור אוטומטי." : undefined} />
       <div className="schedule-navigation">
         <button
           disabled={!board || busy || loading}

@@ -392,6 +392,8 @@ it("overlays unsaved preview names and clears them on cancel without saving", as
   }));
   render(<SchedulingBoard />);
   await screen.findByRole("table");
+  await userEvent.click(screen.getByRole("button", { name: s.configure }));
+  expect(screen.getByRole("button", { name: "צור סידור אוטומטי" })).toBeEnabled();
   await userEvent.click(screen.getByRole("button", { name: "צור סידור אוטומטי" }));
   expect(await screen.findByText("עובד בתצוגה")).toBeInTheDocument();
   expect(screen.getByText("חסר עובד 1")).toBeInTheDocument();

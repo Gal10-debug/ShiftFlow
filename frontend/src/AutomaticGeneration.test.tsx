@@ -63,3 +63,25 @@ it("polls asynchronously and displays completed preview", async () => {
   expect(screen.getByRole("status")).toHaveTextContent("מחשב סידור");
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("טרם נשמרו"), { timeout: 2500 });
 });
+
+it("explains how to configure automatic scheduling when no rows are included", () => {
+  render(<AutomaticGeneration definitions={[{ ...definition, includeInAutomaticScheduling: false }]} value={null} onChange={vi.fn()} onSaved={vi.fn()} disabled={false} />);
+  expect(screen.getByRole("button", { name: "צור סידור אוטומטי" })).toBeDisabled();
+  expect(screen.getByText(/לא הוגדרו משמרות לשיבוץ אוטומטי/)).toHaveTextContent("מספר עובדים גדול מאפס");
+  expect(mocked).not.toHaveBeenCalled();
+});
+it("shows immediate feedback while the generation request is pending", async () => {
+  let finish!: (value: unknown) => void;
+  mocked.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  render(<Harness />);
+  await userEvent.click(screen.getByRole("button", { name: "צור סידור אוטומטי" }));
+  expect(screen.getByRole("status")).toHaveTextContent("שולח בקשה");
+  expect(screen.getByRole("button", { name: /שולח בקשה/ })).toBeDisabled();
+  finish({ ...ready, state: "QUEUED", cells: [], summary: null });
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("ממתין להרצה"));
+});
+it("shows the reason generation is blocked by unsaved settings", () => {
+  render(<AutomaticGeneration definitions={[definition]} value={null} onChange={vi.fn()} onSaved={vi.fn()} disabled disabledReason="יש לשמור את השינויים לפני יצירת סידור" />);
+  expect(screen.getByRole("button", { name: "צור סידור אוטומטי" })).toBeDisabled();
+  expect(screen.getByText("יש לשמור את השינויים לפני יצירת סידור")).toBeInTheDocument();
+});
