@@ -10,7 +10,7 @@ namespace ShiftManager.Services;
 public sealed class AccountService(ApplicationDbContext db, UserManager<ApplicationUser> users)
 {
     public async Task<UserResponse> Response(ApplicationUser user) => new(user.Id, user.FirstName, user.LastName,
-        user.UserName!, user.IsActive, user.MustChangePassword, user.CreatedAt, (await users.GetRolesAsync(user)).Order().ToArray());
+        user.UserName!, user.IsActive, user.MustChangePassword, user.CreatedAt, (await users.GetRolesAsync(user)).Order().ToArray(), user.IsShiftLeadQualified);
 
     public async Task<ApplicationUser> Find(Guid id) => await users.FindByIdAsync(id.ToString()) ?? throw new ApiException("USER_NOT_FOUND", 404);
 
@@ -50,6 +50,7 @@ public sealed class AccountService(ApplicationDbContext db, UserManager<Applicat
             LastName = input.LastName.Trim(),
             UserName = input.Username,
             IsActive = input.IsActive,
+            IsShiftLeadQualified = input.IsShiftLeadQualified,
             MustChangePassword = true,
             LockoutEnabled = true
         };
@@ -92,6 +93,7 @@ public sealed class AccountService(ApplicationDbContext db, UserManager<Applicat
             user.FirstName = profile.FirstName.Trim();
             user.LastName = profile.LastName.Trim();
             user.UserName = profile.Username;
+            if (profile.IsShiftLeadQualified is not null) user.IsShiftLeadQualified = profile.IsShiftLeadQualified.Value;
         }
         if (active is not null) user.IsActive = active.Value;
         if (roles is not null)

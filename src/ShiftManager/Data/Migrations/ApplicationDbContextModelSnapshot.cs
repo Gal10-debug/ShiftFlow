@@ -206,6 +206,9 @@ namespace ShiftManager.Data.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsShiftLeadQualified")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("LastName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -699,6 +702,9 @@ namespace ShiftManager.Data.Migrations
                     b.Property<int>("RequiredEmployees")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("RequiresShiftLeadQualification")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("Slot")
                         .HasColumnType("integer");
 
@@ -717,6 +723,10 @@ namespace ShiftManager.Data.Migrations
 
                     b.HasIndex("DisplayOrder")
                         .IsUnique();
+
+                    b.HasIndex("RequiresShiftLeadQualification")
+                        .IsUnique()
+                        .HasFilter("\"RequiresShiftLeadQualification\" = TRUE");
 
                     b.HasIndex("Slot")
                         .IsUnique();
@@ -747,6 +757,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 1",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 1,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -759,6 +770,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 2",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 2,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -771,6 +783,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 3",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 3,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -783,6 +796,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 4",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 4,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -795,6 +809,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 5",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 5,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -807,6 +822,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 6",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 6,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -819,6 +835,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 7",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 7,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -831,6 +848,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 8",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 8,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -843,6 +861,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 9",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 9,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -855,6 +874,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 10",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 10,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -867,6 +887,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 11",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 11,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -879,6 +900,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 12",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 12,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -891,6 +913,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 13",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 13,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -903,6 +926,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 14",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 14,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -915,6 +939,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 15",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 15,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -927,6 +952,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 16",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 16,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -939,6 +965,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 17",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 17,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -951,6 +978,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 18",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 18,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -963,6 +991,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 19",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 19,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -975,6 +1004,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 20",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 20,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -987,6 +1017,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 21",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 21,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -999,6 +1030,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 22",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 22,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1011,6 +1043,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 23",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 23,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1023,6 +1056,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 24",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 24,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1035,6 +1069,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 25",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 25,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1047,6 +1082,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 26",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 26,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1059,6 +1095,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 27",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 27,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1071,6 +1108,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 28",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 28,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1083,6 +1121,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 29",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 29,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1095,6 +1134,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 30",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 30,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1107,6 +1147,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 31",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 31,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1119,6 +1160,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 32",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 32,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1131,6 +1173,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 33",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 33,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1143,6 +1186,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 34",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 34,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1155,6 +1199,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 35",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 35,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1167,6 +1212,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 36",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 36,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1179,6 +1225,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 37",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 37,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1191,6 +1238,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 38",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 38,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1203,6 +1251,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 39",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 39,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1215,6 +1264,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 40",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 40,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1227,6 +1277,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 41",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 41,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1239,6 +1290,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 42",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 42,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1251,6 +1303,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 43",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 43,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1263,6 +1316,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 44",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 44,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1275,6 +1329,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 45",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 45,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1287,6 +1342,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 46",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 46,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1299,6 +1355,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 47",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 47,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1311,6 +1368,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 48",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 48,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1323,6 +1381,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 49",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 49,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1335,6 +1394,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 50",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 50,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1347,6 +1407,7 @@ namespace ShiftManager.Data.Migrations
                             Name = "משמרת 51",
                             Period = "DAY",
                             RequiredEmployees = 0,
+                            RequiresShiftLeadQualification = false,
                             Slot = 51,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L

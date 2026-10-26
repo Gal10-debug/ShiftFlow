@@ -74,10 +74,10 @@ export default function AutomaticGeneration({ definitions, value, onChange, onSa
     {value?.solverStatus === "FEASIBLE" && <p>נמצא פתרון חוקי במסגרת מגבלת הזמן. לא הוכח שכל יעדי האופטימיזציה מיטביים.</p>}
     {summary && <>
       <p aria-label="סיכום איוש">נדרשים: {summary.required} · שובצו: {summary.filled} · חסרים: {summary.missing} · תאים בחוסר: {summary.understaffedCells} · תאים מאוישים: {summary.fullyStaffedCells}</p>
-      <p>{value?.coverageOptimal ? "הוכח מספר השיבוצים המרבי בהתאם לאילוצים ולשיבוצים המוגנים." : "ייתכן שניתן לצמצם חוסרים בהרצה נוספת."}</p>
+      <p>{value?.coverageOptimal ? "הוכח איוש מרבי לאחראי משמרת, ולאחריו לשאר השורות, בהתאם לאילוצים ולשיבוצים המוגנים." : "ייתכן שניתן לצמצם חוסרים בהרצה נוספת."}</p>
       <label><input type="checkbox" checked={shortagesOnly} onChange={e => setShortagesOnly(e.target.checked)} />הצגת רשימת תאים בחוסר</label>
       {shortagesOnly && <div className="shortage-list">{value?.cells.filter(c => c.shortage > 0).map(c => <p key={`${c.definitionId}-${c.date}`}>
-        {definitions.find(d => d.id === c.definitionId)?.name} · {c.date} · {c.shortage === 1 ? "חסר עובד 1" : `חסרים ${c.shortage} עובדים`}
+        {definitions.find(d => d.id === c.definitionId)?.requiresShiftLeadQualification && <strong>חוסר באחראי משמרת · </strong>}{definitions.find(d => d.id === c.definitionId)?.name} · {c.date} · {c.shortage === 1 ? "חסר עובד 1" : `חסרים ${c.shortage} עובדים`}
       </p>)}</div>}
     </>}
     {value?.state === "READY" && <button className="primary" disabled={busy} onClick={() => void save()}>אישור ושמירת טיוטה</button>}

@@ -215,6 +215,8 @@ it("edits profile details and role assignments without exposing credentials", as
   app("/users");
   await user.click(await screen.findByRole("button", { name: he.editUser }));
   let dialog = screen.getByRole("dialog");
+  await user.click(within(dialog).getByLabelText("מוסמך כאחראי משמרת"));
+
   await user.clear(within(dialog).getByLabelText(he.firstName));
   await user.type(within(dialog).getByLabelText(he.firstName), "יעל");
   expect(
@@ -224,6 +226,7 @@ it("edits profile details and role assignments without exposing credentials", as
   await waitFor(() =>
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
   );
+  expect(writes[0].body.isShiftLeadQualified).toBe(true);
   await user.click(screen.getByRole("button", { name: he.editRoles }));
   dialog = screen.getByRole("dialog");
   await user.click(within(dialog).getByLabelText(he.rolesLabel.COORDINATOR));

@@ -130,4 +130,51 @@ public sealed class ScheduleOptimizerTests
         Assert.Equal(3, r.Cells.SelectMany(c => c.Employees).Count(e => e.UserId == Employee(1).Id));
     }
 
+    [Fact]
+    public void Expert_coverage_strictly_precedes_two_ordinary_positions()
+    {
+        var expert = Cell(1, range: ShiftTimeRange.NIGHT) with { RequiresShiftLeadQualification = true };
+        var p = Problem([expert, Cell(2), Cell(3, 1)], 1);
+        p = p with { Employees = [p.Employees[0] with { IsShiftLeadQualified = true }] };
+        var result = Solve(p);
+        Assert.Equal(5, result.ProvenObjectives);
+        Assert.Single(result.Cells[0].Employees);
+        Assert.Equal(1, result.Cells.Sum(c => c.Employees.Length));
+        Assert.False(result.Cells[0].Employees[0].IsShiftLead);
+        GeneratedDraftService.Validate(p, result.Cells);
+    }
+
+    [Fact]
+    public void Qualification_limits_expert_staffing_but_allows_ordinary_work()
+    {
+        var expert = Cell(1, required: 2) with { RequiresShiftLeadQualification = true };
+        var p = Problem([expert, Cell(2), Cell(3, 2)], 2);
+        p = p with { Employees = [p.Employees[0] with { IsShiftLeadQualified = true }, p.Employees[1]] };
+        var result = Solve(p);
+        Assert.Single(result.Cells[0].Employees);
+        Assert.Equal(1, result.Cells[0].Shortage);
+        Assert.Equal(p.Employees[1].Id, result.Cells[1].Employees.Single().UserId);
+        Assert.Single(result.Cells[2].Employees);
+        GeneratedDraftService.Validate(p, result.Cells);
+        var forged = result.Cells.Select(c => c.DefinitionId == expert.DefinitionId
+            ? c with { Employees = [new(p.Employees[1].Id, "unqualified", false, false)] } : c).ToArray();
+        Assert.Throws<ApiException>(() => GeneratedDraftService.Validate(p, forged));
+    }
+
+    [Fact]
+    public void Expert_shortage_respects_blocks_and_protected_qualification()
+    {
+        var c = Cell(1, required: 2) with { RequiresShiftLeadQualification = true };
+        var p = Problem([c], 1, preferences: [new(Employee(1).Id, Date, ShiftType.DAY, PreferenceType.BLOCKED)]);
+        p = p with { Employees = [p.Employees[0] with { IsShiftLeadQualified = true }] };
+        Assert.Equal(2, Solve(p).Cells[0].Shortage);
+        var w = new Work(Guid.NewGuid(), Employee(1).Id, c.DefinitionId, c.Date, c.Start, c.End, Guid.NewGuid(), false, true, ShiftType.DAY);
+        var protectedProblem = Problem([c], 1, [w]);
+        Assert.Throws<ApiException>(() => Solve(protectedProblem));
+        protectedProblem = protectedProblem with { Employees = [protectedProblem.Employees[0] with { IsShiftLeadQualified = true }] };
+        var result = Solve(protectedProblem);
+        Assert.True(result.Cells[0].Employees.Single().IsShiftLead);
+        GeneratedDraftService.Validate(protectedProblem, result.Cells);
+    }
+
 }

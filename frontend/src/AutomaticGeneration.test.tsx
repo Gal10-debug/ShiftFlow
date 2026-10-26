@@ -85,3 +85,9 @@ it("shows the reason generation is blocked by unsaved settings", () => {
   expect(screen.getByRole("button", { name: "צור סידור אוטומטי" })).toBeDisabled();
   expect(screen.getByText("יש לשמור את השינויים לפני יצירת סידור")).toBeInTheDocument();
 });
+it("identifies expert shortages after the expert row is renamed", async () => {
+  render(<AutomaticGeneration definitions={[{ ...definition, name: "שם חדש", requiresShiftLeadQualification: true }]} value={ready} onChange={vi.fn()} onSaved={vi.fn()} disabled={false} />);
+  await userEvent.click(screen.getByRole("checkbox"));
+  expect(screen.getByText(/חוסר באחראי משמרת/)).toBeInTheDocument();
+  expect(screen.getByText(/שם חדש · 2026-10-01/)).toBeInTheDocument();
+});

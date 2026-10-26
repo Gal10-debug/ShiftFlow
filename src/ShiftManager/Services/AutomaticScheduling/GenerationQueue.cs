@@ -95,7 +95,7 @@ public sealed class GenerationWorker(GenerationQueue queue, IServiceScopeFactory
                     if (job.Cancellation.IsCancellationRequested) continue;
                     job.Problem = problem;
                     job.Response = job.Response with { State = result.Status is "OPTIMAL" or "FEASIBLE" ? "READY" : result.Status,
-                        SolverStatus = result.Status, ProvenObjectives = result.ProvenObjectives, CoverageOptimal = result.ProvenObjectives >= 1,
+                        SolverStatus = result.Status, ProvenObjectives = result.ProvenObjectives, CoverageOptimal = result.ProvenObjectives >= 2,
                         Cells = result.Cells, Summary = result.Status is "OPTIMAL" or "FEASIBLE" ? StaffingSummary.From(result.Cells) : null };
                 }
                 finally { job.Gate.Release(); }

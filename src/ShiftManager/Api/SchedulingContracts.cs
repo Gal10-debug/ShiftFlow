@@ -2,11 +2,11 @@ using System.ComponentModel.DataAnnotations;
 namespace ShiftManager.Api;
 
 public sealed record ShiftTypeResponse(Guid Id, int Slot, string Name, int DisplayOrder, string Period,
-    int RequiredEmployees, bool IncludeInAutomaticScheduling, long Version, DateTime UpdatedAt, string? TimeRange = null);
+    int RequiredEmployees, bool IncludeInAutomaticScheduling, long Version, DateTime UpdatedAt, string? TimeRange = null, bool RequiresShiftLeadQualification = false);
 public sealed record ShiftTypeUpdate(Guid Id, [Required, Range(1, long.MaxValue)] long? ExpectedVersion,
     [Required, StringLength(100), RegularExpression(@".*\S.*")] string Name,
     [Required, Range(1, 51)] int? DisplayOrder, [Required] string Period,
-    [Required, Range(0, 1000)] int? RequiredEmployees, [Required] bool? IncludeInAutomaticScheduling, string? TimeRange = null);
+    [Required, Range(0, 1000)] int? RequiredEmployees, [Required] bool? IncludeInAutomaticScheduling, string? TimeRange = null, bool RequiresShiftLeadQualification = false);
 public sealed record UpdateShiftTypesRequest([Required, MinLength(51), MaxLength(51)] ShiftTypeUpdate[] ShiftTypes);
 public sealed record BoardDayResponse(DateOnly Date, int Year, int Month, Guid? SchedulePeriodId);
 public sealed record AvailabilityAnchorResponse(DateOnly Date, string Period, Guid? ShiftId);

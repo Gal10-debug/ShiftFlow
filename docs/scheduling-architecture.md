@@ -248,13 +248,13 @@ One Boolean decision is created per legally eligible employee/cell. Constraints:
 * Invalid protected memberships in included cells cause explicit failure. The
   solver never fixes them by deletion. It selects no arbitrary shift leads.
 
-Four **separate lexicographic solves** maximize coverage, minimize fairness cost,
+Five **separate lexicographic solves** maximize expert coverage, maximize ordinary coverage, minimize fairness cost,
 maximize preferences, then maximize retained generated memberships. A stage's
 objective is fixed only after CP-SAT proves it optimal; otherwise return its best
 feasible solution and stop. There are no potentially unsafe weighted tradeoffs
 between objectives. Single worker, random seed 42; the wall-time limit may still
 make time-limited results machine-dependent. `AutomaticScheduling:SolverSeconds`
-defaults to 30 seconds, clamped to 0.01–300, shared across all four solves and model
+defaults to 30 seconds, clamped to 0.01–300, shared across all five solves and model
 construction. Cancellation interrupts native solving. Modeling time and database
 snapshot time are not forcibly interrupted by this solver time budget; model
 construction checks cancellation and an over-budget model returns TIMEOUT.
@@ -316,9 +316,9 @@ writes use the shared account lock; availability changes use month/employee lock
 Future manual scheduling writers must join this protocol. Raw SQL by an external
 operator is outside the application lock protocol.
 
-`OPTIMAL` means all four objectives were proven. `FEASIBLE` means a legal incumbent
+`OPTIMAL` means all five objectives were proven. `FEASIBLE` means a legal incumbent
 was found before the budget ended; `CoverageOptimal` separately indicates whether
-coverage alone was proven. `TIMEOUT` has no solution and cannot be saved; `FAILED`
+both coverage objectives were proven. `TIMEOUT` has no solution and cannot be saved; `FAILED`
 is a solver/model/technical failure. A READY result may be understaffed. Summary
 reports required, filled, missing, understaffed cells and fully staffed cells over
 included positive-demand generated cells, including their protected members.
@@ -354,3 +354,35 @@ intervals on membership writes and preference writes, and guards cell interval
 changes. Thus a block overlapping another canonical anchor cannot be bypassed
 by a direct administrator assignment or block insertion. Rollback restores the
 original Phase 3 trigger function and removes cell-specific triggers.
+
+### Shift-lead qualification and expert coverage
+
+`ApplicationUser.IsShiftLeadQualified` is an administrator-managed qualification, independent
+of Identity roles. Only active employees are solver candidates. The additive migration defaults
+all qualifications and row classifications to false, preserving users, row IDs, names and staffing.
+An administrator must explicitly designate the existing expert row; names are never used as keys.
+`ShiftTypeDefinition.RequiresShiftLeadQualification` has a filtered unique index, permitting
+zero or one designated row among the existing 51. Renames preserve classification.
+
+The existing CP-SAT model solves the complete problem in five stages: maximize expert
+coverage; maximize ordinary coverage; minimize existing normalized squared workload cost;
+maximize preferred assignments; maximize retained replaceable assignments. Each stage must
+be proven optimal before its value is fixed by equality and the next stage starts. On timeout,
+the last feasible solution is returned without claiming unproven optimality; coverage is proven
+only after both coverage stages. Fixed assignments contribute constant coverage and workload.
+All existing hard constraints apply before any objective. Protected expert members must be
+qualified; conflicts abort generation instead of deleting protected work. Qualification and row
+classification are included in input fingerprints and checked again during transactional save.
+
+Expert-row membership does not set `ShiftAssignment.IsShiftLead`. That existing designation
+remains a separately protected, at-most-one-per-canonical-shift responsibility, enforced by the
+unchanged filtered unique index. This allows configurable expert staffing above one without
+arbitrarily choosing a designated lead or creating duplicate designations. Existing designated
+leads are preserved; no automatic lead selection is introduced.
+
+Manual verification: apply migrations; enable “מוסמך כאחראי משמרת” on an active employee;
+mark the existing expert row using “שורת אחראי משמרת”, set staffing and include it in generation.
+Rename it and reload. Generate a monthly preview, inspect qualified members and highlighted
+expert shortages, cancel, regenerate and save a draft. Change qualification or staffing while
+a preview is open and verify stale-save rejection. Confirm ordinary and excluded rows retain
+their existing behavior and employee/coordinator accounts cannot access administrator settings.

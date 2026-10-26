@@ -22,7 +22,7 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
         foreach (var c in p.Cells)
         {
             var members = fixedWork.Where(w => w.DefinitionId == c.DefinitionId && w.Date == c.Date).ToArray();
-            if (members.Length > c.Required || members.Any(w => w.Start != c.Start || w.End != c.End || !p.Employees.Any(e => e.Id == w.UserId)
+            if (members.Length > c.Required || members.Any(w => w.Start != c.Start || w.End != c.End || !p.Employees.Any(e => e.Id == w.UserId && (!c.RequiresShiftLeadQualification || e.IsShiftLeadQualified))
                 || p.Preferences.Any(b => b.UserId == w.UserId && b.State == Domain.PreferenceType.BLOCKED && SchedulingProblem.OverlapsAnchor(c, b))
                 || fixedWork.Any(o => o.AssignmentId != w.AssignmentId && o.UserId == w.UserId && SchedulingProblem.Conflicts(w.Start, w.End, o.Start, o.End))))
                 throw new ApiException("PROTECTED_ASSIGNMENT_CONFLICT", 409);
@@ -66,11 +66,12 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
             model.AddDivisionEquality(cost, square * 1000, Math.Max(1, maxLoad));
             fairness.Add(cost);
         }
-        var filled = LinearExpr.Sum(choices.Values);
+        var expertFilled = LinearExpr.Sum(choices.Where(x => p.Cells[x.Key.Cell].RequiresShiftLeadQualification).Select(x => x.Value));
+        var filled = LinearExpr.Sum(choices.Where(x => !p.Cells[x.Key.Cell].RequiresShiftLeadQualification).Select(x => x.Value));
         var preference = LinearExpr.Sum(choices.Where(x => p.Preferred(p.Employees[x.Key.Employee], p.Cells[x.Key.Cell])).Select(x => x.Value));
         var stability = LinearExpr.Sum(choices.Where(x => p.Work.Any(w => w.Replaceable && w.UserId == p.Employees[x.Key.Employee].Id
             && w.DefinitionId == p.Cells[x.Key.Cell].DefinitionId && w.Date == p.Cells[x.Key.Cell].Date)).Select(x => x.Value));
-        var stages = new[] { filled, -LinearExpr.Sum(fairness), preference, stability };
+        var stages = new[] { expertFilled, filled, -LinearExpr.Sum(fairness), preference, stability };
         var proven = 0; var status = "TIMEOUT";
         Dictionary<(int Cell, int Employee), bool>? best = null;
         foreach (var objective in stages)
@@ -96,7 +97,7 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
             else { if (best is null) status = result == CpSolverStatus.Unknown ? "TIMEOUT" : "FAILED"; break; }
         }
         if (best is null) return new(status, proven, []);
-        if (proven == 4) status = "OPTIMAL";
+        if (proven == stages.Length) status = "OPTIMAL";
         var cells = p.Cells.Select((c, ci) => new GeneratedCell(c.DefinitionId, c.Date, c.Start, c.End, c.Required,
             fixedWork.Where(w => w.DefinitionId == c.DefinitionId && w.Date == c.Date).Select(w => new ScheduledEmployee(w.UserId, p.Employees.Single(e => e.Id == w.UserId).Name, true, w.Lead))
                 .Concat(best.Where(x => x.Key.Cell == ci && x.Value).Select(x => { var e = p.Employees[x.Key.Employee]; return new ScheduledEmployee(e.Id, e.Name, false, false); }))

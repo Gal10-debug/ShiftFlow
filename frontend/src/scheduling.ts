@@ -21,6 +21,7 @@ export interface ShiftTypeDefinition {
   timeRange?: ShiftTimeRange;
   requiredEmployees: number;
   includeInAutomaticScheduling: boolean;
+  requiresShiftLeadQualification?: boolean;
   version: number;
   updatedAt: string;
 }
@@ -91,7 +92,7 @@ export const scheduling = {
   discard: "יש שינויים שלא נשמרו בהגדרות. להמשיך ולוותר עליהם?",
   reset: "ביטול שינויים",
   invalid:
-    "יש להזין שם באורך 1–100 תווים, מספר עובדים שלם בין 0 ל־1000 וסדר ייחודי מ־1 עד 51 לכל שורה.",
+    "יש להזין שם באורך 1–100 תווים, מספר עובדים שלם בין 0 ל־1000 וסדר ייחודי מ־1 עד 51 לכל שורה. ניתן לסמן שורת אחראי משמרת אחת בלבד.",
   refresh: "רענון הלוח",
   empty: "לא נמצאו סוגי משמרות. יש לוודא שמיגרציות מסד הנתונים הוחלו.",
   timezone:
@@ -108,6 +109,7 @@ export function moveWeek(value: string, offset: number) {
 export function validDefinitions(rows: ShiftTypeDefinition[]) {
   return (
     rows.length === 51 &&
+    rows.filter(row => row.requiresShiftLeadQualification).length <= 1 &&
     new Set(rows.map((row) => row.id)).size === 51 &&
     new Set(rows.map((row) => row.displayOrder)).size === 51 &&
     rows.every(

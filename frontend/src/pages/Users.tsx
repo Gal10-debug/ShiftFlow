@@ -22,6 +22,7 @@ function UserEditor({
   const [roles, setRoles] = useState<Role[]>(
     editor.user?.roles ?? ["EMPLOYEE"],
   );
+  const [qualified, setQualified] = useState(editor.user?.isShiftLeadQualified ?? false);
   const [active, setActive] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -93,6 +94,7 @@ function UserEditor({
           firstName: submittedFirst,
           lastName: submittedLast,
           username: submittedUsername,
+          isShiftLeadQualified: qualified,
           initialPassword: submittedPassword,
           roles,
           isActive: active,
@@ -102,6 +104,7 @@ function UserEditor({
           firstName: submittedFirst,
           lastName: submittedLast,
           username: submittedUsername,
+          isShiftLeadQualified: qualified,
         });
       if (editor.mode === "roles")
         await api(`/users/${editor.user!.id}/roles`, "PUT", { roles });
@@ -196,6 +199,10 @@ function UserEditor({
             {he.active}
           </label>
         )}
+        {["create", "edit"].includes(editor.mode) && <label className="check">
+          <input type="checkbox" checked={qualified} onChange={e => setQualified(e.target.checked)} />
+          מוסמך כאחראי משמרת
+        </label>}
         <Notice error={error} />
         <div className="form-actions">
           <button className="primary" disabled={busy}>

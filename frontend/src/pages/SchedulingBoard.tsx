@@ -120,6 +120,7 @@ export default function SchedulingBoard() {
             timeRange: row.timeRange ?? row.period,
             requiredEmployees: row.requiredEmployees,
             includeInAutomaticScheduling: row.includeInAutomaticScheduling,
+            requiresShiftLeadQualification: row.requiresShiftLeadQualification ?? false,
           })),
         },
       );
@@ -254,6 +255,7 @@ export default function SchedulingBoard() {
                     <tr key={row.definition.id}>
                       <th scope="row" className="schedule-row-label">
                         <strong>{row.definition.name}</strong>
+                        {row.definition.requiresShiftLeadQualification && <span className="status">אחראי משמרת · מוסמכים בלבד</span>}
                         <small>
                           <bdi dir="ltr">
                             {
@@ -417,6 +419,12 @@ export default function SchedulingBoard() {
                         )}
                       </td>
                       <td>
+                        <label className="check"><input type="checkbox"
+                          aria-label={`שורת אחראי משמרת ${row.slot}`}
+                          checked={row.requiresShiftLeadQualification ?? false}
+                          disabled={busy || loading}
+                          onChange={e => change(row.id, { requiresShiftLeadQualification: e.target.checked })}
+                        />שורת אחראי משמרת</label>
                         <input
                           aria-label={`${s.automatic} ${row.slot}`}
                           type="checkbox"

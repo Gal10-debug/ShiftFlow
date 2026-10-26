@@ -11,6 +11,7 @@ public sealed class ShiftTypeDefinition
     public ShiftTimeRange? TimeRange { get; set; }
     public int RequiredEmployees { get; set; }
     public bool IncludeInAutomaticScheduling { get; set; }
+    public bool RequiresShiftLeadQualification { get; set; }
     public long Version { get; set; } = 1;
     public DateTime UpdatedAt { get; set; }
 }

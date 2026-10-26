@@ -5,6 +5,7 @@ export interface User {
   lastName: string;
   username: string;
   isActive: boolean;
+  isShiftLeadQualified?: boolean;
   mustChangePassword: boolean;
   createdAt: string;
   roles: Role[];
