@@ -408,6 +408,106 @@ namespace ShiftManager.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ShiftManager.Domain.SchedulingCell", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("ConfigurationVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RequiredEmployees")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SchedulePeriodId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SchedulingRunId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ShiftTypeDefinitionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SchedulePeriodId");
+
+                    b.HasIndex("SchedulingRunId");
+
+                    b.HasIndex("ShiftTypeDefinitionId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("SchedulingCell", t =>
+                        {
+                            t.HasCheckConstraint("CK_Cell_Required", "\"RequiredEmployees\" BETWEEN 0 AND 1000");
+
+                            t.HasCheckConstraint("CK_Cell_Time", "\"EndsAt\" > \"StartsAt\"");
+                        });
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.SchedulingRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Filled")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("FullyStaffedCells")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("InputFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Missing")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProvenObjectives")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Required")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("SavedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SavedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SolverStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("UnderstaffedCells")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SavedByUserId");
+
+                    b.ToTable("SchedulingRun");
+                });
+
             modelBuilder.Entity("ShiftManager.Domain.Shift", b =>
                 {
                     b.Property<Guid>("Id")
@@ -460,8 +560,17 @@ namespace ShiftManager.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("GeneratedByRunId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsShiftLead")
                         .HasColumnType("boolean");
+
+                    b.Property<Guid?>("SchedulingCellId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("ShiftId")
                         .HasColumnType("uuid");
@@ -471,11 +580,16 @@ namespace ShiftManager.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("GeneratedByRunId");
+
                     b.HasIndex("ShiftId")
                         .IsUnique()
                         .HasFilter("\"IsShiftLead\" = TRUE");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("SchedulingCellId", "UserId")
+                        .IsUnique();
 
                     b.HasIndex("ShiftId", "UserId")
                         .IsUnique();
@@ -1413,6 +1527,44 @@ namespace ShiftManager.Data.Migrations
                     b.Navigation("SchedulePeriod");
                 });
 
+            modelBuilder.Entity("ShiftManager.Domain.SchedulingCell", b =>
+                {
+                    b.HasOne("ShiftManager.Domain.SchedulePeriod", "SchedulePeriod")
+                        .WithMany()
+                        .HasForeignKey("SchedulePeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShiftManager.Domain.SchedulingRun", "Run")
+                        .WithMany()
+                        .HasForeignKey("SchedulingRunId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShiftManager.Domain.ShiftTypeDefinition", "Definition")
+                        .WithMany()
+                        .HasForeignKey("ShiftTypeDefinitionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Definition");
+
+                    b.Navigation("Run");
+
+                    b.Navigation("SchedulePeriod");
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.SchedulingRun", b =>
+                {
+                    b.HasOne("ShiftManager.Domain.ApplicationUser", "SavedByUser")
+                        .WithMany()
+                        .HasForeignKey("SavedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SavedByUser");
+                });
+
             modelBuilder.Entity("ShiftManager.Domain.Shift", b =>
                 {
                     b.HasOne("ShiftManager.Domain.ApplicationUser", "CoordinatorUser")
@@ -1433,6 +1585,16 @@ namespace ShiftManager.Data.Migrations
 
             modelBuilder.Entity("ShiftManager.Domain.ShiftAssignment", b =>
                 {
+                    b.HasOne("ShiftManager.Domain.SchedulingRun", "GeneratedByRun")
+                        .WithMany()
+                        .HasForeignKey("GeneratedByRunId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ShiftManager.Domain.SchedulingCell", "Cell")
+                        .WithMany("Assignments")
+                        .HasForeignKey("SchedulingCellId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ShiftManager.Domain.Shift", "Shift")
                         .WithMany("Assignments")
                         .HasForeignKey("ShiftId")
@@ -1444,6 +1606,10 @@ namespace ShiftManager.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Cell");
+
+                    b.Navigation("GeneratedByRun");
 
                     b.Navigation("Shift");
 
@@ -1521,6 +1687,11 @@ namespace ShiftManager.Data.Migrations
                     b.Navigation("Publications");
 
                     b.Navigation("Shifts");
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.SchedulingCell", b =>
+                {
+                    b.Navigation("Assignments");
                 });
 
             modelBuilder.Entity("ShiftManager.Domain.Shift", b =>

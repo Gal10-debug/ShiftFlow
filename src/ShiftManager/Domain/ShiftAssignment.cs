@@ -5,6 +5,11 @@ public class ShiftAssignment
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid ShiftId { get; set; }
     public Guid UserId { get; set; }
+    public Guid? SchedulingCellId { get; set; }
+    public SchedulingCell? Cell { get; set; }
+    public Guid? GeneratedByRunId { get; set; }
+    public SchedulingRun? GeneratedByRun { get; set; }
+    public bool IsLocked { get; set; }
     public bool IsShiftLead { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public ApplicationUser User { get; set; } = null!;

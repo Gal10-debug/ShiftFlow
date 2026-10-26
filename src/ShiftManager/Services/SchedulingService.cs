@@ -104,6 +104,9 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
             .ToDictionaryAsync(x => (x.Year, x.Month));
         var shifts = await db.Set<Shift>().AsNoTracking().Where(x => x.ShiftDate >= start.AddDays(-1) && x.ShiftDate <= end.AddDays(1))
             .ToDictionaryAsync(x => (x.ShiftDate, x.ShiftType));
+        var savedCells = await db.Set<SchedulingCell>().AsNoTracking().Include(c => c.Assignments).ThenInclude(a => a.User)
+            .Include(c => c.Assignments).ThenInclude(a => a.Tasks)
+            .Where(c => c.Date >= start && c.Date <= end).ToDictionaryAsync(c => (c.ShiftTypeDefinitionId, c.Date));
         var days = Enumerable.Range(0, 7).Select(i => start.AddDays(i)).Select(d => new BoardDayResponse(d, d.Year, d.Month, periods.GetValueOrDefault((d.Year, d.Month))?.Id)).ToArray();
         var rows = definitions.Select(definition => new BoardRowResponse(definition, days.Select(day =>
         {
@@ -119,8 +122,12 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
                 return new AvailabilityAnchorResponse(anchor.Date, anchor.Period.ToString(), existing?.Id);
             }).ToArray();
             var canonicalId = range is ShiftTimeRange.DAY or ShiftTimeRange.NIGHT ? anchors.Single().ShiftId : null;
-            return new BoardCellResponse(day.Date, canonicalId, boundaries.StartsAt, boundaries.EndsAt,
-                definition.RequiredEmployees == 0 ? "NOT_REQUIRED" : "UNASSIGNED", anchors);
+            var saved = savedCells.GetValueOrDefault((definition.Id, day.Date));
+            var members = saved?.Assignments.OrderBy(a => a.UserId).Select(a => new ScheduledEmployee(a.UserId,
+                $"{a.User.FirstName} {a.User.LastName}", !a.GeneratedByRunId.HasValue || a.IsLocked || a.IsShiftLead || a.Tasks.Count > 0 || !definition.IncludeInAutomaticScheduling || definition.RequiredEmployees == 0, a.IsShiftLead)).ToArray();
+            return new BoardCellResponse(day.Date, canonicalId, saved?.StartsAt ?? boundaries.StartsAt, saved?.EndsAt ?? boundaries.EndsAt,
+                saved is not null ? "SAVED_DRAFT" : definition.RequiredEmployees == 0 ? "NOT_REQUIRED" : "UNASSIGNED", anchors,
+                members, saved?.RequiredEmployees, saved is null ? null : Math.Max(0, saved.RequiredEmployees - saved.Assignments.Count));
         }).ToArray())).ToArray();
         await tx.CommitAsync();
         return new(start, end, ZoneId, "UNPUBLISHED", days, rows);

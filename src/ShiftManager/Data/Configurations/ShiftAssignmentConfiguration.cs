@@ -9,6 +9,9 @@ public sealed class ShiftAssignmentConfiguration : IEntityTypeConfiguration<Shif
     public void Configure(EntityTypeBuilder<ShiftAssignment> b)
     {
         b.HasKey(x => x.Id);
+        b.HasOne(x => x.Cell).WithMany(x => x.Assignments).HasForeignKey(x => x.SchedulingCellId);
+        b.HasOne(x => x.GeneratedByRun).WithMany().HasForeignKey(x => x.GeneratedByRunId);
+        b.HasIndex(x => new { x.SchedulingCellId, x.UserId }).IsUnique();
         b.HasIndex(x => new { x.ShiftId, x.UserId }).IsUnique();
         b.HasIndex(x => x.ShiftId).IsUnique().HasFilter("\"IsShiftLead\" = TRUE");
         b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);

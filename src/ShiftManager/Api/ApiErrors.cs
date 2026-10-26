@@ -14,6 +14,11 @@ public static class ApiErrors
 {
     public static ApiError Error(string code) => new(code, code switch
     {
+        "GENERATION_BUSY" => "קיימת הרצה פעילה או שהתור מלא. יש להמתין ולנסות שוב.",
+        "PREVIEW_EXPIRED" => "תוקף התצוגה המקדימה פג. יש ליצור סידור מחדש.",
+        "PREVIEW_NOT_READY" => "אין תצוגה מקדימה מוכנה לשמירה.",
+        "STALE_PREVIEW" => "הנתונים השתנו מאז יצירת הסידור. יש ליצור סידור מחדש.",
+        "PROTECTED_ASSIGNMENT_CONFLICT" => "שיבוץ מוגן אינו תואם לאילוצים או להגדרות. יש לבדוק את השיבוצים הקיימים.",
         "PERIOD_NOT_FOUND" => "לא נמצאה תקופת זמינות לחודש שנבחר.",
         "WINDOW_NOT_CONFIGURED" => "יש להגדיר חלון הגשה לפני הפתיחה.",
         "WINDOW_CLOSED" => "חלון ההגשה אינו פתוח. לא ניתן להגיש או לעדכן זמינות.",

@@ -356,3 +356,49 @@ it.each(["H06_09", "H07_13", "H07_15", "H15_23", "H23_07"] as ShiftTimeRange[])(
     );
   },
 );
+
+it("renders saved employee names, snapshot demand and singular/plural shortages in RTL cells", async () => {
+  const saved = board("2026-10-25");
+  saved.rows[0].cells[0] = { ...saved.rows[0].cells[0], state: "SAVED_DRAFT", requiredEmployees: 2, shortage: 1,
+    employees: [{ userId: "e1", name: "ישראל ישראלי", protected: false, isShiftLead: false }] };
+  saved.rows[0].cells[1] = { ...saved.rows[0].cells[1], state: "SAVED_DRAFT", requiredEmployees: 3, shortage: 2,
+    employees: [{ userId: "e2", name: "שרה כהן", protected: true, isShiftLead: true }] };
+  vi.stubGlobal("fetch", vi.fn(async () => json(saved)));
+  const { container } = render(<SchedulingBoard />);
+  expect(await screen.findByText("ישראל ישראלי")).toBeInTheDocument();
+  expect(screen.getByText("חסר עובד 1")).toBeInTheDocument();
+  expect(screen.getByText("חסרים 2 עובדים")).toBeInTheDocument();
+  expect(screen.getByText(/שרה כהן/)).toHaveTextContent("אחראי משמרת");
+  expect(screen.getByText("נדרשים: 2 · שובצו: 1")).toBeInTheDocument();
+  expect(container.querySelector("section")).toHaveAttribute("dir", "rtl");
+});
+
+it("overlays unsaved preview names and clears them on cancel without saving", async () => {
+  definitions[0].requiredEmployees = 2;
+  definitions[0].includeInAutomaticScheduling = true;
+  const saved = board("2026-10-25");
+  const proposed = { id: "preview", year: 2026, month: 10, state: "READY", solverStatus: "OPTIMAL", provenObjectives: 4,
+    coverageOptimal: true, publicationReady: false, errorCode: null, expiresAt: "2099-01-01",
+    cells: [{ definitionId: definitions[0].id, date: "2026-10-25", startsAt: "", endsAt: "", requiredEmployees: 2,
+      employees: [{ userId: "employee", name: "עובד בתצוגה", protected: false, isShiftLead: false }], shortage: 1 }],
+    summary: { required: 2, filled: 1, missing: 1, understaffedCells: 1, fullyStaffedCells: 0 } };
+  const requests: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (path: string, options?: RequestInit) => {
+    requests.push(`${options?.method ?? "GET"} ${path}`);
+    if (path.endsWith("/csrf")) return json({ requestToken: "token" });
+    if (options?.method === "DELETE") return new Response(null, { status: 204 });
+    if (path.endsWith("/generation")) return json(proposed, 202);
+    return json(saved);
+  }));
+  render(<SchedulingBoard />);
+  await screen.findByRole("table");
+  await userEvent.click(screen.getByRole("button", { name: s.configure }));
+  expect(screen.getByRole("button", { name: "צור סידור אוטומטי" })).toBeEnabled();
+  await userEvent.click(screen.getByRole("button", { name: "צור סידור אוטומטי" }));
+  expect(await screen.findByText("עובד בתצוגה")).toBeInTheDocument();
+  expect(screen.getByText("חסר עובד 1")).toBeInTheDocument();
+  expect(screen.getByText("תצוגה מקדימה")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "ביטול תצוגה מקדימה" }));
+  await waitFor(() => expect(screen.queryByText("עובד בתצוגה")).not.toBeInTheDocument());
+  expect(requests.some(r => r.includes("/save"))).toBe(false);
+});

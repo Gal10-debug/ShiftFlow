@@ -29,7 +29,10 @@ export interface BoardCell {
   shiftId: string | null;
   startsAt: string;
   endsAt: string;
-  state: "NOT_REQUIRED" | "UNASSIGNED";
+  state: "NOT_REQUIRED" | "UNASSIGNED" | "SAVED_DRAFT";
+  employees?: ScheduledEmployee[];
+  requiredEmployees?: number;
+  shortage?: number;
   availabilityAnchors?: {
     date: string;
     period: "DAY" | "NIGHT";
@@ -55,7 +58,7 @@ export const scheduling = {
     "לוח שבועי והגדרות סוגי המשמרות. השורות מייצגות סוגי משמרת, לא מקומות לעובדים.",
   unpublished: "מרחב מנהלי — טרם פורסם",
   preparation:
-    "הלוח מציג תשתית בלבד. שיבוץ עובדים אוטומטי, עריכת שיבוצים ופרסום יהיו זמינים בשלב הבא.",
+    "ניתן ליצור סידור חודשי, לבדוק חוסרים ולשמור טיוטה. הסידור אינו מפורסם לעובדים.",
   current: "השבוע הנוכחי",
   previous: "השבוע הקודם",
   next: "השבוע הבא",
@@ -122,4 +125,13 @@ export function validDefinitions(rows: ShiftTypeDefinition[]) {
         rangePeriod(row.timeRange ?? row.period) === row.period,
     )
   );
+}
+
+export interface ScheduledEmployee { userId: string; name: string; protected: boolean; isShiftLead: boolean }
+export interface GeneratedCell { definitionId: string; date: string; startsAt: string; endsAt: string; requiredEmployees: number; employees: ScheduledEmployee[]; shortage: number }
+export interface Generation {
+  id: string; year: number; month: number; state: string; solverStatus: string | null;
+  provenObjectives: number; coverageOptimal: boolean; publicationReady: boolean; errorCode: string | null; expiresAt: string;
+  cells: GeneratedCell[];
+  summary: { required: number; filled: number; missing: number; understaffedCells: number; fullyStaffedCells: number } | null;
 }

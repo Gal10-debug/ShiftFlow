@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import AutomaticGeneration from "../components/AutomaticGeneration";
+import type { Generation } from "../scheduling";
 import { api } from "../api";
 import { he, message } from "../he";
 import { Notice } from "../components/forms";
@@ -15,6 +17,7 @@ import {
 } from "../scheduling";
 
 export default function SchedulingBoard() {
+  const [generation, setGeneration] = useState<Generation | null>(null);
   const [requestedDate, setRequestedDate] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [board, setBoard] = useState<WeeklyBoard | null>(null);
@@ -25,6 +28,8 @@ export default function SchedulingBoard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const preview = generation?.state === "READY";
+  const generating = generation?.state === "QUEUED" || generation?.state === "RUNNING";
   const dirty = JSON.stringify(drafts) !== JSON.stringify(baseline);
   const path = `/admin/scheduling/board${requestedDate ? `?date=${encodeURIComponent(requestedDate)}` : ""}`;
   function apply(value: WeeklyBoard) {
@@ -53,6 +58,12 @@ export default function SchedulingBoard() {
       alive = false;
     };
   }, [path, reload]);
+  useEffect(() => {
+    if (generation?.state === "QUEUED" || generation?.state === "RUNNING" || generation?.state === "READY") setEditing(false);
+    if (generation?.state === "READY") {
+      setRequestedDate(`${generation.year}-${String(generation.month).padStart(2, "0")}-01`);
+    }
+  }, [generation?.id, generation?.state]);
   useEffect(() => {
     if (!dirty) return;
     const unload = (event: BeforeUnloadEvent) => {
@@ -141,7 +152,7 @@ export default function SchedulingBoard() {
           <p className="muted">{s.intro}</p>
         </div>
         <button
-          disabled={busy || loading || !baseline.length}
+          disabled={busy || loading || preview || generating || !baseline.length}
           onClick={() => {
             if (editing && dirty) {
               if (!window.confirm(s.discard)) return;
@@ -155,6 +166,9 @@ export default function SchedulingBoard() {
       </div>
       <p className="notice scheduling-preparation">{s.preparation}</p>
       <Notice error={error} success={success} />
+      <AutomaticGeneration definitions={baseline} value={generation} onChange={setGeneration}
+        onSaved={() => setReload(n => n + 1)} disabled={busy || loading || dirty}
+        disabledReason={loading ? "טוען את הגדרות המשמרות…" : busy ? "שומר את הגדרות המשמרות…" : dirty ? "יש שינויים שלא נשמרו. יש לשמור או לבטל את השינויים בהגדרות לפני יצירת סידור אוטומטי." : undefined} />
       <div className="schedule-navigation">
         <button
           disabled={!board || busy || loading}
@@ -258,8 +272,17 @@ export default function SchedulingBoard() {
                             : s.excluded}
                         </small>
                       </th>
-                      {row.cells.map((cell) => (
-                        <td key={cell.date}>
+                      {row.cells.map((savedCell) => {
+                        const proposed = preview ? generation.cells.find(c => c.definitionId === row.definition.id && c.date === savedCell.date) : undefined;
+                        const cell = proposed ? { ...savedCell, ...proposed } : savedCell;
+                        return <td key={cell.date} className={cell.shortage ? "staffing-shortage" : undefined}>
+                          {proposed && <small>תצוגה מקדימה</small>}
+                          {!proposed && savedCell.state === "SAVED_DRAFT" && <small>טיוטה שמורה</small>}
+                          {cell.employees?.map(e => <div key={e.userId}>{e.name}{e.isShiftLead ? " · אחראי משמרת" : ""}{e.protected ? " · מוגן" : ""}</div>)}
+                          {cell.requiredEmployees !== undefined && cell.requiredEmployees !== null && <small>נדרשים: {cell.requiredEmployees} · שובצו: {cell.employees?.length ?? 0}</small>}
+                          {!!cell.shortage && <strong>{cell.shortage === 1 ? "חסר עובד 1" : `חסרים ${cell.shortage} עובדים`}</strong>}
+                          {!cell.employees?.length && !cell.shortage && <>
+
                           <span
                             className={
                               cell.state === "NOT_REQUIRED"
@@ -271,8 +294,9 @@ export default function SchedulingBoard() {
                               ? s.noStaffing
                               : s.unassigned}
                           </span>
-                        </td>
-                      ))}
+                          </>}
+                        </td>;
+                      })}
                     </tr>
                   ))}
                 </tbody>
