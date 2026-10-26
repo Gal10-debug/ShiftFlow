@@ -361,8 +361,8 @@ original Phase 3 trigger function and removes cell-specific triggers.
 of Identity roles. Only active employees are solver candidates. The additive migration defaults
 all qualifications and row classifications to false, preserving users, row IDs, names and staffing.
 An administrator must explicitly designate the existing expert row; names are never used as keys.
-`ShiftTypeDefinition.RequiresShiftLeadQualification` has a filtered unique index, permitting
-zero or one designated row among the existing 51. Renames preserve classification.
+`ShiftTypeDefinition.RequiresShiftLeadQualification` permits multiple designated rows among
+the existing 51. All designated rows share the first coverage objective. Renames preserve classification.
 
 The existing CP-SAT model solves the complete problem in five stages: maximize expert
 coverage; maximize ordinary coverage; minimize existing normalized squared workload cost;

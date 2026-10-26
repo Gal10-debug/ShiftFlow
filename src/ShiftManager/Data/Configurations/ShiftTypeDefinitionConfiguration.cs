@@ -9,7 +9,6 @@ public sealed class ShiftTypeDefinitionConfiguration : IEntityTypeConfiguration<
     public void Configure(EntityTypeBuilder<ShiftTypeDefinition> b)
     {
         b.HasKey(x => x.Id);
-        b.HasIndex(x => x.RequiresShiftLeadQualification).IsUnique().HasFilter("\"RequiresShiftLeadQualification\" = TRUE");
         b.HasIndex(x => x.Slot).IsUnique();
         // The migration makes this uniqueness constraint deferred to allow atomic swaps.
         b.HasIndex(x => x.DisplayOrder).IsUnique();

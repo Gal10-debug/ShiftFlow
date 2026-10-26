@@ -34,7 +34,8 @@ public sealed partial class SchedulingTests
         request = Request(rows);
         request.ShiftTypes[0] = request.ShiftTypes[0] with { RequiresShiftLeadQualification = true };
         request.ShiftTypes[1] = request.ShiftTypes[1] with { RequiresShiftLeadQualification = true };
-        Assert.Equal(HttpStatusCode.BadRequest, (await Send(admin, TypesPath, request)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Send(admin, TypesPath, request)).StatusCode);
+        Assert.Equal(2, (await Types(admin)).Count(r => r.RequiresShiftLeadQualification));
         var run = await Generate(admin);
         Assert.Equal("READY", run.State);
         Assert.All(run.Cells, c => { Assert.Equal(3, c.RequiredEmployees); Assert.Equal(2, c.Shortage); Assert.Equal(ids["employee"], c.Employees.Single().UserId); });

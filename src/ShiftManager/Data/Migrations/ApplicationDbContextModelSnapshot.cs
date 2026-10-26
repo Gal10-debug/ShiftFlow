@@ -724,10 +724,6 @@ namespace ShiftManager.Data.Migrations
                     b.HasIndex("DisplayOrder")
                         .IsUnique();
 
-                    b.HasIndex("RequiresShiftLeadQualification")
-                        .IsUnique()
-                        .HasFilter("\"RequiresShiftLeadQualification\" = TRUE");
-
                     b.HasIndex("Slot")
                         .IsUnique();
 

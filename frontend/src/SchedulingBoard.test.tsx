@@ -402,16 +402,14 @@ it("overlays unsaved preview names and clears them on cancel without saving", as
   await waitFor(() => expect(screen.queryByText("עובד בתצוגה")).not.toBeInTheDocument());
   expect(requests.some(r => r.includes("/save"))).toBe(false);
 });
-it("saves a persistent expert classification and prevents ambiguous rows in RTL settings", async () => {
+it("saves multiple expert classifications in RTL settings", async () => {
   const user = userEvent.setup();
   page(); await grid();
   await user.click(screen.getByRole("button", { name: s.configure }));
   await user.click(screen.getByLabelText("שורת אחראי משמרת 1"));
   await user.click(screen.getByLabelText("שורת אחראי משמרת 2"));
   await user.click(screen.getByRole("button", { name: s.save }));
-  expect(writes).toHaveLength(0);
-  await user.click(screen.getByLabelText("שורת אחראי משמרת 2"));
-  await user.click(screen.getByRole("button", { name: s.save }));
   await waitFor(() => expect(writes).toHaveLength(1));
   expect(writes[0].body.shiftTypes[0].requiresShiftLeadQualification).toBe(true);
+  expect(writes[0].body.shiftTypes[1].requiresShiftLeadQualification).toBe(true);
 });

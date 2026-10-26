@@ -33,7 +33,6 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
                 || x.DisplayOrder is null or < 1 or > 51 || x.RequiredEmployees is null or < 0 or > 1000
                 || (x.TimeRange is not null && !ShiftTimeRanges.TryParse(x.TimeRange, out _))
                 || x.ExpectedVersion is null or < 1 || x.IncludeInAutomaticScheduling is null || x.Period is not ("DAY" or "NIGHT"))
-            || input.ShiftTypes.Count(x => x.RequiresShiftLeadQualification) > 1
             || input.ShiftTypes.Select(x => x.Id).Distinct().Count() != 51
             || input.ShiftTypes.Select(x => x.DisplayOrder).Distinct().Count() != 51)
             throw new ApiException("INVALID_SHIFT_TYPE_SETTINGS");
@@ -53,8 +52,6 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
         if (rows.Length != 51 || !rows.Select(x => x.Id).ToHashSet().SetEquals(input.ShiftTypes.Select(x => x.Id)))
             throw new ApiException("INVALID_SHIFT_TYPE_SETTINGS");
         var proposed = input.ShiftTypes.ToDictionary(x => x.Id);
-        // Clear the old designation within this transaction before moving the unique flag.
-        await db.Database.ExecuteSqlRawAsync("UPDATE \"ShiftTypeDefinition\" SET \"RequiresShiftLeadQualification\" = FALSE WHERE \"RequiresShiftLeadQualification\" = TRUE");
         foreach (var row in rows)
         {
             var next = proposed[row.Id];
@@ -66,7 +63,7 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
             if (ShiftTimeRanges.Classification(range).ToString() != next.Period) throw new ApiException("INVALID_SHIFT_TYPE_SETTINGS");
             if (row.Name == name && row.DisplayOrder == next.DisplayOrder && row.Period.ToString() == next.Period
                 && ShiftTimeRanges.Effective(row) == range && row.RequiredEmployees == next.RequiredEmployees && row.IncludeInAutomaticScheduling == next.IncludeInAutomaticScheduling
-                && row.RequiresShiftLeadQualification == next.RequiresShiftLeadQualification && !row.RequiresShiftLeadQualification) continue;
+                && row.RequiresShiftLeadQualification == next.RequiresShiftLeadQualification) continue;
             row.Name = name;
             row.DisplayOrder = next.DisplayOrder!.Value;
             row.Period = Enum.Parse<ShiftType>(next.Period);
