@@ -9,6 +9,7 @@ import Users from "./pages/Users";
 import AccessPage from "./pages/AccessPage";
 import Availability from "./pages/Availability";
 import AvailabilityAdmin from "./pages/AvailabilityAdmin";
+import SchedulingBoard from "./pages/SchedulingBoard";
 import InfoPage from "./pages/InfoPage";
 function Start() {
   const { user, loading } = useAuth();
@@ -31,6 +32,7 @@ export function AppRoutes() {
           <Route path="/profile" element={<Profile />} />
           <Route element={<Protected role="ADMIN" />}>
             <Route path="/users" element={<Users />} />
+            <Route path="/scheduling" element={<SchedulingBoard />} />
             <Route path="/availability-admin" element={<AvailabilityAdmin />} />
           </Route>
           <Route element={<Protected role="COORDINATOR" />}>

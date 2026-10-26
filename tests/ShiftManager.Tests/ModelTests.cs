@@ -17,7 +17,7 @@ public class ModelTests
     public void All_business_entities_have_guid_keys_and_explicit_restrict_foreign_keys()
     {
         using var db = CreateContext();
-        Type[] types = [typeof(SchedulePeriod), typeof(AvailabilityWindow), typeof(AvailabilitySubmission), typeof(Shift), typeof(ShiftPreference),
+        Type[] types = [typeof(SchedulePeriod), typeof(AvailabilityWindow), typeof(AvailabilitySubmission), typeof(ShiftTypeDefinition), typeof(Shift), typeof(ShiftPreference),
             typeof(ShiftAssignment), typeof(TaskTemplate), typeof(ShiftTask), typeof(TaskAssignment), typeof(SchedulePublication)];
         foreach (var type in types)
         {
@@ -81,5 +81,40 @@ public class ModelTests
         var (start, end) = ShiftClock.Boundaries(new DateOnly(2026, 10, 24), ShiftType.DAY);
         Assert.Equal(12, (end - start).TotalHours);
         Assert.Equal(4, start.Hour);
+    }
+}
+
+public sealed class ShiftTimeRangeTests
+{
+    [Theory]
+    [InlineData(ShiftTimeRange.H06_09, 6, 9, 0)]
+    [InlineData(ShiftTimeRange.H07_13, 7, 13, 0)]
+    [InlineData(ShiftTimeRange.H07_15, 7, 15, 0)]
+    [InlineData(ShiftTimeRange.H15_23, 15, 23, 0)]
+    [InlineData(ShiftTimeRange.H23_07, 23, 7, 1)]
+    public void Custom_ranges_preserve_local_clock_times_and_next_day_ownership(ShiftTimeRange range, int startHour, int endHour, int nextDay)
+    {
+        var date = new DateOnly(2026, 10, 31);
+        var (start, end) = ShiftTimeRanges.Boundaries(date, range);
+        var zone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Jerusalem");
+        Assert.Equal(date.ToDateTime(new TimeOnly(startHour, 0)), TimeZoneInfo.ConvertTimeFromUtc(start, zone));
+        Assert.Equal(date.AddDays(nextDay).ToDateTime(new TimeOnly(endHour, 0)), TimeZoneInfo.ConvertTimeFromUtc(end, zone));
+    }
+    [Theory]
+    [InlineData(2026, 3, 26, 7)]
+    [InlineData(2026, 10, 24, 9)]
+    public void Late_night_range_handles_DST_using_separate_boundaries(int year, int month, int day, int hours)
+    {
+        var (start, end) = ShiftTimeRanges.Boundaries(new(year, month, day), ShiftTimeRange.H23_07);
+        Assert.Equal(hours, (end - start).TotalHours);
+    }
+    [Fact]
+    public void Overlap_contract_includes_previous_night_and_cross_period_blocks_without_touching_endpoints()
+    {
+        var date = new DateOnly(2026, 11, 1);
+        Assert.Equal(new[] { (date.AddDays(-1), ShiftType.NIGHT), (date, ShiftType.DAY) }, ShiftTimeRanges.AvailabilityAnchors(date, ShiftTimeRange.H06_09));
+        Assert.Equal(new[] { (date, ShiftType.DAY), (date, ShiftType.NIGHT) }, ShiftTimeRanges.AvailabilityAnchors(date, ShiftTimeRange.H15_23));
+        Assert.Equal(new[] { (date, ShiftType.NIGHT) }, ShiftTimeRanges.AvailabilityAnchors(date, ShiftTimeRange.H23_07));
+        Assert.Equal(new[] { (date, ShiftType.DAY) }, ShiftTimeRanges.AvailabilityAnchors(date, ShiftTimeRange.H07_13));
     }
 }

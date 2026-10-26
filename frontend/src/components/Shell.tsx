@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { api, resetCsrf } from "../api";
 import { home, useAuth } from "../auth";
+import { scheduling } from "../scheduling";
 import { av } from "../availability";
 import { he, message } from "../he";
 import { Notice } from "./forms";
@@ -35,6 +36,7 @@ export default function Shell() {
           {user!.roles.includes("ADMIN") && (
             <>
               <NavLink to="/users">{he.users}</NavLink>
+              <NavLink to="/scheduling">{scheduling.title}</NavLink>
               <NavLink to="/availability-admin">{av.adminTitle}</NavLink>
             </>
           )}
