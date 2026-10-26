@@ -13,6 +13,8 @@ import App from "./App";
 import { resetCsrf, type User } from "./api";
 import {
   scheduling as s,
+  timeRanges,
+  type ShiftTimeRange,
   displayBoardDate,
   moveWeek,
   type ShiftTypeDefinition,
@@ -333,3 +335,24 @@ it("calendar navigation uses date arithmetic across months independently of DST"
   expect(moveWeek("2026-10-25", -1)).toBe("2026-10-18");
   expect(displayBoardDate("2027-01-02")).toBe("02/01/2027");
 });
+
+it.each(["H06_09", "H07_13", "H07_15", "H15_23", "H23_07"] as ShiftTimeRange[])(
+  "offers and persists the %s range in the shift-type table",
+  async (range) => {
+    page();
+    const user = await edit();
+    const selector = screen.getByLabelText(`${s.period} 1`);
+    expect(within(selector).getAllByRole("option")).toHaveLength(7);
+    await user.selectOptions(selector, range);
+    expect(selector).toHaveValue(range);
+    await user.click(screen.getByRole("button", { name: s.save }));
+    await screen.findByText(s.saved);
+    expect(writes[0].body.shiftTypes[0]).toMatchObject({
+      timeRange: range,
+      period: range === "H23_07" ? "NIGHT" : "DAY",
+    });
+    expect((await grid()).getAllByRole("rowheader")[0]).toHaveTextContent(
+      timeRanges[range],
+    );
+  },
+);

@@ -1,9 +1,24 @@
+export type ShiftTimeRange =
+  "DAY" | "NIGHT" | "H06_09" | "H07_13" | "H07_15" | "H15_23" | "H23_07";
+export const timeRanges: Record<ShiftTimeRange, string> = {
+  DAY: "יום · 07:00–19:00",
+  NIGHT: "לילה · 19:00–07:00 למחרת",
+  H06_09: "06:00–09:00",
+  H07_13: "07:00–13:00",
+  H07_15: "07:00–15:00",
+  H15_23: "15:00–23:00",
+  H23_07: "23:00–07:00 למחרת",
+};
+export function rangePeriod(range: ShiftTimeRange): "DAY" | "NIGHT" {
+  return range === "NIGHT" || range === "H23_07" ? "NIGHT" : "DAY";
+}
 export interface ShiftTypeDefinition {
   id: string;
   slot: number;
   name: string;
   displayOrder: number;
   period: "DAY" | "NIGHT";
+  timeRange?: ShiftTimeRange;
   requiredEmployees: number;
   includeInAutomaticScheduling: boolean;
   version: number;
@@ -15,6 +30,11 @@ export interface BoardCell {
   startsAt: string;
   endsAt: string;
   state: "NOT_REQUIRED" | "UNASSIGNED";
+  availabilityAnchors?: {
+    date: string;
+    period: "DAY" | "NIGHT";
+    shiftId: string | null;
+  }[];
 }
 export interface WeeklyBoard {
   weekStartsOn: string;
@@ -51,10 +71,10 @@ export const scheduling = {
   hide: "סגירת הגדרות",
   name: "שם סוג המשמרת",
   order: "סדר תצוגה",
-  period: "יום או לילה",
+  period: "טווח שעות",
   staffing: "עובדים נדרשים",
   automatic: "השתתפות בשיבוץ אוטומטי עתידי",
-  periods: { DAY: "יום · 07:00–19:00", NIGHT: "לילה · 19:00–07:00 למחרת" },
+  periods: { DAY: timeRanges.DAY, NIGHT: timeRanges.NIGHT },
   configureHelp:
     "אפשר לשנות את שמות 51 הסוגים ואת הסדר שלהם. מספר העובדים הוא בין 0 ל־1000; אפס פירושו שאין צורך באיוש. סדר התצוגה חייב להכיל כל מספר מ־1 עד 51 פעם אחת.",
   untouched:
@@ -97,7 +117,9 @@ export function validDefinitions(rows: ShiftTypeDefinition[]) {
         Number.isInteger(row.requiredEmployees) &&
         row.requiredEmployees >= 0 &&
         row.requiredEmployees <= 1000 &&
-        (row.period === "DAY" || row.period === "NIGHT"),
+        (row.period === "DAY" || row.period === "NIGHT") &&
+        Object.hasOwn(timeRanges, row.timeRange ?? row.period) &&
+        rangePeriod(row.timeRange ?? row.period) === row.period,
     )
   );
 }

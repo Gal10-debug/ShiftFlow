@@ -11,13 +11,14 @@ cannot read the board, configuration or automatic-scheduling preparation endpoin
 The existing `ShiftType` enum remains DAY/NIGHT. An existing `Shift` is still one calendar
 date plus that DAY/NIGHT period, unique across the application. It belongs to the monthly
 `SchedulePeriod` containing its starting local date and is the anchor for availability,
-hard blocks and existing assignments. The new `ShiftTypeDefinition` is a board row within
-that day/night period, not another time interval, employee slot or duplicate Shift table.
-Multiple configured row types can refer to the same date's DAY Shift or NIGHT Shift.
+hard blocks and existing assignments. The new `ShiftTypeDefinition` is a board row with a configurable local time range, not an
+employee slot or duplicate Shift table. Multiple row types can overlap the same date's DAY
+or NIGHT anchor; custom ranges can also span more than one availability anchor.
 
 Each board day returns its year, month and existing SchedulePeriod ID (nullable when not
-created yet). Each cell returns the matching existing Shift ID when available, and canonical
-UTC boundaries. Night belongs to the starting date's month even if it ends next month.
+created yet). Each cell returns actual UTC boundaries and all overlapping availability anchors with their
+existing Shift IDs when available. Its legacy ShiftId is filled only for the exact DAY/NIGHT
+ranges; custom ranges use AvailabilityAnchors instead. Night belongs to the starting date's month even if it ends next month.
 GET never creates SchedulePeriod/Shift records or fills missing rows; monthly infrastructure
 is created by availability configuration today and will be ensured transactionally by a
 future scheduling mutation. An existing Shift with the wrong owning period or noncanonical
@@ -33,7 +34,8 @@ boundaries produces 409 NON_CANONICAL_SHIFT rather than silently changing histor
 | Slot | Immutable seed identity 1–51; unique and range checked |
 | Name | Editable Hebrew placeholder initially `משמרת 1` through `משמרת 51`; required, max 100 characters |
 | DisplayOrder | Unique permutation of 1–51, independent of Slot |
-| Period | DAY or NIGHT; uses the existing ShiftType enum |
+| Period | Legacy DAY/NIGHT classification; never sufficient for custom-range hard-block checks |
+| TimeRange | One of seven supported ranges; nullable only for legacy seed/client compatibility, falling back to Period |
 | RequiredEmployees | Integer 0–1000; zero intentionally requires no staffing |
 | IncludeInAutomaticScheduling | Administrator's explicit selection for a future run |
 | Version | Positive bigint, incremented on a changed row and checked on save |
@@ -59,6 +61,37 @@ migration creates its backing constraint explicitly. The save service uses param
 SQL updates because EF's normal unique-index command sorter rejects cyclic swaps before
 sending SQL. The database checks final uniqueness at transaction commit. Slot uniqueness,
 allowed periods, count range, nonblank name and positive version have database constraints.
+
+## Extended time ranges
+
+The additive ShiftTypeTimeRanges migration adds TimeRange and backfills it from each row's
+existing Period without altering administrator edits, row identity or staffing. A check
+constraint validates both the allowed range and its legacy classification. Original seed
+metadata remains fixed; null seed values fall back to the existing Period at read time.
+
+| TimeRange | Local hours | Legacy Period |
+| --- | --- | --- |
+| DAY | 07:00–19:00 | DAY |
+| NIGHT | 19:00–07:00 next day | NIGHT |
+| H06_09 | 06:00–09:00 | DAY |
+| H07_13 | 07:00–13:00 | DAY |
+| H07_15 | 07:00–15:00 | DAY |
+| H15_23 | 15:00–23:00 | DAY |
+| H23_07 | 23:00–07:00 next day | NIGHT |
+
+The UI selects TimeRange and supplies its compatible Period automatically. API responses,
+configuration snapshots and settings saves include TimeRange. Legacy clients omitting it
+preserve a custom range when Period is unchanged; explicitly changing Period resets to that
+canonical DAY/NIGHT range. A conflicting explicit TimeRange/Period pair is rejected.
+
+ShiftTimeRanges.Boundaries converts start/end independently with Asia/Jerusalem rules.
+ShiftTimeRanges.AvailabilityAnchors exposes every canonical interval that overlaps the
+actual UTC range (touching endpoints do not overlap). Board cells expose these anchors,
+including adjacent-date/month references. For example 06:00–09:00 checks the previous
+night and current day; 15:00–23:00 checks the current day and current night. Phase 4B must
+inspect hard blocks and availability for **all** returned anchors, not just legacy Period
+or the first ShiftId. Existing availability submissions and canonical shifts are unchanged.
+No engine or employee assignment generation is introduced by adding these ranges.
 
 ## Administrator configuration and concurrency
 
@@ -133,7 +166,7 @@ hard-block triggers remain intact; no historical assignment is moved or deleted.
 `IAutomaticSchedulingConfiguration.GetConfiguration()` exposes a read-only snapshot. Rows
 contains only IncludeInAutomaticScheduling=true AND RequiredEmployees>0, in display order.
 ExcludedDefinitionIds includes all other rows and is an explicit do-not-touch set. Each
-included row retains identity/version, DAY/NIGHT classification and required count. It
+included row retains identity/version, DAY/NIGHT classification, TimeRange and required count. It
 cannot generate assignments and is not a complete scheduling API. Future run inputs must
 snapshot/revalidate the configuration versions within the scheduling transaction.
 
@@ -141,8 +174,8 @@ Phase 4B must deliberately add a row-definition association to persisted assignm
 an allocation entity referencing the existing Shift/ShiftAssignment, with appropriate
 uniqueness and migration behavior for unmapped historical assignments. This phase does
 not invent a parallel assignment store or fabricate that association for old data.
-A row's calendar date/Period resolves to the canonical Shift anchor; employee availability
-and hard blocks apply to that same anchor across every row within its DAY/NIGHT interval.
+A row's calendar date/TimeRange resolves to all overlapping canonical Shift anchors; employee
+availability and hard blocks apply to every overlapping anchor across all configured rows.
 Use IHardBlockQuery under Phase 3's period → employee lock protocol. Plan any changes to
 lead/staffing constraints explicitly; the old global lead index must not be assumed to
 mean one lead per configurable row. Excluded/zero-count rows' existing future allocations

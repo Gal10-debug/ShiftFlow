@@ -240,6 +240,42 @@ public sealed class SchedulingTests : IAsyncLifetime
     }
 
     [PostgresFact]
+    public async Task Additional_ranges_persist_and_drive_board_and_future_configuration()
+    {
+        using var admin = await Login(); var request = Request(await Types(admin));
+        var ranges = new[] { "H06_09", "H07_13", "H07_15", "H15_23", "H23_07" };
+        for (var i = 0; i < ranges.Length; i++)
+            request.ShiftTypes[i] = request.ShiftTypes[i] with { TimeRange = ranges[i], Period = i == 4 ? "NIGHT" : "DAY", RequiredEmployees = 1, IncludeInAutomaticScheduling = true };
+        Assert.True((await Send(admin, TypesPath, request)).IsSuccessStatusCode);
+        var saved = await Types(admin);
+        Assert.Equal(ranges, saved.Take(5).Select(x => x.TimeRange));
+        var board = (await admin.GetFromJsonAsync<WeeklyBoardResponse>("/api/admin/scheduling/board?date=2026-11-01"))!;
+        Assert.All(board.Rows.Take(5), row => { Assert.Null(row.Cells[0].ShiftId); Assert.NotEmpty(row.Cells[0].AvailabilityAnchors!); });
+        Assert.Equal(new DateOnly(2026, 10, 31), board.Rows[0].Cells[0].AvailabilityAnchors![0].Date);
+        Assert.Equal(2, board.Rows[3].Cells[0].AvailabilityAnchors!.Length);
+        var configuration = (await admin.GetFromJsonAsync<AutomaticSchedulingConfigurationResponse>("/api/admin/scheduling/automatic-configuration"))!;
+        Assert.Equal(ranges, configuration.Rows.Select(x => x.TimeRange));
+        // Legacy clients changing names do not silently reset an existing custom range.
+        var legacy = Request(saved); legacy.ShiftTypes[0] = legacy.ShiftTypes[0] with { Name = "עדכון שם בלבד" };
+        Assert.True((await Send(admin, TypesPath, legacy)).IsSuccessStatusCode);
+        Assert.Equal("H06_09", (await Types(admin))[0].TimeRange);
+        var invalid = Request(await Types(admin)); invalid.ShiftTypes[0] = invalid.ShiftTypes[0] with { TimeRange = "INVALID" };
+        Assert.Equal(HttpStatusCode.BadRequest, (await Send(admin, TypesPath, invalid)).StatusCode);
+    }
+
+    [PostgresFact]
+    public async Task Time_range_migration_preserves_existing_day_night_settings_and_names()
+    {
+        using var scope = factory.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await db.GetService<IMigrator>().MigrateAsync("20261026063511_SchedulingBoardShiftTypes");
+        await db.Database.ExecuteSqlRawAsync("UPDATE \"ShiftTypeDefinition\" SET \"Period\" = 'NIGHT', \"Name\" = 'שם קיים' WHERE \"Slot\" = 1");
+        await db.Database.MigrateAsync(); db.ChangeTracker.Clear();
+        var row = await db.Set<ShiftTypeDefinition>().SingleAsync(x => x.Slot == 1);
+        Assert.Equal("שם קיים", row.Name); Assert.Equal(ShiftType.NIGHT, row.Period); Assert.Equal(ShiftTimeRange.NIGHT, row.TimeRange);
+        Assert.Equal(51, await db.Set<ShiftTypeDefinition>().CountAsync());
+    }
+
+    [PostgresFact]
     public async Task Upgrade_from_phase_three_and_configuration_preserve_submissions_preferences_and_assignments()
     {
         using var scope = factory.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

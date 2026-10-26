@@ -4,6 +4,9 @@ import { he, message } from "../he";
 import { Notice } from "../components/forms";
 import {
   scheduling as s,
+  timeRanges,
+  rangePeriod,
+  type ShiftTimeRange,
   displayBoardDate,
   moveWeek,
   validDefinitions,
@@ -103,6 +106,7 @@ export default function SchedulingBoard() {
             name: row.name,
             displayOrder: row.displayOrder,
             period: row.period,
+            timeRange: row.timeRange ?? row.period,
             requiredEmployees: row.requiredEmployees,
             includeInAutomaticScheduling: row.includeInAutomaticScheduling,
           })),
@@ -236,7 +240,16 @@ export default function SchedulingBoard() {
                     <tr key={row.definition.id}>
                       <th scope="row" className="schedule-row-label">
                         <strong>{row.definition.name}</strong>
-                        <small>{s.periods[row.definition.period]}</small>
+                        <small>
+                          <bdi dir="ltr">
+                            {
+                              timeRanges[
+                                row.definition.timeRange ??
+                                  row.definition.period
+                              ]
+                            }
+                          </bdi>
+                        </small>
                         <small>
                           {row.definition.requiredEmployees} {s.workers} ·{" "}
                           {row.definition.includeInAutomaticScheduling &&
@@ -334,17 +347,23 @@ export default function SchedulingBoard() {
                       <td>
                         <select
                           aria-label={`${s.period} ${row.slot}`}
-                          value={row.period}
+                          dir="ltr"
+                          value={row.timeRange ?? row.period}
                           disabled={busy || loading}
                           onChange={(e) =>
                             change(row.id, {
-                              period: e.target
-                                .value as ShiftTypeDefinition["period"],
+                              timeRange: e.target.value as ShiftTimeRange,
+                              period: rangePeriod(
+                                e.target.value as ShiftTimeRange,
+                              ),
                             })
                           }
                         >
-                          <option value="DAY">{s.periods.DAY}</option>
-                          <option value="NIGHT">{s.periods.NIGHT}</option>
+                          {Object.entries(timeRanges).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
                         </select>
                       </td>
                       <td>

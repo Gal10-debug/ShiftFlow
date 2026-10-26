@@ -145,10 +145,15 @@ shortcut, sticky headers/labels and two-axis scrolling support desktop/tablet an
 The board is explicitly unpublished and does not show or generate employee assignments.
 
 Open **הגדרות סוגי משמרות** to rename placeholders, change display order, classify each row
-as DAY/NIGHT, configure 0–1000 required employees and select future automatic participation.
+with a time range, configure 0–1000 required employees and select future automatic participation.
 Save explicitly; edits remain local until saved. Swap order values as a complete unique
 permutation of 1–51. Zero means **ללא צורך באיוש** and is excluded from future automatic runs,
 even if its inclusion flag is selected. No fixed five-employees rule applies to these rows.
+
+Time ranges include the existing 07:00–19:00 and 19:00–07:00, plus **06:00–09:00**,
+**07:00–13:00**, **07:00–15:00**, **15:00–23:00** and **23:00–07:00**. Overnight ranges end
+on the following date. All use Israel local time with UTC timestamps and DST handling.
+The `ShiftTypeTimeRanges` migration preserves existing names, ordering and Day/Night choices.
 
 Apply the additive migration with `./scripts/dev.sh migrate`. It inserts `משמרת 1` through
 `משמרת 51` once, initially DAY with zero staffing and automatic participation off. Restarting
