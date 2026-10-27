@@ -390,3 +390,7 @@ their existing behavior and employee/coordinator accounts cannot access administ
 ## Phase 4C organizational eligibility
 
 Organizational leadership is independent of shift-lead qualification. Team leaders are excluded from the automatic workforce and solver eligibility, including expert rows. Deputies follow normal employee constraints and require independent expert qualification. Team changes and submitted availability versions invalidate preview fingerprints. Existing leader assignments prevent generation; delegated hard-block conflicts remain visible through `RosterValidationService`, whose reusable `ValidateForPublication` guard is intended for future publication under the scheduling lock protocol. See [team architecture](team-management-architecture.md).
+
+## Phase 5 review and publication
+
+The same working assignment/cell model now supports manual edits and immutable preliminary/final publication snapshots. `ScheduleReviewService` validates actual work intervals, adjacent-month constraints, current blocks, qualifications, eligibility and staffing. Review tokens include period revisions, and every publication rechecks current inputs under the shared scheduling/period/account/employee locks. See [publication architecture](publication-architecture.md) for lifecycle, snapshot privacy, reporting, acknowledgment policy and manual verification.

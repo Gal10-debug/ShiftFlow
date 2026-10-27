@@ -31,14 +31,14 @@ public sealed record SchedulingProblem(int Year, int Month, string Fingerprint, 
 
 public sealed class SchedulingInputs(ApplicationDbContext db)
 {
-    public async Task<SchedulingProblem> Read(int year, int month, CancellationToken ct = default)
+    public async Task<SchedulingProblem> Read(int year, int month, CancellationToken ct = default, bool review = false)
     {
         var first = AvailabilityService.MonthStart(year, month);
         var end = first.AddMonths(1);
         var from = first.AddDays(-2); var through = end.AddDays(2);
         var definitions = await db.Set<ShiftTypeDefinition>().AsNoTracking().OrderBy(x => x.Id).ToArrayAsync(ct);
         var periods = await db.Set<SchedulePeriod>().AsNoTracking().Where(p => p.Year >= from.Year && p.Year <= through.Year).OrderBy(x => x.Id).ToArrayAsync(ct);
-        if (periods.Any(p => p.Year == year && p.Month == month && p.Status != ScheduleStatus.DRAFT)) throw new ApiException("PERIOD_PUBLISHED", 409);
+        if (!review && periods.Any(p => p.Year == year && p.Month == month && p.Status != ScheduleStatus.DRAFT && p.Status != ScheduleStatus.UNDER_CORRECTION)) throw new ApiException("PERIOD_PUBLISHED", 409);
         var users = await db.Users.AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.IsActive, x.IsShiftLeadQualified, x.FirstName, x.LastName, x.SecurityStamp }).ToArrayAsync(ct);
         var roles = await (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id orderby ur.UserId, r.Name select new { ur.UserId, r.Name }).ToArrayAsync(ct);
         var teams = await db.Set<OrganizationalTeam>().AsNoTracking().OrderBy(t => t.Id).ToArrayAsync(ct);
@@ -70,14 +70,14 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
             return new Work(a.Id, a.UserId, cell?.ShiftTypeDefinitionId, cell?.Date ?? shift.ShiftDate,
                 cell?.StartsAt ?? shift.StartsAt, cell?.EndsAt ?? shift.EndsAt, shift.Id, replaceable, a.IsShiftLead, shift.ShiftType);
         }).ToArray();
-        if (work.Any(w => teams.Any(t => t.LeaderUserId == w.UserId))) throw new ApiException("TEAM_LEADER_ASSIGNED", 409);
+        if (!review && work.Any(w => teams.Any(t => t.LeaderUserId == w.UserId))) throw new ApiException("TEAM_LEADER_ASSIGNED", 409);
         var proposed = definitions.Where(d => d.IncludeInAutomaticScheduling && d.RequiredEmployees > 0)
             .SelectMany(d => Enumerable.Range(0, end.DayNumber - first.DayNumber).Select(i => {
                 var date = first.AddDays(i); var times = ShiftTimeRanges.Boundaries(date, ShiftTimeRanges.Effective(d));
                 return new CandidateCell(d.Id, date, times.StartsAt, times.EndsAt, d.RequiredEmployees, d.Version, d.Period, d.RequiresShiftLeadQualification);
             })).ToArray();
         // Snapshot includes fixed work, configuration, role/account state and submitted versions.
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(new { definitions, teams, periods = periods.Select(p => new { p.Id, p.Year, p.Month, p.Status, p.UpdatedAt }), users, roles,
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new { definitions, teams, periods = periods.Select(p => new { p.Id, p.Year, p.Month, p.Status, p.UpdatedAt, p.Revision }), users, roles,
             shifts = shifts.Select(s => new { s.Id, s.SchedulePeriodId, s.ShiftDate, s.ShiftType, s.StartsAt, s.EndsAt, s.CoordinatorUserId }),
             cells = cells.Select(c => new { c.Id, c.ShiftTypeDefinitionId, c.Date, c.StartsAt, c.EndsAt, c.RequiredEmployees, c.ConfigurationVersion, c.SchedulingRunId }), assignments, submissions = submissions.Select(s => new { s.Id, s.UserId, s.SchedulePeriodId, s.Version, s.LastSubmittedAt }), preferences });
         return new(year, month, Convert.ToHexString(SHA256.HashData(bytes)), proposed, employees, work, prefs);

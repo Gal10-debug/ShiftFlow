@@ -9,6 +9,7 @@ import Users from "./pages/Users";
 import AccessPage from "./pages/AccessPage";
 import Availability from "./pages/Availability";
 import AvailabilityAdmin from "./pages/AvailabilityAdmin";
+import MySchedule from "./pages/MySchedule";
 import SchedulingBoard from "./pages/SchedulingBoard";
 import Teams from "./pages/Teams";
 import TeamAvailability from "./pages/TeamAvailability";
@@ -52,6 +53,7 @@ export function AppRoutes() {
             />
           </Route>
           <Route element={<Protected role="EMPLOYEE" />}>
+            <Route path="/my-schedule" element={<MySchedule />} />
             <Route path="/employee" element={<PersonalAvailability />} />
             <Route path="/availability" element={<PersonalAvailability />} />
           </Route>

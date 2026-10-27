@@ -314,6 +314,9 @@ public sealed class AvailabilityTests : IAsyncLifetime
         var migrator = db.GetService<IMigrator>();
         await migrator.MigrateAsync("20261024154101_RequirePasswordChange");
         var period = new SchedulePeriod { Year = 2026, Month = 9 };
+        // Populate the historical schema using its columns, then attach the period unchanged.
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO \"SchedulePeriod\" (\"Id\",\"Year\",\"Month\",\"Status\",\"CreatedAt\",\"UpdatedAt\") VALUES ({period.Id},{period.Year},{period.Month},'DRAFT',{period.CreatedAt},{period.UpdatedAt})");
+        db.Attach(period);
         var bounds = ShiftClock.Boundaries(new(2026, 9, 30), ShiftType.DAY);
         var shift = new Shift { SchedulePeriod = period, ShiftDate = new(2026, 9, 30), StartsAt = bounds.StartsAt, EndsAt = bounds.EndsAt };
         db.Add(new ShiftPreference { Shift = shift, UserId = ids["employee"], PreferenceType = PreferenceType.BLOCKED });

@@ -198,3 +198,7 @@ the automated component tests are not a substitute for final device/browser revi
 ## Phase 4C delegation
 
 Explicit organizational leaders and deputies can submit for active EMPLOYEE members of their own team, outside the normal availability window, using the same versioned monthly replacement and weekly block validation. Membership and permission checks share the account lock with team administration. Audit insertion and availability updates are atomic. Draft conflicts are preserved and reported rather than deleting assignments; ordinary self-edits retain the existing assigned-shift rejection. See [team architecture](team-management-architecture.md) for endpoints, transaction-local audited trigger behavior and verification.
+
+## Phase 5 publication interaction
+
+Audited delegated edits are supported during preliminary publication and correction as well as DRAFT; they stale the reviewed input hash and can surface retained draft conflicts. Published snapshots never change. Final periods reject availability writes. Ordinary personal submission remains restricted to DRAFT and an open availability window. See [publication lifecycle and locking](publication-architecture.md).

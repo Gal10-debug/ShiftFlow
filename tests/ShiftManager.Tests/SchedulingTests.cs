@@ -281,6 +281,9 @@ public sealed partial class SchedulingTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await db.GetService<IMigrator>().MigrateAsync("20261025205611_AvailabilitySubmissions");
         var period = new SchedulePeriod { Year = 2026, Month = 10 };
+        // Populate the historical schema using its columns, then attach the period unchanged.
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO \"SchedulePeriod\" (\"Id\",\"Year\",\"Month\",\"Status\",\"CreatedAt\",\"UpdatedAt\") VALUES ({period.Id},{period.Year},{period.Month},'DRAFT',{period.CreatedAt},{period.UpdatedAt})");
+        db.Attach(period);
         var (start, end) = ShiftClock.Boundaries(new(2026, 10, 25), ShiftType.DAY);
         var shift = new Shift { SchedulePeriod = period, ShiftDate = new(2026, 10, 25), StartsAt = start, EndsAt = end };
         var preference = new ShiftPreference { UserId = ids["employee"], Shift = shift, PreferenceType = PreferenceType.PREFERRED };

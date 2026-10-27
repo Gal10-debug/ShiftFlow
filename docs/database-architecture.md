@@ -206,3 +206,7 @@ locking order, regeneration rules, limitations and manual verification.
 ## Phase 4C additive schema
 
 `TeamManagement` adds `OrganizationalTeam`, `TeamMembership` and `DelegatedAvailabilityAudit`, four fixed team seed rows, unique membership and composite leadership/membership foreign keys with restricted deletion. Existing availability, Identity and scheduling tables remain authoritative. An audited transaction-local path allows delegated hard blocks against retained draft assignments while preserving hard-block guards on new assignments. See [team architecture](team-management-architecture.md) for constraints, transaction order and migration verification.
+
+## Phase 5 schema
+
+Two additive migrations expand `SchedulePeriod` lifecycle/revision fields and `SchedulePublication` with immutable JSONB snapshots and explicit shortage/report acknowledgments. `ScheduleIssue` preserves version-specific employee reports independently of mutable live assignment rows; `ScheduleEditAudit` records before/after manual operations. PostgreSQL triggers prevent mutation/deletion of publication and edit-audit history. Existing PUBLISHED records retain LEGACY/null snapshot semantics. See [migration/rollback policy](publication-architecture.md).
