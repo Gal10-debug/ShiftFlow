@@ -336,3 +336,11 @@ The Hebrew RTL **ניהול צוותים** page (`/teams`) manages memberships a
 Existing assignments are never removed by an appointment or delegated availability update. New hard-block conflicts are surfaced to administrators, stale generation previews cannot be saved, and a reusable roster validation service guards future publication. Publication itself is not implemented.
 
 Apply the additive `20261027112256_TeamManagement` migration explicitly using `./scripts/dev.sh migrate`. Existing users, submissions, preferences and schedules are preserved. See [team architecture, API and manual verification](docs/team-management-architecture.md) for permissions, locking, conflict resolution and test instructions.
+
+### Phase 5 — בדיקה, תיקונים ופרסום הסידור
+
+The existing scheduling board now supports monthly/weekly draft review, transactional manual assignment/removal/replacement/moves, eligibility explanations and two-stage publication. The lifecycle is DRAFT → PRELIMINARY_PUBLISHED → optional UNDER_CORRECTION and updated preliminary versions → FINAL_PUBLISHED. Only ADMIN can edit, review or publish. Hard violations block publication; shortages and unresolved final-stage employee reports require explicit acknowledgment.
+
+Each publication stores an immutable, versioned snapshot of row names, work times, staffing and employee assignment details. Employees use **סידור העבודה שלי** (`/my-schedule`) to view only their own published work and report issues against their own latest preliminary assignments. During corrections they continue seeing the last published preliminary snapshot. Delegated availability updates invalidate reviewed draft inputs without changing a published snapshot.
+
+Apply the two additive Phase 5 migrations using `./scripts/dev.sh migrate`. See [publication architecture, API, limitations, rollback and verification](docs/publication-architecture.md). Root [AGENTS.md](AGENTS.md) enforces feature-branch development and keeps main read-only for agents. No shift exchanges or deployment are included.

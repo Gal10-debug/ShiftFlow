@@ -44,6 +44,7 @@ export default function Shell() {
           {user!.roles.includes("COORDINATOR") && (
             <NavLink to="/coordinator">{he.coordinator}</NavLink>
           )}
+          {user!.roles.includes("EMPLOYEE") && !user!.isTeamLeader && <NavLink to="/my-schedule">סידור העבודה שלי</NavLink>}
           {user!.canManageTeamAvailability && <NavLink to="/team-availability">זמינות הצוות</NavLink>}
           {user!.roles.includes("EMPLOYEE") && !user!.isTeamLeader && (
             <NavLink to="/employee">{av.title}</NavLink>

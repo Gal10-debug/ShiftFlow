@@ -91,16 +91,16 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
         return rows.OrderBy(x => x.DisplayOrder).Select(Response).ToArray();
     }
 
-    public async Task<WeeklyBoardResponse> Board(DateOnly? date)
+    public async Task<WeeklyBoardResponse> Board(DateOnly? date, bool monthly = false)
     {
         var anchor = date ?? CurrentWeek();
         if (anchor.Year < 2 || anchor.Year > 9998) throw new ApiException("VALIDATION_ERROR");
-        var start = WeekStart(anchor);
+        var start = monthly ? new DateOnly(anchor.Year, anchor.Month, 1) : WeekStart(anchor);
         if (start.Year < 2 || start > new DateOnly(9998, 12, 25)) throw new ApiException("VALIDATION_ERROR");
-        var end = start.AddDays(6);
+        var end = monthly ? start.AddMonths(1).AddDays(-1) : start.AddDays(6);
         await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
         var definitions = await List();
-        var months = Enumerable.Range(-1, 9).Select(i => start.AddDays(i)).Select(d => (d.Year, d.Month)).Distinct().ToArray();
+        var months = Enumerable.Range(-1, end.DayNumber - start.DayNumber + 3).Select(i => start.AddDays(i)).Select(d => (d.Year, d.Month)).Distinct().ToArray();
         var years = months.Select(x => x.Year).Distinct().ToArray();
         var monthNumbers = months.Select(x => x.Month).Distinct().ToArray();
         var periods = await db.Set<SchedulePeriod>().AsNoTracking().Where(x => years.Contains(x.Year) && monthNumbers.Contains(x.Month))
@@ -110,7 +110,7 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
         var savedCells = await db.Set<SchedulingCell>().AsNoTracking().Include(c => c.Assignments).ThenInclude(a => a.User)
             .Include(c => c.Assignments).ThenInclude(a => a.Tasks)
             .Where(c => c.Date >= start && c.Date <= end).ToDictionaryAsync(c => (c.ShiftTypeDefinitionId, c.Date));
-        var days = Enumerable.Range(0, 7).Select(i => start.AddDays(i)).Select(d => new BoardDayResponse(d, d.Year, d.Month, periods.GetValueOrDefault((d.Year, d.Month))?.Id)).ToArray();
+        var days = Enumerable.Range(0, end.DayNumber - start.DayNumber + 1).Select(i => start.AddDays(i)).Select(d => new BoardDayResponse(d, d.Year, d.Month, periods.GetValueOrDefault((d.Year, d.Month))?.Id)).ToArray();
         var rows = definitions.Select(definition => new BoardRowResponse(definition, days.Select(day =>
         {
             var range = Enum.Parse<ShiftTimeRange>(definition.TimeRange!);
@@ -130,7 +130,7 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
                 $"{a.User.FirstName} {a.User.LastName}", !a.GeneratedByRunId.HasValue || a.IsLocked || a.IsShiftLead || a.Tasks.Count > 0 || !definition.IncludeInAutomaticScheduling || definition.RequiredEmployees == 0, a.IsShiftLead)).ToArray();
             return new BoardCellResponse(day.Date, canonicalId, saved?.StartsAt ?? boundaries.StartsAt, saved?.EndsAt ?? boundaries.EndsAt,
                 saved is not null ? "SAVED_DRAFT" : definition.RequiredEmployees == 0 ? "NOT_REQUIRED" : "UNASSIGNED", anchors,
-                members, saved?.RequiredEmployees, saved is null ? null : Math.Max(0, saved.RequiredEmployees - saved.Assignments.Count));
+                members, definition.RequiredEmployees, Math.Max(0, definition.RequiredEmployees - (saved?.Assignments.Count ?? 0)));
         }).ToArray())).ToArray();
         await tx.CommitAsync();
         return new(start, end, ZoneId, "UNPUBLISHED", days, rows);

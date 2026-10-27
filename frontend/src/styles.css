@@ -1025,3 +1025,7 @@ select:disabled {
 .shortage-list { max-height: 18rem; overflow: auto; }
 .automatic-generation { margin-block: 1rem; }
 .automatic-generation button { margin-inline-end: .6rem; margin-block: .4rem; }
+
+.own-assignment { background: #edf8f5; }
+.cell-edit { padding: 0.15rem 0.4rem; font-size: 0.8rem; margin-block-end: 0.3rem; }
+textarea { font: inherit; min-height: 5rem; max-width: 100%; resize: vertical; }

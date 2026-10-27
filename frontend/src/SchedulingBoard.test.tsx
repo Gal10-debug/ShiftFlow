@@ -23,6 +23,8 @@ import {
 import { weekStart } from "./availability";
 import { he } from "./he";
 
+// Review workflow is covered separately; keep these board/configuration tests isolated.
+vi.mock("./components/ScheduleReviewPanel", () => ({ default: () => null }));
 let definitions: ShiftTypeDefinition[];
 let writes: {
   path: string;

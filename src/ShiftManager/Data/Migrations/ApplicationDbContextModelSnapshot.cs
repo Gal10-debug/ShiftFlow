@@ -457,6 +457,105 @@ namespace ShiftManager.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ShiftManager.Domain.ScheduleEditAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("After")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Before")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("SchedulePeriodId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("SchedulePeriodId", "OccurredAt");
+
+                    b.ToTable("ScheduleEditAudit", (string)null);
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.ScheduleIssue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AssignmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Explanation")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("PublicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ReporterUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Response")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SchedulePeriodId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReporterUserId");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("SchedulePeriodId");
+
+                    b.HasIndex("PublicationId", "AssignmentId", "ReporterUserId")
+                        .IsUnique();
+
+                    b.ToTable("ScheduleIssue", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Issue_Status", "\"Status\" IN ('OPEN','IN_REVIEW','RESOLVED','REJECTED')");
+                        });
+                });
+
             modelBuilder.Entity("ShiftManager.Domain.SchedulePeriod", b =>
                 {
                     b.Property<Guid>("Id")
@@ -469,10 +568,18 @@ namespace ShiftManager.Data.Migrations
                     b.Property<int>("Month")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ReviewedInputs")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -489,7 +596,7 @@ namespace ShiftManager.Data.Migrations
                         {
                             t.HasCheckConstraint("CK_Period_Month", "\"Month\" BETWEEN 1 AND 12");
 
-                            t.HasCheckConstraint("CK_Period_Status", "\"Status\" IN ('DRAFT','PUBLISHED')");
+                            t.HasCheckConstraint("CK_Period_Status", "\"Status\" IN ('DRAFT','PUBLISHED','PRELIMINARY_PUBLISHED','UNDER_CORRECTION','FINAL_PUBLISHED')");
 
                             t.HasCheckConstraint("CK_Period_Year", "\"Year\" BETWEEN 1 AND 9999");
                         });
@@ -501,6 +608,29 @@ namespace ShiftManager.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AcknowledgedOpenIssues")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AcknowledgedShortages")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("InputFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("OpenIssueCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PublicationType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<DateTime>("PublishedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -509,6 +639,10 @@ namespace ShiftManager.Data.Migrations
 
                     b.Property<Guid>("SchedulePeriodId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Snapshot")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
 
                     b.Property<int>("VersionNumber")
                         .HasColumnType("integer");
@@ -1733,6 +1867,47 @@ namespace ShiftManager.Data.Migrations
                         .HasForeignKey("Id", "LeaderUserId")
                         .HasPrincipalKey("TeamId", "UserId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.ScheduleEditAudit", b =>
+                {
+                    b.HasOne("ShiftManager.Domain.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShiftManager.Domain.SchedulePeriod", null)
+                        .WithMany()
+                        .HasForeignKey("SchedulePeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.ScheduleIssue", b =>
+                {
+                    b.HasOne("ShiftManager.Domain.SchedulePublication", null)
+                        .WithMany()
+                        .HasForeignKey("PublicationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShiftManager.Domain.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReporterUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShiftManager.Domain.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ShiftManager.Domain.SchedulePeriod", null)
+                        .WithMany()
+                        .HasForeignKey("SchedulePeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ShiftManager.Domain.SchedulePublication", b =>

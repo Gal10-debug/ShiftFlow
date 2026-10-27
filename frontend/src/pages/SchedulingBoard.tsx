@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ScheduleReviewPanel, { type SelectedCell } from "../components/ScheduleReviewPanel";
 import AutomaticGeneration from "../components/AutomaticGeneration";
 import type { Generation } from "../scheduling";
 import { api } from "../api";
@@ -17,8 +18,14 @@ import {
 } from "../scheduling";
 
 export default function SchedulingBoard() {
+  const [monthly, setMonthly] = useState(false);
+  const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Jerusalem" }).format(new Date());
   const [generation, setGeneration] = useState<Generation | null>(null);
   const [requestedDate, setRequestedDate] = useState<string | null>(null);
+  const reviewDate = requestedDate ?? today;
+  const reviewYear = Number(reviewDate.slice(0, 4));
+  const reviewMonth = Number(reviewDate.slice(5, 7));
   const [reload, setReload] = useState(0);
   const [board, setBoard] = useState<WeeklyBoard | null>(null);
   const [baseline, setBaseline] = useState<ShiftTypeDefinition[]>([]);
@@ -31,7 +38,10 @@ export default function SchedulingBoard() {
   const preview = generation?.state === "READY";
   const generating = generation?.state === "QUEUED" || generation?.state === "RUNNING";
   const dirty = JSON.stringify(drafts) !== JSON.stringify(baseline);
-  const path = `/admin/scheduling/board${requestedDate ? `?date=${encodeURIComponent(requestedDate)}` : ""}`;
+  const query = new URLSearchParams();
+  if (requestedDate) query.set("date", requestedDate);
+  if (monthly) query.set("monthly", "true");
+  const path = `/admin/scheduling/board${query.size ? `?${query}` : ""}`;
   function apply(value: WeeklyBoard) {
     setBoard(value);
     const definitions = value.rows.map((row) => row.definition);
@@ -170,7 +180,10 @@ export default function SchedulingBoard() {
       <AutomaticGeneration definitions={baseline} value={generation} onChange={setGeneration}
         onSaved={() => setReload(n => n + 1)} disabled={busy || loading || dirty}
         disabledReason={loading ? "טוען את הגדרות המשמרות…" : busy ? "שומר את הגדרות המשמרות…" : dirty ? "יש שינויים שלא נשמרו. יש לשמור או לבטל את השינויים בהגדרות לפני יצירת סידור אוטומטי." : undefined} />
+      <ScheduleReviewPanel year={reviewYear} month={reviewMonth} reload={reload} selected={selectedCell} onChanged={() => setReload(n => n + 1)} />
       <div className="schedule-navigation">
+        <label className="field">חודש לבדיקה<input type="month" min="0002-01" max="9998-12" value={`${reviewYear}-${String(reviewMonth).padStart(2,"0")}`} onChange={e => { if (e.target.value) navigate(e.target.value + "-01"); }} /></label>
+        <label className="field">תצוגת לוח<select value={monthly ? "month" : "week"} onChange={e => setMonthly(e.target.value === "month")}><option value="week">שבועית</option><option value="month">חודשית</option></select></label>
         <button
           disabled={!board || busy || loading}
           onClick={() => navigate(moveWeek(board!.weekStartsOn, -1))}
@@ -238,10 +251,10 @@ export default function SchedulingBoard() {
                     <th scope="col" className="schedule-row-label">
                       {s.rowHeader}
                     </th>
-                    {board.days.map((day, i) => (
+                    {board.days.map((day) => (
                       <th scope="col" key={day.date}>
                         <span className="schedule-weekday">
-                          {s.weekdays[i]}
+                          {s.weekdays[new Date(`${day.date}T12:00:00Z`).getUTCDay()]}
                         </span>
                         <time dateTime={day.date}>
                           {displayBoardDate(day.date)}
@@ -278,6 +291,7 @@ export default function SchedulingBoard() {
                         const proposed = preview ? generation.cells.find(c => c.definitionId === row.definition.id && c.date === savedCell.date) : undefined;
                         const cell = proposed ? { ...savedCell, ...proposed } : savedCell;
                         return <td key={cell.date} className={cell.shortage ? "staffing-shortage" : undefined}>
+                          {!preview && <button className="cell-edit" aria-label={`עריכת ${row.definition.name} ${cell.date}`} onClick={() => { setRequestedDate(cell.date); setSelectedCell({ definitionId: row.definition.id, date: cell.date }); }}>עריכה</button>}
                           {proposed && <small>תצוגה מקדימה</small>}
                           {!proposed && savedCell.state === "SAVED_DRAFT" && <small>טיוטה שמורה</small>}
                           {cell.employees?.map(e => <div key={e.userId}>{e.name}{e.isShiftLead ? " · אחראי משמרת" : ""}{e.protected ? " · מוגן" : ""}</div>)}

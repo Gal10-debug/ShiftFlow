@@ -8,15 +8,17 @@ public sealed class SchedulePeriodConfiguration : IEntityTypeConfiguration<Sched
 {
     public void Configure(EntityTypeBuilder<SchedulePeriod> b)
     {
+        b.Property(x => x.Revision).IsConcurrencyToken();
+        b.Property(x => x.ReviewedInputs).HasMaxLength(64);
         b.HasKey(x => x.Id);
         b.HasIndex(x => new { x.Year, x.Month }).IsUnique();
-        b.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+        b.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
         b.HasOne(x => x.AvailabilityWindow).WithOne(x => x.SchedulePeriod).HasForeignKey<AvailabilityWindow>(x => x.SchedulePeriodId);
         b.ToTable(t =>
         {
             t.HasCheckConstraint("CK_Period_Month", "\"Month\" BETWEEN 1 AND 12");
             t.HasCheckConstraint("CK_Period_Year", "\"Year\" BETWEEN 1 AND 9999");
-            t.HasCheckConstraint("CK_Period_Status", "\"Status\" IN ('DRAFT','PUBLISHED')");
+            t.HasCheckConstraint("CK_Period_Status", "\"Status\" IN ('DRAFT','PUBLISHED','PRELIMINARY_PUBLISHED','UNDER_CORRECTION','FINAL_PUBLISHED')");
         });
     }
 }

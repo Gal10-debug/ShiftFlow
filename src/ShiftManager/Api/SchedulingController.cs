@@ -18,7 +18,7 @@ public sealed class SchedulingController(SchedulingService scheduling, Generatio
     [HttpPost("generation/{id:guid}/save")]
     public async Task<ActionResult<GenerationResponse>> Save(Guid id, CancellationToken ct) => Ok(await drafts.Save(id, User, ct));
     [HttpGet("board")]
-    public async Task<ActionResult<WeeklyBoardResponse>> Board([FromQuery] DateOnly? date) => Ok(await scheduling.Board(date));
+    public async Task<ActionResult<WeeklyBoardResponse>> Board([FromQuery] DateOnly? date, [FromQuery] bool monthly = false) => Ok(await scheduling.Board(date, monthly));
     [HttpGet("shift-types")]
     public async Task<ActionResult<ShiftTypeResponse[]>> List() => Ok(await scheduling.List());
     [HttpPut("shift-types")]

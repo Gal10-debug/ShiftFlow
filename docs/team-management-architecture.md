@@ -65,3 +65,7 @@ Other scheduling, staffing, user and team administration endpoints keep their AD
 10. Inspect audit events as administrator; confirm actor/target/team/period, UTC event time (displayed in Israel local time), previous/new values and initial/update indicators. Ordinary team members must not access the administrator audit endpoint.
 
 Automated verification: `RUN_POSTGRES_TESTS=1 dotnet test -m:1` uses disposable PostgreSQL containers unless CI's isolated service connection is provided. `dotnet build -c Release --warnaserror`, `dotnet ef migrations has-pending-model-changes --project src/ShiftManager`, `npm test --prefix frontend`, and `npm run build --prefix frontend` mirror relevant CI checks. Existing migration rollback/reapply and legacy-data upgrade tests include Phase 4C. Production deployment, publication, exchanges and error reporting remain outside scope.
+
+## Phase 5 extension
+
+Publication and manual corrections are now implemented as described in [publication architecture](publication-architecture.md). The earlier future-publication/individual-editor limitations above describe Phase 4C's baseline and are superseded: administrators can explicitly correct assignments, and full publication validation extends the original leader/hard-block guard. Team leadership still grants no scheduler privileges. Audited delegated edits continue during preliminary/correction states, but never mutate the published snapshot or finalized periods.

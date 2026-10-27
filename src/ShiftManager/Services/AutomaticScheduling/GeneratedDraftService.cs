@@ -37,7 +37,7 @@ public sealed class GeneratedDraftService(ApplicationDbContext db, GenerationQue
             Validate(current, job.Response.Cells);
             var period = await db.Set<SchedulePeriod>().SingleOrDefaultAsync(p => p.Year == job.Year && p.Month == job.Month, ct);
             if (period is null) { period = new SchedulePeriod { Year = job.Year, Month = job.Month }; db.Add(period); }
-            if (period.Status != ScheduleStatus.DRAFT) throw new ApiException("PERIOD_PUBLISHED", 409);
+            if (!ScheduleReviewService.Editable(period.Status)) throw new ApiException("PERIOD_PUBLISHED", 409);
             var summary = job.Response.Summary!;
             db.Add(new SchedulingRun { Id = job.Id, Year = job.Year, Month = job.Month, SavedAt = clock.GetUtcNow().UtcDateTime,
                 SavedByUserId = actorId, InputFingerprint = current.Fingerprint, SolverStatus = job.Response.SolverStatus!, ProvenObjectives = job.Response.ProvenObjectives,
@@ -66,6 +66,9 @@ public sealed class GeneratedDraftService(ApplicationDbContext db, GenerationQue
                     db.Add(new ShiftAssignment { ShiftId = shift.Id, UserId = employee.UserId, SchedulingCellId = cell.Id, GeneratedByRunId = job.Id });
             }
             period.UpdatedAt = clock.GetUtcNow().UtcDateTime;
+            await db.SaveChangesAsync(ct);
+            period.Revision++;
+            period.ReviewedInputs = await ScheduleReviewService.InputRevision(db);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             job.Response = job.Response with { State = "SAVED" };

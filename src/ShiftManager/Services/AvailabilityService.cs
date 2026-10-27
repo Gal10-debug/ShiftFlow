@@ -147,7 +147,7 @@ public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider cl
         Guid? teamId = target.HasValue ? await teams.AuthorizeTarget(actor, userId) : null;
         if (await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == userId)) throw new ApiException("TEAM_LEADER_NOT_SCHEDULED", 409);
         await LockEmployee(userId);
-        if (period.Status != ScheduleStatus.DRAFT) throw new ApiException("PERIOD_PUBLISHED", 409);
+        if (period.Status != ScheduleStatus.DRAFT && !(target.HasValue && period.Status is ScheduleStatus.PRELIMINARY_PUBLISHED or ScheduleStatus.UNDER_CORRECTION)) throw new ApiException("PERIOD_PUBLISHED", 409);
         var window = await db.Set<AvailabilityWindow>().SingleOrDefaultAsync(x => x.SchedulePeriodId == periodId);
         if (!target.HasValue && Window(window, Now).Status != "OPEN") throw new ApiException("WINDOW_CLOSED", 409);
         var submission = await db.Set<AvailabilitySubmission>().SingleOrDefaultAsync(x => x.UserId == userId && x.SchedulePeriodId == periodId);
