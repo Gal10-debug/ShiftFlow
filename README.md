@@ -326,3 +326,13 @@ Hebrew is the MVP language: `lang="he"`, `dir="rtl"`, logical CSS, LTR password 
 centralized visible text, he-IL date formatting as DD/MM/YYYY, 24-hour times, Israel-local
 Sunday–Saturday weeks and UTC persisted instants. Availability and the unpublished scheduling workspace are implemented; assignment generation,
 publication and task execution remain deferred.
+
+### Phase 4C — ניהול צוותים וזמינות הצוות
+
+Four persistent organizational teams (צוות א׳–ד׳) now support administrator renaming, unique employee membership, explicit leader/deputy appointments and transactional transfers. Organizational leaders are excluded from automatic scheduling and required availability submission; deputies remain ordinary scheduling participants with independent shift-lead qualification.
+
+The Hebrew RTL **ניהול צוותים** page (`/teams`) manages memberships and leadership and shows audit history and retained roster conflicts. **זמינות הצוות** (`/team-availability`) allows leaders/deputies to explicitly submit or update their own team members' availability even after the submission window closes. Weekly three-block limits, adjacent-month counting, optimistic versions and CSRF checks remain enforced server-side. Delegated updates and their before/after audit events commit atomically.
+
+Existing assignments are never removed by an appointment or delegated availability update. New hard-block conflicts are surfaced to administrators, stale generation previews cannot be saved, and a reusable roster validation service guards future publication. Publication itself is not implemented.
+
+Apply the additive `20261027112256_TeamManagement` migration explicitly using `./scripts/dev.sh migrate`. Existing users, submissions, preferences and schedules are preserved. See [team architecture, API and manual verification](docs/team-management-architecture.md) for permissions, locking, conflict resolution and test instructions.

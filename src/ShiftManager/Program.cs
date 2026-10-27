@@ -32,6 +32,8 @@ builder.Services.AddScoped<AppCookieEvents>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<AvailabilityService>();
+builder.Services.AddScoped<TeamService>();
+builder.Services.AddScoped<RosterValidationService>();
 builder.Services.AddScoped<SchedulingService>();
 builder.Services.AddScoped<SchedulingInputs>();
 builder.Services.AddScoped<GeneratedDraftService>();

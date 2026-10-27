@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using ShiftManager.Api;
@@ -14,7 +15,7 @@ public interface IHardBlockQuery
     Task<Guid[]> BlockedShifts(Guid userId, DateOnly from, DateOnly through);
 }
 
-public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider clock) : IHardBlockQuery
+public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider clock, TeamService teams, AccountService accounts) : IHardBlockQuery
 {
     public static DateOnly WeekStart(DateOnly date) => date.AddDays(-(int)date.DayOfWeek);
     public static DateOnly MonthStart(int year, int month)
@@ -62,22 +63,26 @@ public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider cl
     public async Task LockEmployee(Guid userId) =>
         await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({'a' + userId.ToString("N")}, 0))");
 
-    public async Task<PeriodResponse[]> Periods(Guid userId)
+    public async Task<PeriodResponse[]> Periods(Guid userId, ClaimsPrincipal? delegatedActor = null)
     {
+        await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
+        if (delegatedActor is not null) await teams.AuthorizeTarget(delegatedActor, userId);
         var periods = await db.Set<SchedulePeriod>().AsNoTracking().Include(x => x.AvailabilityWindow)
             .OrderByDescending(x => x.Year).ThenByDescending(x => x.Month).ToArrayAsync();
         var submissions = await db.Set<AvailabilitySubmission>().AsNoTracking().Where(x => x.UserId == userId).ToDictionaryAsync(x => x.SchedulePeriodId);
         var now = Now;
+        await tx.CommitAsync();
         return periods.Select(p => new PeriodResponse(p.Id, p.Year, p.Month, Window(p.AvailabilityWindow, now),
             submissions.ContainsKey(p.Id), submissions.GetValueOrDefault(p.Id)?.LastSubmittedAt)).ToArray();
     }
 
-    public async Task<AvailabilityResponse> Get(int year, int month, Guid userId)
+    public async Task<AvailabilityResponse> Get(int year, int month, Guid userId, ClaimsPrincipal? delegatedActor = null)
     {
         var first = MonthStart(year, month);
         var end = first.AddMonths(1);
         // A consistent snapshot prevents mixing a new version with old preferences during replacement.
         await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
+        if (delegatedActor is not null) await teams.AuthorizeTarget(delegatedActor, userId);
         var period = await db.Set<SchedulePeriod>().AsNoTracking().Include(x => x.AvailabilityWindow)
             .SingleOrDefaultAsync(x => x.Year == year && x.Month == month) ?? throw new ApiException("PERIOD_NOT_FOUND", 404);
         if (!await db.Users.AnyAsync(x => x.Id == userId)) throw new ApiException("USER_NOT_FOUND", 404);
@@ -122,7 +127,10 @@ public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider cl
     public Task<AvailabilityResponse> Submit(int year, int month, SubmitAvailabilityRequest input, ClaimsPrincipal actor, bool update) =>
         Retry(() => SubmitOnce(year, month, input, actor, update));
 
-    private async Task<AvailabilityResponse> SubmitOnce(int year, int month, SubmitAvailabilityRequest input, ClaimsPrincipal actor, bool update)
+    public Task<AvailabilityResponse> SubmitDelegated(int year, int month, Guid target, SubmitAvailabilityRequest input, ClaimsPrincipal actor, bool update) =>
+        Retry(() => SubmitOnce(year, month, input, actor, update, target));
+
+    private async Task<AvailabilityResponse> SubmitOnce(int year, int month, SubmitAvailabilityRequest input, ClaimsPrincipal actor, bool update, Guid? target = null)
     {
         var first = MonthStart(year, month);
         var end = first.AddMonths(1);
@@ -133,11 +141,15 @@ public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider cl
         await using var tx = await db.Database.BeginTransactionAsync();
         var period = await LockPeriod(year, month);
         var periodId = period.Id;
-        var userId = await Actor(actor, "EMPLOYEE");
+        await accounts.Lock();
+        var actorId = target.HasValue ? await teams.Actor(actor) : await Actor(actor, "EMPLOYEE");
+        var userId = target ?? actorId;
+        Guid? teamId = target.HasValue ? await teams.AuthorizeTarget(actor, userId) : null;
+        if (await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == userId)) throw new ApiException("TEAM_LEADER_NOT_SCHEDULED", 409);
         await LockEmployee(userId);
         if (period.Status != ScheduleStatus.DRAFT) throw new ApiException("PERIOD_PUBLISHED", 409);
         var window = await db.Set<AvailabilityWindow>().SingleOrDefaultAsync(x => x.SchedulePeriodId == periodId);
-        if (Window(window, Now).Status != "OPEN") throw new ApiException("WINDOW_CLOSED", 409);
+        if (!target.HasValue && Window(window, Now).Status != "OPEN") throw new ApiException("WINDOW_CLOSED", 409);
         var submission = await db.Set<AvailabilitySubmission>().SingleOrDefaultAsync(x => x.UserId == userId && x.SchedulePeriodId == periodId);
         if (update != (submission is not null) || input.ExpectedVersion != (submission?.Version ?? 0)) throw new ApiException("CONFLICT", 409);
         var from = WeekStart(first);
@@ -147,7 +159,22 @@ public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider cl
         var overflow = other.Concat(input.Selections.Where(x => x.State == "BLOCKED").Select(x => x.Date))
             .GroupBy(WeekStart).OrderBy(x => x.Key).FirstOrDefault(x => x.Count() > 3);
         if (overflow is not null) throw new ApiException("WEEKLY_BLOCK_LIMIT", 400, overflow.Key, 3);
-        var old = await db.Set<ShiftPreference>().Where(x => x.UserId == userId && x.Shift.SchedulePeriodId == periodId).ToArrayAsync();
+        var old = await db.Set<ShiftPreference>().Include(x => x.Shift).Where(x => x.UserId == userId && x.Shift.SchedulePeriodId == periodId).ToArrayAsync();
+        var previousValues = old.OrderBy(x => x.Shift.ShiftDate).ThenBy(x => x.Shift.ShiftType)
+            .Select(x => new { Date = x.Shift.ShiftDate, ShiftType = x.Shift.ShiftType.ToString(), State = x.PreferenceType.ToString() }).ToArray();
+        if (teamId.HasValue)
+        {
+            var audit = new DelegatedAvailabilityAudit
+            {
+                ActorUserId = actorId, TargetUserId = userId, TeamId = teamId.Value, SchedulePeriodId = periodId,
+                OccurredAt = Now, InitialSubmission = !update,
+                PreviousValues = JsonSerializer.Serialize(previousValues),
+                NewValues = JsonSerializer.Serialize(input.Selections.OrderBy(x => x.Date).ThenBy(x => x.ShiftType))
+            };
+            db.Add(audit);
+            await db.SaveChangesAsync();
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('shiftflow.delegated_audit', {audit.Id.ToString()}, true)");
+        }
         db.RemoveRange(old);
         await db.SaveChangesAsync();
         var shifts = await db.Set<Shift>().Where(x => x.SchedulePeriodId == periodId).ToDictionaryAsync(x => (x.ShiftDate, x.ShiftType));
@@ -155,8 +182,8 @@ public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider cl
         {
             var type = Enum.Parse<ShiftType>(selection.ShiftType);
             if (!shifts.TryGetValue((selection.Date, type), out var shift)) throw new ApiException("CONFLICT", 409);
-            // Existing staffing must not become invalid when a new hard block is submitted.
-            if (selection.State == "BLOCKED" && await db.Set<ShiftAssignment>().AnyAsync(x => x.UserId == userId &&
+            // Self-edits reject assignment conflicts; audited delegated edits retain and surface them.
+            if (!target.HasValue && selection.State == "BLOCKED" && await db.Set<ShiftAssignment>().AnyAsync(x => x.UserId == userId &&
                 (x.SchedulingCellId == null ? x.ShiftId == shift.Id : x.Cell!.StartsAt < shift.EndsAt && x.Cell.EndsAt > shift.StartsAt)))
                 throw new ApiException("SHIFT_ALREADY_ASSIGNED", 409);
             db.Add(new ShiftPreference { UserId = userId, ShiftId = shift.Id, PreferenceType = Enum.Parse<PreferenceType>(selection.State), CreatedAt = Now, UpdatedAt = Now });
@@ -169,10 +196,10 @@ public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider cl
         submission.Version++;
         submission.LastSubmittedAt = Now;
         // Recheck the clock immediately before committing the atomic replacement.
-        if (Window(window, Now).Status != "OPEN") throw new ApiException("WINDOW_CLOSED", 409);
+        if (!target.HasValue && Window(window, Now).Status != "OPEN") throw new ApiException("WINDOW_CLOSED", 409);
         await db.SaveChangesAsync();
         await tx.CommitAsync();
-        return await Get(year, month, userId);
+        return await Get(year, month, userId, target.HasValue ? actor : null);
     }
 
     public Task<WindowSummaryResponse> Configure(int year, int month, WindowRequest input, ClaimsPrincipal actor) =>
@@ -243,7 +270,7 @@ public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider cl
         await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
         var period = await db.Set<SchedulePeriod>().AsNoTracking().Include(x => x.AvailabilityWindow).SingleOrDefaultAsync(x => x.Year == year && x.Month == month);
         var employees = await (from u in db.Users.AsNoTracking()
-            where u.IsActive && (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id
+            where u.IsActive && !db.Set<OrganizationalTeam>().Any(t => t.LeaderUserId == u.Id) && (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id
                 where ur.UserId == u.Id && r.NormalizedName == "EMPLOYEE" select ur).Any()
             orderby u.LastName, u.FirstName, u.Id
             select new { u.Id, u.FirstName, u.LastName }).ToArrayAsync();

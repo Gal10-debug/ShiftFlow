@@ -62,7 +62,9 @@ export function home(user: User) {
     ? "/change-password"
     : user.roles.includes("ADMIN")
       ? "/users"
-      : user.roles.includes("COORDINATOR")
+      : user.canManageTeamAvailability
+        ? "/team-availability"
+        : user.roles.includes("COORDINATOR")
         ? "/coordinator"
         : user.roles.includes("EMPLOYEE")
           ? "/employee"

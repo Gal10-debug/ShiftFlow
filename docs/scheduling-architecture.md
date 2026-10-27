@@ -386,3 +386,7 @@ Rename it and reload. Generate a monthly preview, inspect qualified members and 
 expert shortages, cancel, regenerate and save a draft. Change qualification or staffing while
 a preview is open and verify stale-save rejection. Confirm ordinary and excluded rows retain
 their existing behavior and employee/coordinator accounts cannot access administrator settings.
+
+## Phase 4C organizational eligibility
+
+Organizational leadership is independent of shift-lead qualification. Team leaders are excluded from the automatic workforce and solver eligibility, including expert rows. Deputies follow normal employee constraints and require independent expert qualification. Team changes and submitted availability versions invalidate preview fingerprints. Existing leader assignments prevent generation; delegated hard-block conflicts remain visible through `RosterValidationService`, whose reusable `ValidateForPublication` guard is intended for future publication under the scheduling lock protocol. See [team architecture](team-management-architecture.md).

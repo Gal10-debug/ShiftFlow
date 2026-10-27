@@ -22,7 +22,7 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
         foreach (var c in p.Cells)
         {
             var members = fixedWork.Where(w => w.DefinitionId == c.DefinitionId && w.Date == c.Date).ToArray();
-            if (members.Length > c.Required || members.Any(w => w.Start != c.Start || w.End != c.End || !p.Employees.Any(e => e.Id == w.UserId && (!c.RequiresShiftLeadQualification || e.IsShiftLeadQualified))
+            if (members.Length > c.Required || members.Any(w => w.Start != c.Start || w.End != c.End || !p.Employees.Any(e => e.Id == w.UserId && !e.IsTeamLeader && (!c.RequiresShiftLeadQualification || e.IsShiftLeadQualified))
                 || p.Preferences.Any(b => b.UserId == w.UserId && b.State == Domain.PreferenceType.BLOCKED && SchedulingProblem.OverlapsAnchor(c, b))
                 || fixedWork.Any(o => o.AssignmentId != w.AssignmentId && o.UserId == w.UserId && SchedulingProblem.Conflicts(w.Start, w.End, o.Start, o.End))))
                 throw new ApiException("PROTECTED_ASSIGNMENT_CONFLICT", 409);

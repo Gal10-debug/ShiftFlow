@@ -16,7 +16,8 @@ import {
   type Selection,
 } from "../availability";
 
-export default function Availability() {
+export default function Availability({ targetId }: { targetId?: string }) {
+  const base = targetId ? `/team-availability/employees/${targetId}` : "/availability";
   const [periods, setPeriods] = useState<Period[]>([]);
   const [selected, setSelected] = useState("");
   const [data, setData] = useState<AvailabilityData | null>(null);
@@ -40,7 +41,7 @@ export default function Availability() {
   dirtyRef.current = dirty;
   useEffect(() => {
     let alive = true;
-    api<Period[]>("/availability/periods")
+    api<Period[]>(`${base}/periods`)
       .then((rows) => {
         if (alive) {
           setPeriods(rows);
@@ -56,7 +57,7 @@ export default function Availability() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [base]);
   useEffect(() => {
     if (!selected) return;
     let alive = true;
@@ -64,7 +65,7 @@ export default function Availability() {
     setData(null);
     setError("");
     setSuccess("");
-    api<AvailabilityData>(`/availability/${selected}`)
+    api<AvailabilityData>(`${base}/${selected}`)
       .then((value) => {
         if (alive) {
           setData(value);
@@ -80,7 +81,7 @@ export default function Availability() {
     return () => {
       alive = false;
     };
-  }, [selected]);
+  }, [selected, base]);
   useEffect(() => {
     if (!selected) return;
     let alive = true;
@@ -88,7 +89,7 @@ export default function Availability() {
     const poll = window.setInterval(() => {
       if (busyRef.current) return;
       const generation = generationRef.current;
-      api<AvailabilityData>(`/availability/${selected}`)
+      api<AvailabilityData>(`${base}/${selected}`)
         .then((value) => {
           if (!alive || busyRef.current || generation !== generationRef.current)
             return;
@@ -110,7 +111,7 @@ export default function Availability() {
       window.clearInterval(poll);
       window.clearInterval(tick);
     };
-  }, [selected]);
+  }, [selected, base]);
   useEffect(() => {
     if (!dirty) return;
     const unload = (e: BeforeUnloadEvent) => {
@@ -133,7 +134,7 @@ export default function Availability() {
       document.removeEventListener("click", link, true);
     };
   }, [dirty]);
-  const open = !!data && isWindowOpen(data.window, now);
+  const open = !!data && (!!targetId || isWindowOpen(data.window, now));
   const overflow =
     data && Object.values(weekCounts(data, choices)).some((count) => count > 3);
   async function submit() {
@@ -151,7 +152,7 @@ export default function Availability() {
     );
     try {
       const value = await api<AvailabilityData>(
-        `/availability/${selected}`,
+        `${base}/${selected}`,
         data.submitted ? "PUT" : "POST",
         { expectedVersion: data.version, selections },
       );
@@ -175,7 +176,8 @@ export default function Availability() {
       <div className="page-heading">
         <div>
           <span className="eyebrow">{he.workspace}</span>
-          <h1>{av.title}</h1>
+          <h1>{targetId ? "עריכת זמינות עובד" : av.title}</h1>
+          {targetId && <p>ניתן לערוך גם כשהחלון סגור. השינויים נשמרים רק בהגשה מפורשת ומתועדים בהיסטוריה.</p>}
           <p className="muted">{av.intro}</p>
         </div>
         {!!periods.length && (

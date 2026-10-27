@@ -6,6 +6,8 @@ export interface User {
   username: string;
   isActive: boolean;
   isShiftLeadQualified?: boolean;
+  canManageTeamAvailability?: boolean;
+  isTeamLeader?: boolean;
   mustChangePassword: boolean;
   createdAt: string;
   roles: Role[];

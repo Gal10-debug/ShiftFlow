@@ -14,6 +14,11 @@ public static class ApiErrors
 {
     public static ApiError Error(string code) => new(code, code switch
     {
+        "DEPUTY_REQUIRES_EMPLOYEE" => "למינוי סגן נדרש משתמש בעל תפקיד עובד.",
+        "INVALID_TEAM_LEADERSHIP" => "ראש הצוות וסגנו חייבים להיות חברים פעילים בצוות ומשתמשים שונים.",
+        "TEAM_LEADER_NOT_SCHEDULED" => "ראש צוות אינו משתתף בסידור ואינו נדרש להגיש זמינות.",
+        "TEAM_LEADER_ASSIGNED" => "קיימים שיבוצים לראש צוות. יש להסדיר אותם לפני יצירת סידור חדש.",
+        "ROSTER_CONFLICT" => "קיימות סתירות בסידור המחייבות טיפול מנהל.",
         "GENERATION_BUSY" => "קיימת הרצה פעילה או שהתור מלא. יש להמתין ולנסות שוב.",
         "PREVIEW_EXPIRED" => "תוקף התצוגה המקדימה פג. יש ליצור סידור מחדש.",
         "PREVIEW_NOT_READY" => "אין תצוגה מקדימה מוכנה לשמירה.",

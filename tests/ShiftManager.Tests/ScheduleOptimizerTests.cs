@@ -16,6 +16,30 @@ public sealed class ScheduleOptimizerTests
         new(2026, 10, "fingerprint", cells, Enumerable.Range(1, employees).Select(Employee).ToArray(), work ?? [], preferences ?? []);
     private static OptimizationResult Solve(SchedulingProblem p) => new ScheduleOptimizer().Solve(p, 10, CancellationToken.None);
     [Fact]
+    public void Organizational_leader_is_never_eligible_even_when_expert_qualified()
+    {
+        var leader = Employee(1) with { IsShiftLeadQualified = true, IsTeamLeader = true };
+        var deputy = Employee(2);
+        var cells = new[] { Cell(1), Cell(2, 1) with { RequiresShiftLeadQualification = true } };
+        var p = Problem(cells) with { Employees = [leader, deputy] };
+        Assert.All(cells, c => Assert.False(p.Eligible(leader, c)));
+        var r = Solve(p);
+        Assert.Equal(deputy.Id, r.Cells[0].Employees.Single().UserId);
+        Assert.Empty(r.Cells[1].Employees);
+        GeneratedDraftService.Validate(p, r.Cells);
+    }
+    [Fact]
+    public void Deputy_remains_bound_by_blocks_overlaps_and_no_consecutive_shifts()
+    {
+        var deputy = Employee(1);
+        var cells = new[] { Cell(1), Cell(2, range: ShiftTimeRange.NIGHT), Cell(3, 1), Cell(4, 1, ShiftTimeRange.H07_13) };
+        var p = Problem(cells, 1, preferences: [new(deputy.Id, Date, ShiftType.DAY, PreferenceType.BLOCKED)]);
+        var r = Solve(p);
+        Assert.Empty(r.Cells[0].Employees);
+        Assert.Equal(1, r.Cells.Sum(c => c.Employees.Length));
+        GeneratedDraftService.Validate(p, r.Cells);
+    }
+    [Fact]
     public void Variable_requirements_partial_staffing_and_overlaps()
     {
         var p = Problem([Cell(1, required: 2), Cell(2, required: 3), Cell(3, required: 0)]);

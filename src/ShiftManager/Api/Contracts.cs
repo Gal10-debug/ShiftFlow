@@ -17,7 +17,7 @@ public sealed record RolesRequest([Required, MinLength(1), MaxLength(3)] string[
 public sealed record StatusRequest([Required] bool? IsActive);
 public sealed record ResetPasswordRequest([Required, StringLength(128, MinimumLength = 12)] string TemporaryPassword);
 public sealed record UserResponse(Guid Id, string FirstName, string LastName, string Username, bool IsActive,
-    bool MustChangePassword, DateTime CreatedAt, string[] Roles, bool IsShiftLeadQualified = false);
+    bool MustChangePassword, DateTime CreatedAt, string[] Roles, bool IsShiftLeadQualified = false, bool CanManageTeamAvailability = false, bool IsTeamLeader = false);
 public sealed record UserPage(UserResponse[] Items, int TotalCount, int Page, int PageSize);
 public sealed record ApiError(string Code, string Message)
 {

@@ -202,3 +202,7 @@ uses existing period/employee locks plus account/configuration and cross-process
 locks. The additive migration extends PostgreSQL hard-block triggers to overlapping cell
 intervals. See [scheduling architecture](scheduling-architecture.md) for the full model,
 locking order, regeneration rules, limitations and manual verification.
+
+## Phase 4C additive schema
+
+`TeamManagement` adds `OrganizationalTeam`, `TeamMembership` and `DelegatedAvailabilityAudit`, four fixed team seed rows, unique membership and composite leadership/membership foreign keys with restricted deletion. Existing availability, Identity and scheduling tables remain authoritative. An audited transaction-local path allows delegated hard blocks against retained draft assignments while preserving hard-block guards on new assignments. See [team architecture](team-management-architecture.md) for constraints, transaction order and migration verification.

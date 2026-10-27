@@ -10,14 +10,14 @@ public sealed record Work(Guid AssignmentId, Guid UserId, Guid? DefinitionId, Da
     DateTime Start, DateTime End, Guid ShiftId, bool Replaceable, bool Lead, ShiftType AnchorType);
 public sealed record CandidateCell(Guid DefinitionId, DateOnly Date, DateTime Start, DateTime End,
     int Required, long Version, ShiftType AnchorType, bool RequiresShiftLeadQualification = false);
-public sealed record Employee(Guid Id, string Name, bool IsShiftLeadQualified = false);
+public sealed record Employee(Guid Id, string Name, bool IsShiftLeadQualified = false, bool IsTeamLeader = false);
 public sealed record Preference(Guid UserId, DateOnly Date, ShiftType Type, PreferenceType State);
 public sealed record SchedulingProblem(int Year, int Month, string Fingerprint, CandidateCell[] Cells,
     Employee[] Employees, Work[] Work, Preference[] Preferences)
 {
     public static bool Conflicts(DateTime start, DateTime end, DateTime otherStart, DateTime otherEnd) => start <= otherEnd && otherStart <= end;
     public bool Eligible(Employee employee, CandidateCell cell) =>
-        (!cell.RequiresShiftLeadQualification || employee.IsShiftLeadQualified)
+        !employee.IsTeamLeader && (!cell.RequiresShiftLeadQualification || employee.IsShiftLeadQualified)
         && !Preferences.Any(p => p.UserId == employee.Id && p.State == PreferenceType.BLOCKED && OverlapsAnchor(cell, p))
         && !Work.Any(w => !w.Replaceable && w.UserId == employee.Id &&
             (Conflicts(cell.Start, cell.End, w.Start, w.End) || (w.Date == cell.Date && w.AnchorType == cell.AnchorType)));
@@ -41,7 +41,8 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
         if (periods.Any(p => p.Year == year && p.Month == month && p.Status != ScheduleStatus.DRAFT)) throw new ApiException("PERIOD_PUBLISHED", 409);
         var users = await db.Users.AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.IsActive, x.IsShiftLeadQualified, x.FirstName, x.LastName, x.SecurityStamp }).ToArrayAsync(ct);
         var roles = await (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id orderby ur.UserId, r.Name select new { ur.UserId, r.Name }).ToArrayAsync(ct);
-        var employees = users.Where(u => u.IsActive && roles.Any(r => r.UserId == u.Id && r.Name == "EMPLOYEE"))
+        var teams = await db.Set<OrganizationalTeam>().AsNoTracking().OrderBy(t => t.Id).ToArrayAsync(ct);
+        var employees = users.Where(u => u.IsActive && !teams.Any(t => t.LeaderUserId == u.Id) && roles.Any(r => r.UserId == u.Id && r.Name == "EMPLOYEE"))
             .Select(u => new Employee(u.Id, $"{u.FirstName} {u.LastName}", u.IsShiftLeadQualified)).ToArray();
         var shifts = await db.Set<Shift>().AsNoTracking().Where(s => s.ShiftDate >= from && s.ShiftDate <= through).OrderBy(x => x.Id).ToArrayAsync(ct);
         foreach (var s in shifts)
@@ -69,13 +70,14 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
             return new Work(a.Id, a.UserId, cell?.ShiftTypeDefinitionId, cell?.Date ?? shift.ShiftDate,
                 cell?.StartsAt ?? shift.StartsAt, cell?.EndsAt ?? shift.EndsAt, shift.Id, replaceable, a.IsShiftLead, shift.ShiftType);
         }).ToArray();
+        if (work.Any(w => teams.Any(t => t.LeaderUserId == w.UserId))) throw new ApiException("TEAM_LEADER_ASSIGNED", 409);
         var proposed = definitions.Where(d => d.IncludeInAutomaticScheduling && d.RequiredEmployees > 0)
             .SelectMany(d => Enumerable.Range(0, end.DayNumber - first.DayNumber).Select(i => {
                 var date = first.AddDays(i); var times = ShiftTimeRanges.Boundaries(date, ShiftTimeRanges.Effective(d));
                 return new CandidateCell(d.Id, date, times.StartsAt, times.EndsAt, d.RequiredEmployees, d.Version, d.Period, d.RequiresShiftLeadQualification);
             })).ToArray();
         // Snapshot includes fixed work, configuration, role/account state and submitted versions.
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(new { definitions, periods = periods.Select(p => new { p.Id, p.Year, p.Month, p.Status, p.UpdatedAt }), users, roles,
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new { definitions, teams, periods = periods.Select(p => new { p.Id, p.Year, p.Month, p.Status, p.UpdatedAt }), users, roles,
             shifts = shifts.Select(s => new { s.Id, s.SchedulePeriodId, s.ShiftDate, s.ShiftType, s.StartsAt, s.EndsAt, s.CoordinatorUserId }),
             cells = cells.Select(c => new { c.Id, c.ShiftTypeDefinitionId, c.Date, c.StartsAt, c.EndsAt, c.RequiredEmployees, c.ConfigurationVersion, c.SchedulingRunId }), assignments, submissions = submissions.Select(s => new { s.Id, s.UserId, s.SchedulePeriodId, s.Version, s.LastSubmittedAt }), preferences });
         return new(year, month, Convert.ToHexString(SHA256.HashData(bytes)), proposed, employees, work, prefs);

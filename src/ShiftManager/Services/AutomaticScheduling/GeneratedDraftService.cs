@@ -88,7 +88,7 @@ public sealed class GeneratedDraftService(ApplicationDbContext db, GenerationQue
             foreach (var e in output.Employees)
             {
                 var employee = p.Employees.SingleOrDefault(x => x.Id == e.UserId);
-                if (employee is null || (c.RequiresShiftLeadQualification && !employee.IsShiftLeadQualified) || p.Preferences.Any(b => b.UserId == e.UserId && b.State == PreferenceType.BLOCKED && SchedulingProblem.OverlapsAnchor(c, b))) throw new ApiException("STALE_PREVIEW", 409);
+                if (employee is null || employee.IsTeamLeader || (c.RequiresShiftLeadQualification && !employee.IsShiftLeadQualified) || p.Preferences.Any(b => b.UserId == e.UserId && b.State == PreferenceType.BLOCKED && SchedulingProblem.OverlapsAnchor(c, b))) throw new ApiException("STALE_PREVIEW", 409);
                 if (e.Protected)
                 {
                     var original = fixedMembers.Single(w => w.UserId == e.UserId);

@@ -194,3 +194,7 @@ There is no automatic scheduling, roster publication, staffing, task allocation,
 deployment, draft autosave or full submission-history log in this phase. Only the latest
 successful submission is retained. Browser-level visual QA depends on an available browser;
 the automated component tests are not a substitute for final device/browser review.
+
+## Phase 4C delegation
+
+Explicit organizational leaders and deputies can submit for active EMPLOYEE members of their own team, outside the normal availability window, using the same versioned monthly replacement and weekly block validation. Membership and permission checks share the account lock with team administration. Audit insertion and availability updates are atomic. Draft conflicts are preserved and reported rather than deleting assignments; ordinary self-edits retain the existing assigned-shift rejection. See [team architecture](team-management-architecture.md) for endpoints, transaction-local audited trigger behavior and verification.

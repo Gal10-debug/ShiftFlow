@@ -342,6 +342,121 @@ namespace ShiftManager.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ShiftManager.Domain.DelegatedAvailabilityAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("InitialSubmission")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("NewValues")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PreviousValues")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid>("SchedulePeriodId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TargetUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("SchedulePeriodId");
+
+                    b.HasIndex("TargetUserId");
+
+                    b.HasIndex("TeamId", "OccurredAt");
+
+                    b.ToTable("DelegatedAvailabilityAudit", (string)null);
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.OrganizationalTeam", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DeputyUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("LeaderUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Slot")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slot")
+                        .IsUnique();
+
+                    b.HasIndex("Id", "DeputyUserId");
+
+                    b.HasIndex("Id", "LeaderUserId");
+
+                    b.ToTable("OrganizationalTeam", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Team_DistinctLeadership", "\"LeaderUserId\" IS NULL OR \"DeputyUserId\" IS NULL OR \"LeaderUserId\" <> \"DeputyUserId\"");
+
+                            t.HasCheckConstraint("CK_Team_Slot", "\"Slot\" BETWEEN 1 AND 4");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000001"),
+                            Name = "צוות א׳",
+                            Slot = 1,
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000002"),
+                            Name = "צוות ב׳",
+                            Slot = 2,
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000003"),
+                            Name = "צוות ג׳",
+                            Slot = 3,
+                            Version = 1L
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000004"),
+                            Name = "צוות ד׳",
+                            Slot = 4,
+                            Version = 1L
+                        });
+                });
+
             modelBuilder.Entity("ShiftManager.Domain.SchedulePeriod", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1469,6 +1584,19 @@ namespace ShiftManager.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ShiftManager.Domain.TeamMembership", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("TeamMembership", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
@@ -1563,6 +1691,48 @@ namespace ShiftManager.Data.Migrations
                     b.Navigation("OpenedByUser");
 
                     b.Navigation("SchedulePeriod");
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.DelegatedAvailabilityAudit", b =>
+                {
+                    b.HasOne("ShiftManager.Domain.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShiftManager.Domain.SchedulePeriod", null)
+                        .WithMany()
+                        .HasForeignKey("SchedulePeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShiftManager.Domain.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("TargetUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShiftManager.Domain.OrganizationalTeam", null)
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.OrganizationalTeam", b =>
+                {
+                    b.HasOne("ShiftManager.Domain.TeamMembership", null)
+                        .WithMany()
+                        .HasForeignKey("Id", "DeputyUserId")
+                        .HasPrincipalKey("TeamId", "UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ShiftManager.Domain.TeamMembership", null)
+                        .WithMany()
+                        .HasForeignKey("Id", "LeaderUserId")
+                        .HasPrincipalKey("TeamId", "UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ShiftManager.Domain.SchedulePublication", b =>
@@ -1735,6 +1905,21 @@ namespace ShiftManager.Data.Migrations
                     b.Navigation("ShiftAssignment");
 
                     b.Navigation("ShiftTask");
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.TeamMembership", b =>
+                {
+                    b.HasOne("ShiftManager.Domain.OrganizationalTeam", null)
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShiftManager.Domain.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ShiftManager.Domain.SchedulePeriod", b =>
