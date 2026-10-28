@@ -5,6 +5,7 @@ export interface PublishedEmployee {
   isShiftLead: boolean;
 }
 export interface PublishedCell {
+  semantic?: "ORDINARY" | "SIX_NINE" | "WEEKEND_ON_CALL";
   definitionId: string;
   date: string;
   name: string;

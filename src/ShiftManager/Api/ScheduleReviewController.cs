@@ -8,6 +8,7 @@ public sealed class ScheduleReviewController(ScheduleReviewService service) : Co
     [HttpGet] public async Task<IActionResult> Review(int year, int month) => Ok(await service.Review(year, month, User));
     [HttpGet("candidates")] public async Task<IActionResult> Candidates(int year, int month, [FromQuery] Guid definitionId, [FromQuery] DateOnly date, [FromQuery] Guid? replacing) => Ok(await service.Candidates(year, month, definitionId, date, replacing, User));
     [HttpPost("assignments")] public async Task<IActionResult> Manual(int year, int month, ManualAssignmentRequest input) => Ok(await service.Manual(year, month, input, User));
+    [HttpPost("on-call-pair")] public async Task<IActionResult> Pair(int year, int month, OnCallPairRequest input) => Ok(await service.OnCallPair(year, month, input, User));
     [HttpPost("review")] public async Task<IActionResult> Acknowledge(int year, int month, ReviewTokenRequest input) => Ok(await service.Acknowledge(year, month, input, User));
     [HttpPost("correction")] public async Task<IActionResult> Correction(int year, int month, ReviewTokenRequest input) => Ok(await service.Correction(year, month, input, User));
     [HttpPost("publications/{type}")] public async Task<IActionResult> Publish(int year, int month, string type, PublishScheduleRequest input) => Ok(await service.Publish(year, month, type, input, User));

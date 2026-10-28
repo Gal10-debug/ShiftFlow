@@ -37,6 +37,8 @@ public sealed partial class SchedulingTests : IAsyncLifetime
             .ConfigureServices(s => { s.RemoveAll<TimeProvider>(); s.AddSingleton<TimeProvider>(clock); }));
         using var scope = factory.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.MigrateAsync();
+        // Legacy scenarios use synthetic ordinary rows; semantic-specific cases opt in explicitly.
+        await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlRawAsync("UPDATE \"ShiftTypeDefinition\" SET \"Semantic\" = 'ORDINARY'");
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         foreach (var (name, role) in new[] { ("admin", "ADMIN"), ("employee", "EMPLOYEE"), ("coordinator", "COORDINATOR"), ("firstlogin", "ADMIN") })
         {
@@ -215,7 +217,9 @@ public sealed partial class SchedulingTests : IAsyncLifetime
         using var stale = await Login();
         using (var scope = factory.Services.CreateScope())
         {
-            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            // Legacy scenarios use synthetic ordinary rows; semantic-specific cases opt in explicitly.
+        await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlRawAsync("UPDATE \"ShiftTypeDefinition\" SET \"Semantic\" = 'ORDINARY'");
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var user = (await users.FindByIdAsync(ids["admin"].ToString()))!; user.IsActive = false;
             Assert.True((await users.UpdateAsync(user)).Succeeded);
         }

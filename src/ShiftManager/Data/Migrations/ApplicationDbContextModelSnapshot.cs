@@ -954,6 +954,13 @@ namespace ShiftManager.Data.Migrations
                     b.Property<bool>("RequiresShiftLeadQualification")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Semantic")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("ORDINARY");
+
                     b.Property<int>("Slot")
                         .HasColumnType("integer");
 
@@ -973,6 +980,10 @@ namespace ShiftManager.Data.Migrations
                     b.HasIndex("DisplayOrder")
                         .IsUnique();
 
+                    b.HasIndex("Semantic")
+                        .IsUnique()
+                        .HasFilter("\"Semantic\" <> 'ORDINARY'");
+
                     b.HasIndex("Slot")
                         .IsUnique();
 
@@ -983,6 +994,8 @@ namespace ShiftManager.Data.Migrations
                             t.HasCheckConstraint("CK_ShiftTypeDefinition_Order", "\"DisplayOrder\" BETWEEN 1 AND 51");
 
                             t.HasCheckConstraint("CK_ShiftTypeDefinition_Period", "\"Period\" IN ('DAY','NIGHT')");
+
+                            t.HasCheckConstraint("CK_ShiftTypeDefinition_Semantic", "\"Semantic\" IN ('ORDINARY','SIX_NINE','WEEKEND_ON_CALL')");
 
                             t.HasCheckConstraint("CK_ShiftTypeDefinition_Slot", "\"Slot\" BETWEEN 1 AND 51");
 
@@ -1003,6 +1016,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "SIX_NINE",
                             Slot = 1,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1016,6 +1030,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 2,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1029,6 +1044,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 3,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1042,6 +1058,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 4,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1055,6 +1072,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 5,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1068,6 +1086,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 6,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1081,6 +1100,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 7,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1094,6 +1114,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 8,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1107,6 +1128,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 9,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1120,6 +1142,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 10,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1133,6 +1156,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 11,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1146,6 +1170,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 12,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1159,6 +1184,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 13,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1172,6 +1198,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 14,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1185,6 +1212,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 15,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1198,6 +1226,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 16,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1211,6 +1240,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 17,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1224,6 +1254,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 18,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1237,6 +1268,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 19,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1250,6 +1282,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 20,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1263,6 +1296,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 21,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1276,6 +1310,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 22,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1289,6 +1324,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 23,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1302,6 +1338,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 24,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1315,6 +1352,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 25,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1328,6 +1366,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "WEEKEND_ON_CALL",
                             Slot = 26,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1341,6 +1380,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 27,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1354,6 +1394,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 28,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1367,6 +1408,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 29,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1380,6 +1422,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 30,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1393,6 +1436,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 31,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1406,6 +1450,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 32,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1419,6 +1464,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 33,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1432,6 +1478,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 34,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1445,6 +1492,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 35,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1458,6 +1506,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 36,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1471,6 +1520,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 37,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1484,6 +1534,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 38,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1497,6 +1548,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 39,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1510,6 +1562,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 40,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1523,6 +1576,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 41,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1536,6 +1590,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 42,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1549,6 +1604,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 43,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1562,6 +1618,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 44,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1575,6 +1632,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 45,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1588,6 +1646,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 46,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1601,6 +1660,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 47,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1614,6 +1674,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 48,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1627,6 +1688,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 49,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1640,6 +1702,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 50,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1653,6 +1716,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
+                            Semantic = "ORDINARY",
                             Slot = 51,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L

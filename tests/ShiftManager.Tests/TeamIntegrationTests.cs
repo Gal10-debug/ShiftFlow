@@ -184,7 +184,7 @@ public sealed partial class SchedulingTests
         var conflicts = (await admin.GetFromJsonAsync<RosterConflict[]>($"{TeamsPath}/conflicts"))!; Assert.Contains(conflicts, c => c.Code == "HARD_BLOCK_CONFLICT");
         using (var scope = factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(); Assert.Equal(62, await db.Set<ShiftAssignment>().CountAsync());
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(); Assert.Equal(46, await db.Set<ShiftAssignment>().CountAsync());
             var validator = scope.ServiceProvider.GetRequiredService<RosterValidationService>();
             await Assert.ThrowsAsync<ApiException>(() => validator.ValidateForPublication(conflicts[0].SchedulePeriodId));
         }

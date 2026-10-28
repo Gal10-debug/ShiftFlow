@@ -268,6 +268,8 @@ export default function SchedulingBoard() {
                     <tr key={row.definition.id}>
                       <th scope="row" className="schedule-row-label">
                         <strong>{row.definition.name}</strong>
+                        {row.definition.semantic === "SIX_NINE" && <small>עד פעם אחת בשבוע</small>}
+                        {row.definition.semantic === "WEEKEND_ON_CALL" && <small>זוג שישי–שבת בלבד · הקצאה אחת</small>}
                         {row.definition.requiresShiftLeadQualification && <span className="status">אחראי משמרת · מוסמכים בלבד</span>}
                         <small>
                           <bdi dir="ltr">

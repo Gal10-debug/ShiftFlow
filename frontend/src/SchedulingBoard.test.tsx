@@ -211,17 +211,20 @@ it("loads a week spanning two years when a date is selected", async () => {
 it("keeps edits local and explicitly saves name, day/night, count and automatic inclusion", async () => {
   page();
   const user = await edit();
-  const name = screen.getByLabelText(`${s.name} 1`);
-  await user.clear(name);
-  await user.type(name, "צוות לילה");
-  await user.selectOptions(screen.getByLabelText(`${s.period} 1`), "NIGHT");
-  const count = screen.getByLabelText(`${s.staffing} 1`);
-  await user.clear(count);
-  await user.type(count, "7");
-  await user.click(screen.getByLabelText(`${s.automatic} 1`));
+  const editor = within(screen.getByRole("region", { name: s.configure }));
+  // This test verifies form state and the save contract, not individual keystrokes.
+  // Avoid rerendering the 51-row board for every character on slower CI runners.
+  fireEvent.change(editor.getByLabelText(`${s.name} 1`), {
+    target: { value: "צוות לילה" },
+  });
+  await user.selectOptions(editor.getByLabelText(`${s.period} 1`), "NIGHT");
+  fireEvent.change(editor.getByLabelText(`${s.staffing} 1`), {
+    target: { value: "7" },
+  });
+  await user.click(editor.getByLabelText(`${s.automatic} 1`));
   expect(writes).toHaveLength(0);
   expect(screen.getByText(s.unsaved)).toBeVisible();
-  await user.click(screen.getByRole("button", { name: s.save }));
+  await user.click(editor.getByRole("button", { name: s.save }));
   expect(await screen.findByText(s.saved)).toBeVisible();
   expect(writes[0].body.shiftTypes).toHaveLength(51);
   expect(writes[0].body.shiftTypes[0]).toMatchObject({

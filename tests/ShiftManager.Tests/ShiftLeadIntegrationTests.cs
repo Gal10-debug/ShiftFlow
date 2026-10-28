@@ -38,7 +38,8 @@ public sealed partial class SchedulingTests
         Assert.Equal(2, (await Types(admin)).Count(r => r.RequiresShiftLeadQualification));
         var run = await Generate(admin);
         Assert.Equal("READY", run.State);
-        Assert.All(run.Cells, c => { Assert.Equal(3, c.RequiredEmployees); Assert.Equal(2, c.Shortage); Assert.Equal(ids["employee"], c.Employees.Single().UserId); });
+        Assert.All(run.Cells, c => { Assert.Equal(3, c.RequiredEmployees); Assert.Equal(3 - c.Employees.Length, c.Shortage); Assert.All(c.Employees, e => Assert.Equal(ids["employee"], e.UserId)); });
+        Assert.Equal(23, run.Cells.Sum(c => c.Employees.Length));
         Assert.Equal(HttpStatusCode.OK, (await Send(admin, $"{GenerationPath}/{run.Id}/save", new { }, "POST")).StatusCode);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

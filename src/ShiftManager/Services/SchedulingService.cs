@@ -21,7 +21,7 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
     public DateOnly CurrentWeek() => WeekStart(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(), TimeZoneInfo.FindSystemTimeZoneById(ZoneId)).DateTime));
 
     private static ShiftTypeResponse Response(ShiftTypeDefinition row) => new(row.Id, row.Slot, row.Name,
-        row.DisplayOrder, row.Period.ToString(), row.RequiredEmployees, row.IncludeInAutomaticScheduling, row.Version, row.UpdatedAt, ShiftTimeRanges.Effective(row).ToString(), row.RequiresShiftLeadQualification);
+        row.DisplayOrder, row.Period.ToString(), row.RequiredEmployees, row.IncludeInAutomaticScheduling, row.Version, row.UpdatedAt, ShiftTimeRanges.Effective(row).ToString(), row.RequiresShiftLeadQualification, row.Semantic);
 
     public async Task<ShiftTypeResponse[]> List() => (await db.Set<ShiftTypeDefinition>().AsNoTracking()
         .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Slot).ToArrayAsync()).Select(Response).ToArray();
@@ -126,11 +126,12 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
             }).ToArray();
             var canonicalId = range is ShiftTimeRange.DAY or ShiftTimeRange.NIGHT ? anchors.Single().ShiftId : null;
             var saved = savedCells.GetValueOrDefault((definition.Id, day.Date));
+            var required = AutomaticScheduling.SchedulingRules.Required(definition.Semantic, day.Date, definition.RequiredEmployees);
             var members = saved?.Assignments.OrderBy(a => a.UserId).Select(a => new ScheduledEmployee(a.UserId,
                 $"{a.User.FirstName} {a.User.LastName}", !a.GeneratedByRunId.HasValue || a.IsLocked || a.IsShiftLead || a.Tasks.Count > 0 || !definition.IncludeInAutomaticScheduling || definition.RequiredEmployees == 0, a.IsShiftLead)).ToArray();
             return new BoardCellResponse(day.Date, canonicalId, saved?.StartsAt ?? boundaries.StartsAt, saved?.EndsAt ?? boundaries.EndsAt,
-                saved is not null ? "SAVED_DRAFT" : definition.RequiredEmployees == 0 ? "NOT_REQUIRED" : "UNASSIGNED", anchors,
-                members, definition.RequiredEmployees, Math.Max(0, definition.RequiredEmployees - (saved?.Assignments.Count ?? 0)));
+                saved is not null ? "SAVED_DRAFT" : required == 0 ? "NOT_REQUIRED" : "UNASSIGNED", anchors,
+                members, required, Math.Max(0, required - (saved?.Assignments.Count ?? 0)));
         }).ToArray())).ToArray();
         await tx.CommitAsync();
         return new(start, end, ZoneId, "UNPUBLISHED", days, rows);

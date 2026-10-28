@@ -7,9 +7,9 @@ using ShiftManager.Domain;
 namespace ShiftManager.Services.AutomaticScheduling;
 
 public sealed record Work(Guid AssignmentId, Guid UserId, Guid? DefinitionId, DateOnly Date,
-    DateTime Start, DateTime End, Guid ShiftId, bool Replaceable, bool Lead, ShiftType AnchorType);
+    DateTime Start, DateTime End, Guid ShiftId, bool Replaceable, bool Lead, ShiftType AnchorType, string Semantic = "ORDINARY");
 public sealed record CandidateCell(Guid DefinitionId, DateOnly Date, DateTime Start, DateTime End,
-    int Required, long Version, ShiftType AnchorType, bool RequiresShiftLeadQualification = false);
+    int Required, long Version, ShiftType AnchorType, bool RequiresShiftLeadQualification = false, string Semantic = "ORDINARY");
 public sealed record Employee(Guid Id, string Name, bool IsShiftLeadQualified = false, bool IsTeamLeader = false);
 public sealed record Preference(Guid UserId, DateOnly Date, ShiftType Type, PreferenceType State);
 public sealed record SchedulingProblem(int Year, int Month, string Fingerprint, CandidateCell[] Cells,
@@ -35,7 +35,7 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
     {
         var first = AvailabilityService.MonthStart(year, month);
         var end = first.AddMonths(1);
-        var from = first.AddDays(-2); var through = end.AddDays(2);
+        var from = first.AddMonths(-1).AddDays(-7); var through = end.AddMonths(1).AddDays(6);
         var definitions = await db.Set<ShiftTypeDefinition>().AsNoTracking().OrderBy(x => x.Id).ToArrayAsync(ct);
         var periods = await db.Set<SchedulePeriod>().AsNoTracking().Where(p => p.Year >= from.Year && p.Year <= through.Year).OrderBy(x => x.Id).ToArrayAsync(ct);
         if (!review && periods.Any(p => p.Year == year && p.Month == month && p.Status != ScheduleStatus.DRAFT && p.Status != ScheduleStatus.UNDER_CORRECTION)) throw new ApiException("PERIOD_PUBLISHED", 409);
@@ -68,13 +68,13 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
             var replaceable = a.GeneratedByRunId.HasValue && !a.IsLocked && !a.IsShiftLead && !a.HasTasks && cell is not null
                 && cell.Date >= first && cell.Date < end && definition is { IncludeInAutomaticScheduling: true, RequiredEmployees: > 0 };
             return new Work(a.Id, a.UserId, cell?.ShiftTypeDefinitionId, cell?.Date ?? shift.ShiftDate,
-                cell?.StartsAt ?? shift.StartsAt, cell?.EndsAt ?? shift.EndsAt, shift.Id, replaceable, a.IsShiftLead, shift.ShiftType);
+                cell?.StartsAt ?? shift.StartsAt, cell?.EndsAt ?? shift.EndsAt, shift.Id, replaceable, a.IsShiftLead, shift.ShiftType, definition?.Semantic ?? "ORDINARY");
         }).ToArray();
         if (!review && work.Any(w => teams.Any(t => t.LeaderUserId == w.UserId))) throw new ApiException("TEAM_LEADER_ASSIGNED", 409);
         var proposed = definitions.Where(d => d.IncludeInAutomaticScheduling && d.RequiredEmployees > 0)
             .SelectMany(d => Enumerable.Range(0, end.DayNumber - first.DayNumber).Select(i => {
                 var date = first.AddDays(i); var times = ShiftTimeRanges.Boundaries(date, ShiftTimeRanges.Effective(d));
-                return new CandidateCell(d.Id, date, times.StartsAt, times.EndsAt, d.RequiredEmployees, d.Version, d.Period, d.RequiresShiftLeadQualification);
+                return new CandidateCell(d.Id, date, times.StartsAt, times.EndsAt, SchedulingRules.Required(d.Semantic, date, d.RequiredEmployees), d.Version, d.Period, d.RequiresShiftLeadQualification, d.Semantic);
             })).ToArray();
         // Snapshot includes fixed work, configuration, role/account state and submitted versions.
         var bytes = JsonSerializer.SerializeToUtf8Bytes(new { definitions, teams, periods = periods.Select(p => new { p.Id, p.Year, p.Month, p.Status, p.UpdatedAt, p.Revision }), users, roles,
