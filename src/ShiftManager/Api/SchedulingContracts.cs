@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 namespace ShiftManager.Api;
 
 public sealed record ShiftTypeResponse(Guid Id, int Slot, string Name, int DisplayOrder, string Period,
-    int RequiredEmployees, bool IncludeInAutomaticScheduling, long Version, DateTime UpdatedAt, string? TimeRange = null, bool RequiresShiftLeadQualification = false);
+    int RequiredEmployees, bool IncludeInAutomaticScheduling, long Version, DateTime UpdatedAt, string? TimeRange = null, bool RequiresShiftLeadQualification = false, string Semantic = "ORDINARY");
 public sealed record ShiftTypeUpdate(Guid Id, [Required, Range(1, long.MaxValue)] long? ExpectedVersion,
     [Required, StringLength(100), RegularExpression(@".*\S.*")] string Name,
     [Required, Range(1, 51)] int? DisplayOrder, [Required] string Period,

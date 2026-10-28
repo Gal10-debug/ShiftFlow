@@ -22,9 +22,10 @@
 - Start from the latest verified `main` without changing its history.
 - If the working tree is dirty, preserve existing work and report the issue rather than discarding changes.
 - If Phase 4C is not yet present in the intended base branch, stop and report the discrepancy.
-- Create `feature/schedule-publication` for Phase 5.
+- Create the dedicated `feature/*` branch requested for the current task.
+- Use `feature/scheduling-constraints` for Phase 5.1.
 - Do not reuse an unrelated existing feature branch.
-- Commit changes only on the Phase 5 feature branch.
+- Commit changes only on the dedicated feature branch for the current task.
 - Do not push any branch unless explicitly requested by the user.
 
 ## Completion Requirements

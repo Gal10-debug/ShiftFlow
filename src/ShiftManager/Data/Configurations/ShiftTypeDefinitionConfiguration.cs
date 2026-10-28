@@ -8,6 +8,8 @@ public sealed class ShiftTypeDefinitionConfiguration : IEntityTypeConfiguration<
 {
     public void Configure(EntityTypeBuilder<ShiftTypeDefinition> b)
     {
+        b.Property(x => x.Semantic).HasMaxLength(32).HasDefaultValue("ORDINARY");
+        b.HasIndex(x => x.Semantic).IsUnique().HasFilter("\"Semantic\" <> 'ORDINARY'");
         b.HasKey(x => x.Id);
         b.HasIndex(x => x.Slot).IsUnique();
         // The migration makes this uniqueness constraint deferred to allow atomic swaps.
@@ -18,6 +20,7 @@ public sealed class ShiftTypeDefinitionConfiguration : IEntityTypeConfiguration<
         b.Property(x => x.Version).IsConcurrencyToken();
         b.ToTable(t =>
         {
+            t.HasCheckConstraint("CK_ShiftTypeDefinition_Semantic", "\"Semantic\" IN ('ORDINARY','SIX_NINE','WEEKEND_ON_CALL')");
             t.HasCheckConstraint("CK_ShiftTypeDefinition_Slot", "\"Slot\" BETWEEN 1 AND 51");
             t.HasCheckConstraint("CK_ShiftTypeDefinition_Order", "\"DisplayOrder\" BETWEEN 1 AND 51");
             t.HasCheckConstraint("CK_ShiftTypeDefinition_Name", "length(btrim(\"Name\")) > 0");
@@ -31,6 +34,7 @@ public sealed class ShiftTypeDefinitionConfiguration : IEntityTypeConfiguration<
             b.HasData(new ShiftTypeDefinition
             {
                 Id = Guid.Parse($"40000000-0000-0000-0000-{i:000000000000}"), Slot = i,
+                Semantic = i == 1 ? "SIX_NINE" : i == 26 ? "WEEKEND_ON_CALL" : "ORDINARY",
                 Name = $"משמרת {i}", DisplayOrder = i, Period = ShiftType.DAY,
                 RequiredEmployees = 0, IncludeInAutomaticScheduling = false, Version = 1,
                 UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, DateTimeKind.Utc)

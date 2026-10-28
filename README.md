@@ -344,3 +344,9 @@ The existing scheduling board now supports monthly/weekly draft review, transact
 Each publication stores an immutable, versioned snapshot of row names, work times, staffing and employee assignment details. Employees use **סידור העבודה שלי** (`/my-schedule`) to view only their own published work and report issues against their own latest preliminary assignments. During corrections they continue seeing the last published preliminary snapshot. Delegated availability updates invalidate reviewed draft inputs without changing a published snapshot.
 
 Apply the two additive Phase 5 migrations using `./scripts/dev.sh migrate`. See [publication architecture, API, limitations, rollback and verification](docs/publication-architecture.md). Root [AGENTS.md](AGENTS.md) enforces feature-branch development and keeps main read-only for agents. No shift exchanges or deployment are included.
+
+### Phase 5.1 — אילוצי שיבוץ נוספים
+
+Automatic generation, manual editing, saved-preview validation and every publication stage now enforce two monthly weekend allocations, one weekly SIX_NINE-row assignment, two weekly NIGHT assignments and atomic Friday–Saturday weekend-on-call pairing. Special classifications attach to existing row IDs and survive renaming. A valid on-call pair counts once in Friday's month; automatic scheduling never writes adjacent months. Administrators have an explicit, audited pair editor with a separate acknowledgment for neighboring-period changes.
+
+Apply `20261027224058_AdditionalSchedulingConstraints` explicitly. Existing data and all 51 definitions are preserved. See [scheduling constraints, boundary policy and manual verification](docs/scheduling-architecture.md#phase-51--additional-mandatory-constraints).

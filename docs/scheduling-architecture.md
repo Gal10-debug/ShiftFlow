@@ -394,3 +394,62 @@ Organizational leadership is independent of shift-lead qualification. Team leade
 ## Phase 5 review and publication
 
 The same working assignment/cell model now supports manual edits and immutable preliminary/final publication snapshots. `ScheduleReviewService` validates actual work intervals, adjacent-month constraints, current blocks, qualifications, eligibility and staffing. Review tokens include period revisions, and every publication rechecks current inputs under the shared scheduling/period/account/employee locks. See [publication architecture](publication-architecture.md) for lifecycle, snapshot privacy, reporting, acknowledgment policy and manual verification.
+
+## Phase 5.1 — Additional mandatory constraints
+
+`SchedulingRules` supplies shared week/month/allocation keys and violations to the OR-Tools model, preview save validation, manual candidate checks, explicit on-call pair edits and preliminary/corrected/final publication review. These are hard constraints, not scoring penalties. Existing expert staffing priority, fairness, preferences, shift-lead qualification, hard blocks, nonoverlap/consecutive rules and team-leader exclusions remain in force.
+
+### Stable classification
+
+`ShiftTypeDefinition.Semantic` is a persisted, non-user-editable classification: ORDINARY, SIX_NINE or WEEKEND_ON_CALL. The additive `20261027224058_AdditionalSchedulingConstraints` migration identifies existing rows by their stable UUIDs, not editable names: slot 1 / `40000000-0000-0000-0000-000000000001` is SIX_NINE (observed local name “6 עד 9”), and slot 26 / `40000000-0000-0000-0000-000000000026` is WEEKEND_ON_CALL (observed local name “כונן סופש”). No 52nd row is created. The remaining 49 rows are ORDINARY. A check constraint validates values; a filtered unique index permits at most one row of each special classification. Renaming or changing time ranges never transfers semantics to another row. Other rows using H06_09 do not receive SIX_NINE limits. Existing names, staffing, assignments, users and availability are preserved.
+
+The read-only classification is included in administrative DTOs, input fingerprints/review hashes and new immutable publication snapshots. Historical snapshots are not rewritten. Rolling the migration back removes only the new classification column/index/constraint, preserving every shift-type row and existing assignment; new scheduling rules require the upgraded application/schema together.
+
+### Weekend allocation budget
+
+Each employee may receive at most two allocations per calendar month. Friday and Saturday are determined by the canonical Asia/Jerusalem scheduling date, never UTC midnight. Each ordinary Friday or Saturday assignment counts separately. An on-call Friday–Saturday pair counts once, using `(employee, definition ID, Friday date)` as the allocation key.
+
+The deterministic cross-month policy charges the entire pair to Friday's calendar month. For Friday 30 April 2027 and Saturday 1 May 2027, the pair consumes one April allocation and no May allocation. Both halves are retained as real assignments for overlap, night/week limits, staffing and snapshots; counting once does not collapse their work intervals.
+
+Examples: Friday + ordinary Saturday = 2; one pair = 1; pair + ordinary Friday = 2; two pairs = 2; pair + two ordinary weekends = 3 and is rejected. Existing persisted/locked assignments consume the same budget as new assignments. Separate runs, regeneration and manual edits cannot reset it.
+
+### Weekly limits
+
+Sunday–Saturday weeks allow at most one SIX_NINE assignment per employee, across both month and year boundaries. Each NIGHT-classified assignment, across all definitions, consumes one of at most two weekly night assignments. The current day/night classification and canonical scheduling date determine night counting. A NIGHT on-call pair consumes two weekly night assignments and one monthly weekend allocation. A week's cross-month portions are not independent budgets.
+
+### Atomic weekend on-call pairing
+
+Only Friday/Saturday cells have on-call staffing demand; weekday demand is zero, even if the row's configured staffing is positive. Friday and Saturday must contain identical employee sets. Every half requires its matching half with the same definition and employee.
+
+CP-SAT couples the two presence variables by equality; blocks, qualification, time conflicts and staffing capacity on either day constrain that joint decision. Weekend allocation sums count the Friday decision once. Existing fixed half-pairs reserve one allocation and require their counterpart. If both new halves cannot be assigned, both remain short. Existing fixed conflicts produce a structured Hebrew error. No greedy postprocessing adds/removes assignments.
+
+At a month boundary the out-of-month half is an immutable solver input. The solver can fill its own half only if the matching employee already exists in the adjacent period; it never writes an adjacent assignment. With no counterpart, the boundary cell remains short. Administrators can explicitly create/repair the pair with the pair editor before regenerating. A separate affected monthly publication must still be reviewed and published normally.
+
+### Manual editing, publication and concurrency
+
+The ordinary single-assignment endpoint refuses edits that could split a valid on-call pair. A dedicated transactional endpoint, POST `/api/admin/scheduling/periods/{year}/{month}/on-call-pair`, supports ASSIGN, REMOVE, REPLACE and MOVE using `expectedToken`, `friday`, `userId`/`assignmentId` and `acknowledgeAdjacentPeriod`. Both source and destination pairs are validated; removal can repair a historical unmatched half. Invalid weekday on-call assignments can be removed through the ordinary editor.
+
+Cross-month pair changes require the explicit adjacent-period acknowledgment. Every affected period must be DRAFT or UNDER_CORRECTION; an immutable published neighboring period is never silently changed or reopened. Failure on Saturday, including a hard block, rolls back Friday, any created period/cell/run, both period revisions and audit events. The command uses the existing global scheduling lock, ordered neighboring period locks, account lock and employee locks; the expected fingerprint includes neighboring data. Audit records are written for every affected period with shared actor/time and before/after pair identities.
+
+The administrator board displays special-row explanations, limit errors and retained historical violations. Candidates are rechecked on save. The pair editor deliberately allows selecting an employee before checking both dates; the server validates both halves atomically and supplies the precise Hebrew rejection. All publication stages revalidate the same rules against persisted work, even for legacy or locked violations. Existing published snapshots remain immutable.
+
+### Data window, performance and limitations
+
+Scheduling inputs now include full adjacent months plus boundary weeks, rather than two adjacent days. This is required to count a neighboring month's complete weekend budget and cross-month weekly quotas. The solver still proposes only the requested month and saves no adjacent-month work. Expanded input fingerprints conservatively invalidate stale previews when relevant neighboring work changes.
+
+The model adds linear weekly/monthly budget constraints and Friday/Saturday equality constraints per candidate employee; it does not add a second solver, extra objective stage or repair pass. Existing lexicographic objectives and bounded solve time remain unchanged. Pairing can deliberately leave boundary shortages pending an explicit administrator pair operation. High-demand months with small workforces now have more unavoidable shortages than in Phase 5; the constraints are never relaxed to recover historical fill counts.
+
+### Verification
+
+Run all backend tests with `RUN_POSTGRES_TESTS=1 dotnet test -m:1`, frontend tests, Release build with warnings as errors, production frontend build and EF pending-model check. Dedicated tests cover zero/one/two/three allocations, pair counting, semantic renaming, cross-month weeks, nights, unmatched/blocked pairs, neighboring-period confirmation, atomic rollback, existing work, preview save and preliminary/final publication. Historical test fixtures use synthetic ORDINARY rows where classification is not the subject, while migration tests verify the actual seeded special IDs.
+
+Manual checks:
+
+1. Apply migrations explicitly with `./scripts/dev.sh migrate`; verify 51 rows and unchanged names. Rename the two special rows and confirm their rule labels persist.
+2. Assign two ordinary weekend shifts; attempt a third and verify rejection. Remove one and verify another is allowed.
+3. Add a SIX_NINE assignment, then attempt another in the same Sunday–Saturday week, including across months. Repeat with a third NIGHT assignment after two nights in the boundary week.
+4. Use “עריכת זוג כוננות סוף שבוע” to add two Friday–Saturday pairs; verify a third fails. Block Saturday and verify neither half of a new pair persists.
+5. Try a single-day on-call edit; verify the paired-operation explanation. Exercise pair replacement, removal and moving to another weekend.
+6. Use 30 April–1 May 2027: without acknowledgment the cross-month operation fails without changes; with acknowledgment it writes and audits both editable months and charges April once. A finalized neighbor must reject the operation.
+7. Generate either boundary month without an existing counterpart; verify shortage rather than an unmatched assignment. With an existing valid counterpart, verify the employee set matches exactly.
+8. Review a draft containing historical violations; preliminary, corrected preliminary and final publication must remain blocked until resolved. Verify expert priority and leader exclusions still apply.

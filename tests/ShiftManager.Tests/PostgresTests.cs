@@ -14,7 +14,7 @@ public sealed class PostgresFactAttribute : FactAttribute
     }
 }
 
-public class PostgresTests : IAsyncLifetime
+public partial class PostgresTests : IAsyncLifetime
 {
     private readonly TestDatabase database = new();
     private ApplicationDbContext Context() => new(new DbContextOptionsBuilder<ApplicationDbContext>()

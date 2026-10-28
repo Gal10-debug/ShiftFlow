@@ -23,7 +23,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         var users = await db.Users.AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.IsActive, x.IsShiftLeadQualified }).ToArrayAsync();
         var roles = await db.UserRoles.AsNoTracking().OrderBy(x => x.UserId).ThenBy(x => x.RoleId).Select(x => new { x.UserId, x.RoleId }).ToArrayAsync();
         var leadership = await db.Set<OrganizationalTeam>().AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.LeaderUserId }).ToArrayAsync();
-        var definitions = await db.Set<ShiftTypeDefinition>().AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.Version }).ToArrayAsync();
+        var definitions = await db.Set<ShiftTypeDefinition>().AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.Version, x.Semantic }).ToArrayAsync();
         return Hash(new { submissions, preferences, users, roles, leadership, definitions });
     }
     private async Task<Guid> Lock(int year, int month, ClaimsPrincipal actor, bool admin = true)
@@ -63,9 +63,9 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
             var date = first.AddDays(i); var stored = saved.SingleOrDefault(c => c.Date == date && c.ShiftTypeDefinitionId == d.Id);
             var time = ShiftTimeRanges.Boundaries(date, ShiftTimeRanges.Effective(d));
             return new SnapshotCell(d.Id, date, d.Name, d.DisplayOrder, d.Period.ToString(), ShiftTimeRanges.Effective(d).ToString(),
-                stored?.StartsAt ?? time.StartsAt, stored?.EndsAt ?? time.EndsAt, d.RequiredEmployees, d.RequiresShiftLeadQualification,
+                stored?.StartsAt ?? time.StartsAt, stored?.EndsAt ?? time.EndsAt, SchedulingRules.Required(d.Semantic, date, d.RequiredEmployees), d.RequiresShiftLeadQualification,
                 p.Work.Where(w => w.DefinitionId == d.Id && w.Date == date).OrderBy(w => w.UserId)
-                    .Select(w => new SnapshotEmployee(w.AssignmentId, w.UserId, names[w.UserId], w.Lead)).ToArray());
+                    .Select(w => new SnapshotEmployee(w.AssignmentId, w.UserId, names[w.UserId], w.Lead)).ToArray(), d.Semantic);
         })).ToArray();
         var legacy = p.Work.Where(w => w.DefinitionId is null && InMonth(w, year, month)).OrderBy(w => w.AssignmentId)
             .Select(w => new LegacyWork(w.AssignmentId, w.UserId, names[w.UserId], w.Date, w.AnchorType.ToString(), w.Start, w.End, w.Lead)).ToArray();
@@ -99,6 +99,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
             (a.Cell!.SchedulePeriodId != a.Shift.SchedulePeriodId || a.Cell.Date != a.Shift.ShiftDate))
             .Select(a => new RosterProblem(a.Id, a.UserId, a.Shift.ShiftDate, "SCHEDULE_DATA_INCONSISTENT")).ToArrayAsync();
         result.AddRange(inconsistent);
+        result.AddRange(SchedulingRules.Violations(p.Work, p.Year, p.Month).SelectMany(v => v.AssignmentIds.Select(id => new RosterProblem(id, v.UserId, v.Date, v.Code))));
         return result.Distinct().ToArray();
     }
     private async Task<ReviewResponse> Read(int year, int month)
@@ -121,9 +122,9 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
     private static CandidateCell Candidate(ShiftTypeDefinition d, DateOnly date)
     {
         var t = ShiftTimeRanges.Boundaries(date, ShiftTimeRanges.Effective(d));
-        return new(d.Id, date, t.StartsAt, t.EndsAt, d.RequiredEmployees, d.Version, d.Period, d.RequiresShiftLeadQualification);
+        return new(d.Id, date, t.StartsAt, t.EndsAt, SchedulingRules.Required(d.Semantic, date, d.RequiredEmployees), d.Version, d.Period, d.RequiresShiftLeadQualification, d.Semantic);
     }
-    private static string[] Reasons(SchedulingProblem p, CandidateCell cell, Guid user, bool leader)
+    private static string[] Reasons(SchedulingProblem p, CandidateCell cell, Guid user, bool leader, bool pairOperation = false)
     {
         var reasons = new List<string>(); var e = p.Employees.SingleOrDefault(e => e.Id == user);
         if (leader) reasons.Add("TEAM_LEADER_ASSIGNED"); else if (e is null) reasons.Add("EMPLOYEE_INELIGIBLE");
@@ -131,7 +132,8 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         if (cell.RequiresShiftLeadQualification && e?.IsShiftLeadQualified != true) reasons.Add("QUALIFICATION_REQUIRED");
         if (p.Preferences.Any(b => b.UserId == user && b.State == PreferenceType.BLOCKED && SchedulingProblem.OverlapsAnchor(cell, b))) reasons.Add("HARD_BLOCK_CONFLICT");
         if (p.Work.Any(w => w.UserId == user && (SchedulingProblem.Conflicts(cell.Start, cell.End, w.Start, w.End) || (w.Date == cell.Date && w.AnchorType == cell.AnchorType)))) reasons.Add("WORK_OVERLAP_OR_CONSECUTIVE");
-        return reasons.ToArray();
+        reasons.AddRange(SchedulingRules.CandidateReasons(p, cell, user, pairing: !pairOperation));
+        return reasons.Distinct().ToArray();
     }
     public async Task<CandidateResponse[]> Candidates(int year, int month, Guid definitionId, DateOnly date, Guid? replacing, ClaimsPrincipal actor)
     {
@@ -157,6 +159,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         {
             old = await db.Set<ShiftAssignment>().Include(a => a.Shift).Include(a => a.Cell).Include(a => a.Tasks)
                 .SingleOrDefaultAsync(a => a.Id == input.AssignmentId && a.Shift.SchedulePeriodId == period.Id) ?? throw new ApiException("NOT_FOUND", 404);
+            if (old.Cell is not null && (input.Operation != "REMOVE" || SchedulingRules.Weekend(old.Cell.Date)) && await db.Set<ShiftTypeDefinition>().AnyAsync(d => d.Id == old.Cell.ShiftTypeDefinitionId && d.Semantic == SchedulingRules.OnCall)) throw new ApiException("ON_CALL_PAIR_OPERATION_REQUIRED", 409);
             if (old.Tasks.Count > 0) throw new ApiException("ASSIGNMENT_HAS_TASKS", 409);
             before = new { old.Id, old.UserId, old.ShiftId, old.SchedulingCellId, old.IsShiftLead, old.IsLocked, Date = old.Cell?.Date ?? old.Shift.ShiftDate,
                 StartsAt = old.Cell?.StartsAt ?? old.Shift.StartsAt, EndsAt = old.Cell?.EndsAt ?? old.Shift.EndsAt, DefinitionId = old.Cell?.ShiftTypeDefinitionId };
@@ -170,6 +173,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
             var defId = input.Operation == "REPLACE" ? old!.Cell?.ShiftTypeDefinitionId ?? input.DefinitionId : input.DefinitionId;
             if (date.Year != year || date.Month != month) throw new ApiException("VALIDATION_ERROR");
             var d = await db.Set<ShiftTypeDefinition>().SingleOrDefaultAsync(d => d.Id == defId) ?? throw new ApiException("NOT_FOUND", 404);
+            if (d.Semantic == SchedulingRules.OnCall) throw new ApiException("ON_CALL_PAIR_OPERATION_REQUIRED", 409);
             var p = await inputs.Read(year, month, review: true); var candidate = Candidate(d, date) with { RequiresShiftLeadQualification = d.RequiresShiftLeadQualification || old?.IsShiftLead == true };
             var leader = await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == userId);
             var reasons = Reasons(p, candidate, userId, leader); if (reasons.Length > 0) throw new ApiException(reasons[0], 409);
@@ -198,6 +202,78 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
             Before = JsonSerializer.Serialize(before), After = JsonSerializer.Serialize(after) });
         await db.SaveChangesAsync(); var response = await Read(year, month); await tx.CommitAsync(); return response;
     }
+    // Explicit atomic pair command. Adjacent periods are never changed by the ordinary editor or solver.
+    public async Task<ReviewResponse> OnCallPair(int year, int month, OnCallPairRequest input, ClaimsPrincipal actor)
+    {
+        if (input.Operation is not ("ASSIGN" or "REMOVE" or "REPLACE" or "MOVE") || input.Friday.DayOfWeek != DayOfWeek.Friday)
+            throw new ApiException("VALIDATION_ERROR");
+        var first = AvailabilityService.MonthStart(year, month);
+        bool Touches(DateOnly f) => f >= first.AddDays(-1) && f < first.AddMonths(1);
+        if (!Touches(input.Friday)) throw new ApiException("VALIDATION_ERROR");
+        await using var tx = await db.Database.BeginTransactionAsync(); var actorId = await Lock(year, month, actor);
+        await CheckToken(year, month, input.ExpectedToken);
+        var definition = await db.Set<ShiftTypeDefinition>().SingleOrDefaultAsync(d => d.Semantic == SchedulingRules.OnCall) ?? throw new ApiException("NOT_FOUND", 404);
+        var old = new List<ShiftAssignment>(); DateOnly? sourceFriday = null;
+        if (input.Operation != "ASSIGN")
+        {
+            var source = await db.Set<ShiftAssignment>().Include(a => a.Cell).SingleOrDefaultAsync(a => a.Id == input.AssignmentId && a.Cell != null && a.Cell.ShiftTypeDefinitionId == definition.Id)
+                ?? throw new ApiException("NOT_FOUND", 404);
+            sourceFriday = SchedulingRules.Friday(source.Cell!.Date);
+            if (!Touches(sourceFriday.Value)) throw new ApiException("VALIDATION_ERROR");
+            if (input.Operation != "MOVE" && input.Friday != sourceFriday) throw new ApiException("VALIDATION_ERROR");
+            var saturday = sourceFriday.Value.AddDays(1);
+            old = await db.Set<ShiftAssignment>().Include(a => a.Cell).Include(a => a.Tasks).Where(a => a.UserId == source.UserId && a.Cell != null &&
+                a.Cell.ShiftTypeDefinitionId == definition.Id && (a.Cell.Date == sourceFriday || a.Cell.Date == saturday)).ToListAsync();
+            if (old.Any(a => a.Tasks.Count > 0)) throw new ApiException("ASSIGNMENT_HAS_TASKS", 409);
+        }
+        var dates = new[] { input.Friday, input.Friday.AddDays(1) }.Concat(sourceFriday.HasValue ? new[] { sourceFriday.Value, sourceFriday.Value.AddDays(1) } : []).Distinct().Order().ToArray();
+        if (dates.Any(d => d.Year != year || d.Month != month) && !input.AcknowledgeAdjacentPeriod) throw new ApiException("ON_CALL_ADJACENT_CONFIRMATION", 409);
+        var periods = new Dictionary<(int, int), SchedulePeriod>();
+        foreach (var date in dates)
+        {
+            if (periods.ContainsKey((date.Year, date.Month))) continue;
+            var period = await WorkingPeriod(date.Year, date.Month); EnsureEditable(period); periods[(date.Year, date.Month)] = period;
+        }
+        var before = old.Select(a => new { a.Id, a.UserId, Date = a.Cell!.Date, a.IsShiftLead, a.SchedulingCellId }).ToArray();
+        db.RemoveRange(old); await db.SaveChangesAsync();
+        var added = new List<ShiftAssignment>();
+        var user = input.Operation == "MOVE" ? old[0].UserId : input.UserId;
+        if (input.Operation != "REMOVE")
+        {
+            if (!user.HasValue) throw new ApiException("VALIDATION_ERROR");
+            foreach (var date in new[] { input.Friday, input.Friday.AddDays(1) })
+            {
+                var period = periods[(date.Year, date.Month)]; var candidate = Candidate(definition, date) with { RequiresShiftLeadQualification = definition.RequiresShiftLeadQualification || old.Any(a => a.IsShiftLead) };
+                var problem = await inputs.Read(date.Year, date.Month, review: true);
+                var reasons = Reasons(problem, candidate, user.Value, await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == user), pairOperation: true);
+                if (reasons.Length > 0) throw new ApiException(reasons[0], 409);
+                var cell = await db.Set<SchedulingCell>().SingleOrDefaultAsync(c => c.Date == date && c.ShiftTypeDefinitionId == definition.Id);
+                if (cell is not null && (cell.StartsAt != candidate.Start || cell.EndsAt != candidate.End)) throw new ApiException("CELL_CONFIGURATION_CHANGED", 409);
+                if (cell is null)
+                {
+                    var run = new SchedulingRun { Id = Guid.NewGuid(), Year = date.Year, Month = date.Month, SavedByUserId = actorId, SavedAt = Now, SolverStatus = "MANUAL_PAIR" };
+                    db.Add(run); cell = new SchedulingCell { Date = date, ShiftTypeDefinitionId = definition.Id, SchedulePeriodId = period.Id, StartsAt = candidate.Start, EndsAt = candidate.End,
+                        RequiredEmployees = definition.RequiredEmployees, ConfigurationVersion = definition.Version, SchedulingRunId = run.Id }; db.Add(cell);
+                }
+                var shift = await db.Set<Shift>().SingleOrDefaultAsync(s => s.ShiftDate == date && s.ShiftType == definition.Period);
+                if (shift is null) { var t = ShiftClock.Boundaries(date, definition.Period); shift = new Shift { ShiftDate = date, ShiftType = definition.Period, SchedulePeriodId = period.Id, StartsAt = t.StartsAt, EndsAt = t.EndsAt }; db.Add(shift); }
+                var assignment = new ShiftAssignment { UserId = user.Value, ShiftId = shift.Id, SchedulingCellId = cell.Id, IsLocked = true, IsShiftLead = old.Any(a => a.IsShiftLead), CreatedAt = Now };
+                db.Add(assignment); added.Add(assignment); await db.SaveChangesAsync();
+            }
+        }
+        foreach (var ((y, m), period) in periods)
+        {
+            var problem = await inputs.Read(y, m, review: true);
+            var affected = old.Select(a => a.UserId).Concat(added.Select(a => a.UserId)).ToArray();
+            var violations = SchedulingRules.Violations(problem.Work, y, m).Where(v => affected.Contains(v.UserId)).ToArray();
+            if (input.Operation != "REMOVE" && violations.Length > 0) throw new ApiException(violations[0].Code, 409);
+            period.Revision++; period.UpdatedAt = Now;
+            db.Add(new ScheduleEditAudit { SchedulePeriodId = period.Id, ActorUserId = actorId, OccurredAt = Now, Operation = "PAIR_" + input.Operation,
+                Before = JsonSerializer.Serialize(before), After = JsonSerializer.Serialize(added.Select(a => new { a.Id, a.UserId, a.ShiftId, a.SchedulingCellId })) });
+        }
+        await db.SaveChangesAsync(); var response = await Read(year, month); await tx.CommitAsync(); return response;
+    }
+
     public async Task<ReviewResponse> Acknowledge(int year, int month, ReviewTokenRequest input, ClaimsPrincipal actor)
     {
         await using var tx = await db.Database.BeginTransactionAsync(); await Lock(year, month, actor); await CheckToken(year, month, input.ExpectedToken);

@@ -45,7 +45,7 @@ public sealed partial class SchedulingTests
         using var client = await Login();
         var run = await Generate(client);
         Assert.Equal("READY", run.State); Assert.False(run.PublicationReady);
-        Assert.Equal(124, run.Summary!.Required); Assert.Equal(31, run.Summary.Filled); Assert.Equal(93, run.Summary.Missing);
+        Assert.Equal(124, run.Summary!.Required); Assert.Equal(23, run.Summary.Filled); Assert.Equal(101, run.Summary.Missing);
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -59,7 +59,7 @@ public sealed partial class SchedulingTests
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            Assert.Equal(31, await db.Set<ShiftAssignment>().CountAsync());
+            Assert.Equal(23, await db.Set<ShiftAssignment>().CountAsync());
             Assert.All(await db.Set<SchedulePeriod>().ToArrayAsync(), p => Assert.Equal(ScheduleStatus.DRAFT, p.Status));
             Assert.Empty(await db.Set<SchedulePublication>().ToArrayAsync());
             Assert.DoesNotContain(await db.Set<SchedulingCell>().ToArrayAsync(), c => c.ShiftTypeDefinitionId == definitions[2]);
@@ -70,7 +70,7 @@ public sealed partial class SchedulingTests
         var next = await Generate(client); Assert.Equal(186, next.Summary!.Required);
         Assert.Equal(HttpStatusCode.OK, (await Send(client, $"{GenerationPath}/{next.Id}/save", new { }, "POST")).StatusCode);
         using var finalScope = factory.Services.CreateScope();
-        Assert.Equal(31, await finalScope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Set<ShiftAssignment>().CountAsync());
+        Assert.Equal(23, await finalScope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Set<ShiftAssignment>().CountAsync());
     }
     [PostgresFact]
     public async Task Automatic_cancel_stale_configuration_and_account_changes_do_not_write_assignments()
@@ -175,7 +175,7 @@ public sealed partial class SchedulingTests
             await db.SaveChangesAsync();
         }
         using var client = await Login(); var run = await Generate(client);
-        Assert.Equal("READY", run.State); Assert.Equal(30, run.Summary!.Filled);
+        Assert.Equal("READY", run.State); Assert.Equal(22, run.Summary!.Filled);
         Assert.Empty(run.Cells.Single(c => c.Date == new DateOnly(2026, 10, 1)).Employees);
         var saves = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ => Send(client, $"{GenerationPath}/{run.Id}/save", new { }, "POST")));
         Assert.Single(saves, r => r.StatusCode == HttpStatusCode.OK);

@@ -1,3 +1,4 @@
+import OnCallPairEditor from "./OnCallPairEditor";
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { he, message } from "../he";
@@ -122,7 +123,7 @@ export default function ScheduleReviewPanel({
   if (!review?.draft) return <div className="panel"><h2>בדיקה ופרסום הסידור</h2><Notice error={error} /></div>;
   const editable = review.state === "DRAFT" || review.state === "UNDER_CORRECTION";
   const definitions = [...new Map(review.draft.cells.map(c => [c.definitionId, c])).values()];
-  const assignments = [...review.draft.cells.flatMap(c => c.employees.map(e => ({
+  const assignments = [...review.draft.cells.filter(c => c.semantic !== "WEEKEND_ON_CALL" || ![5, 6].includes(new Date(c.date + "T12:00:00Z").getUTCDay())).flatMap(c => c.employees.map(e => ({
     ...e,
     label: `${c.date} · ${c.name} · ${e.name}`
   }))), ...review.draft.legacyAssignments.map(a => ({
@@ -158,7 +159,7 @@ export default function ScheduleReviewPanel({
       {editable && <button disabled={!review.publicationReady || review.shortage > 0 && !shortages} onClick={() => publish("PRELIMINARY")}>{review.state === "UNDER_CORRECTION" ? "פרסום ראשוני מעודכן" : "פרסום ראשוני"}</button>}
       {(review.state === "PRELIMINARY_PUBLISHED" || review.state === "UNDER_CORRECTION") && <button disabled={!review.publicationReady || review.shortage > 0 && !shortages || review.openIssues > 0 && !openIssues} onClick={() => publish("FINAL")}>פרסום סופי</button>}
     </fieldset>
-    {editable && <form onSubmit={e => {
+    {editable && (cell?.semantic !== "WEEKEND_ON_CALL" || ![5, 6].includes(new Date(cell.date + "T12:00:00Z").getUTCDay())) && <form onSubmit={e => {
       e.preventDefault();
       action("assignments", {
         expectedToken: review.token,
@@ -182,10 +183,11 @@ export default function ScheduleReviewPanel({
               }
             }
           }}><option value="">בחרו שיבוץ</option>{assignments.map(a => <option key={a.assignmentId} value={a.assignmentId}>{a.label}</option>)}</select></label>}
-      {(operation === "ASSIGN" || operation === "MOVE") && <><label className="field">סוג משמרת<select required value={destination} onChange={e => setDestination(e.target.value)}><option value="">בחרו סוג</option>{definitions.map(c => <option key={c.definitionId} value={c.definitionId}>{c.name}</option>)}</select></label><label className="field">תאריך שיבוץ<input required type="date" min={`${year}-${String(month).padStart(2, "0")}-01`} max={`${year}-${String(month).padStart(2, "0")}-${new Date(Date.UTC(year, month, 0)).getUTCDate()}`} value={targetDate} onChange={e => setTargetDate(e.target.value)} /></label></>}
+      {(operation === "ASSIGN" || operation === "MOVE") && <><label className="field">סוג משמרת<select required value={destination} onChange={e => setDestination(e.target.value)}><option value="">בחרו סוג</option>{definitions.filter(c => c.semantic !== "WEEKEND_ON_CALL").map(c => <option key={c.definitionId} value={c.definitionId}>{c.name}</option>)}</select></label><label className="field">תאריך שיבוץ<input required type="date" min={`${year}-${String(month).padStart(2, "0")}-01`} max={`${year}-${String(month).padStart(2, "0")}-${new Date(Date.UTC(year, month, 0)).getUTCDate()}`} value={targetDate} onChange={e => setTargetDate(e.target.value)} /></label></>}
       {(operation === "ASSIGN" || operation === "REPLACE") && <label className="field">עובד כשיר<select required value={userId} onChange={e => setUserId(e.target.value)}><option value="">בחרו עובד</option>{candidates.filter(c => c.eligible).map(c => <option key={c.userId} value={c.userId}>{c.name}</option>)}</select></label>}
       {!!candidates.length && <details><summary>כשירות ומניעות עובדים</summary><ul>{candidates.map(c => <li key={c.userId}>{c.name}: {c.eligible ? "כשיר" : c.reasons.map(r => message(new Error(r))).join("; ")}</li>)}</ul></details>}
       {cell && <p>תא נבחר: {cell.name} · {cell.date}</p>}<button className="primary">שמירת תיקון ידני</button></fieldset></form>}
+    {editable && <OnCallPairEditor review={review} base={base} onChanged={onChanged} />}
     <h3>דיווחי עובדים</h3>{!issues.length && <p>אין דיווחים.</p>}{issues.map(i => <article key={i.id}><h4>{issueContext(i)}</h4><p>{instant(i.createdAt)} · {issueStates[i.status]} · {i.explanation}</p><label className="field">תגובת מנהל<textarea maxLength={2000} value={responses[i.id] ?? i.response ?? ""} onChange={e => setResponses({
           ...responses,
           [i.id]: e.target.value

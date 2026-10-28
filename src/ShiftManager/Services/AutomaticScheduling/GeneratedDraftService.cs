@@ -103,6 +103,10 @@ public sealed class GeneratedDraftService(ApplicationDbContext db, GenerationQue
                 proposed.Add((e.UserId, c));
             }
         }
+        var complete = p.Work.Where(w => !w.Replaceable).Concat(proposed.Where(x => !p.Work.Any(w => !w.Replaceable && w.UserId == x.User && w.DefinitionId == x.Cell.DefinitionId && w.Date == x.Cell.Date))
+            .Select(x => SchedulingRules.Proposed(x.User, x.Cell))).ToArray();
+        var violations = SchedulingRules.Violations(complete, p.Year, p.Month);
+        if (violations.Length > 0) throw new ApiException(violations[0].Code, 409);
         foreach (var group in proposed.GroupBy(x => x.User))
         {
             if (group.GroupBy(x => (x.Cell.Date, x.Cell.AnchorType)).Any(g => g.Count() > 1)) throw new ApiException("STALE_PREVIEW", 409);

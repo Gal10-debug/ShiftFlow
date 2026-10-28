@@ -210,3 +210,7 @@ locking order, regeneration rules, limitations and manual verification.
 ## Phase 5 schema
 
 Two additive migrations expand `SchedulePeriod` lifecycle/revision fields and `SchedulePublication` with immutable JSONB snapshots and explicit shortage/report acknowledgments. `ScheduleIssue` preserves version-specific employee reports independently of mutable live assignment rows; `ScheduleEditAudit` records before/after manual operations. PostgreSQL triggers prevent mutation/deletion of publication and edit-audit history. Existing PUBLISHED records retain LEGACY/null snapshot semantics. See [migration/rollback policy](publication-architecture.md).
+
+## Phase 5.1 semantic row classification
+
+`AdditionalSchedulingConstraints` adds the ORDINARY/SIX_NINE/WEEKEND_ON_CALL classification, a value check and a filtered unique index. Existing stable shift-definition UUIDs 1 and 26 receive the special classifications without renaming rows or modifying assignments. New publication snapshots retain classification metadata. No additional shift row or parallel assignment store is introduced. Explicit cross-month pair commands use the existing transactional scheduling locks and write audit events for both affected periods.
