@@ -1,0 +1,15 @@
+# Dedicated local demo instance. No normal development volume or service is used.
+services:
+  demo-postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${DEMO_DATABASE:-shiftflow_demo_202611_42}
+      POSTGRES_USER: shiftflow_demo
+      POSTGRES_PASSWORD: ${DEMO_POSTGRES_PASSWORD:?Set a random password in ignored .env.demo}
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shiftflow_demo -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

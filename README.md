@@ -350,3 +350,10 @@ Apply the two additive Phase 5 migrations using `./scripts/dev.sh migrate`. See 
 Automatic generation, manual editing, saved-preview validation and every publication stage now enforce two monthly weekend allocations, one weekly SIX_NINE-row assignment, two weekly NIGHT assignments and atomic Friday–Saturday weekend-on-call pairing. Special classifications attach to existing row IDs and survive renaming. A valid on-call pair counts once in Friday's month; automatic scheduling never writes adjacent months. Administrators have an explicit, audited pair editor with a separate acknowledgment for neighboring-period changes.
 
 Apply `20261027224058_AdditionalSchedulingConstraints` explicitly. Existing data and all 51 definitions are preserved. See [scheduling constraints, boundary policy and manual verification](docs/scheduling-architecture.md#phase-51--additional-mandatory-constraints).
+
+## Isolated development demo
+
+See [the demo testing guide](docs/demo-testing.md) for deterministic synthetic accounts,
+validated availability, an isolated PostgreSQL setup, end-to-end scheduling/publication
+verification and confirmed cleanup. Demo commands never select the normal development
+database automatically.

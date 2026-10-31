@@ -11,3 +11,6 @@ frontend/dist/
 src/ShiftManager/wwwroot/
 
 .env.*
+
+# Local synthetic account credentials and verification artifacts
+.demo/
