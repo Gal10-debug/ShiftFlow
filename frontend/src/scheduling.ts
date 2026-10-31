@@ -31,7 +31,7 @@ export interface BoardCell {
   shiftId: string | null;
   startsAt: string;
   endsAt: string;
-  state: "NOT_REQUIRED" | "UNASSIGNED" | "SAVED_DRAFT";
+  state: "NOT_REQUIRED" | "UNASSIGNED" | "SAVED_DRAFT" | "NOT_APPLICABLE";
   employees?: ScheduledEmployee[];
   requiredEmployees?: number;
   shortage?: number;
@@ -129,7 +129,9 @@ export function validDefinitions(rows: ShiftTypeDefinition[]) {
   );
 }
 
-export interface ScheduledEmployee { userId: string; name: string; protected: boolean; isShiftLead: boolean }
+export interface ScheduledEmployee { userId: string;
+  assignmentId?: string;
+  note?: string | null; name: string; protected: boolean; isShiftLead: boolean }
 export interface GeneratedCell { definitionId: string; date: string; startsAt: string; endsAt: string; requiredEmployees: number; employees: ScheduledEmployee[]; shortage: number }
 export interface Generation {
   id: string; year: number; month: number; state: string; solverStatus: string | null;

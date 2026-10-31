@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 namespace ShiftManager.Api;
 public sealed record GenerateScheduleRequest([Range(2, 9998)] int Year, [Range(1, 12)] int Month);
-public sealed record ScheduledEmployee(Guid UserId, string Name, bool Protected, bool IsShiftLead);
+public sealed record ScheduledEmployee(Guid UserId, string Name, bool Protected, bool IsShiftLead, Guid? AssignmentId = null, string? Note = null);
 public sealed record GeneratedCell(Guid DefinitionId, DateOnly Date, DateTime StartsAt, DateTime EndsAt,
     int RequiredEmployees, ScheduledEmployee[] Employees)
 {

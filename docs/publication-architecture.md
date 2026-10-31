@@ -25,7 +25,7 @@ The existing `SchedulePeriod`, `Shift`, `SchedulingCell`, `ShiftAssignment`, 51 
 
 PostgreSQL triggers reject UPDATE and DELETE of publication rows and manual-edit audit rows. A new publication always inserts a new version. A unique `(SchedulePeriodId, VersionNumber)` index and transaction locking serialize publication numbers. Adding acknowledgment columns uses a second additive migration; no existing tables or assignments are recreated.
 
-The employee endpoint returns only snapshot cells/legacy assignments belonging to the authenticated employee; it never returns another employee's name or assignment. Version metadata and optional publication notes are published information. Administrator history returns complete snapshots and the UI compares row/day assignments, names, staffing and legacy assignments.
+As of Phase 5.3, the employee endpoint returns the complete authorized published roster, including all published assignment notes; unpublished drafts remain inaccessible. See [scheduling-board-ux.md](scheduling-board-ux.md). Version metadata and optional publication notes are published information. Administrator history returns complete snapshots and the UI compares row/day assignments, names, staffing and legacy assignments.
 
 ## Validation and manual edits
 
@@ -83,7 +83,7 @@ Employee endpoints: GET `/api/my-schedule/periods`, GET `/api/my-schedule/{year}
 
 ## UI and deliberate limitations
 
-The existing Hebrew RTL scheduling board now supports month selection and monthly/weekly display, manual cell selection, eligible-candidate explanations, review acknowledgment, publication confirmations, issue management and version comparison. `/my-schedule` (סידור העבודה שלי) shows only personal published work, month/week filtering, preliminary/final labels and issue submission/status. Existing team-management permissions remain unchanged.
+The existing Hebrew RTL scheduling board now supports month selection and monthly/weekly display, manual cell selection, eligible-candidate explanations, review acknowledgment, publication confirmations, issue management and version comparison. `/my-schedule` (סידור העבודה שלי) shows the complete published board with the current employee highlighted, month/week filtering, preliminary/final labels and issue submission/status. Existing team-management permissions remain unchanged.
 
 No exchanges, coordinator task assignment, notifications, deployment or unrelated authentication changes are included. Legacy PUBLISHED history without snapshots is retained but not reconstructed. Saved cells whose timing differs from current definitions must be emptied before a manual addition can adopt the current timing, or regenerated under matching definitions; the application does not silently retime existing assignments. Task-linked assignments require task resolution before removal. Review fingerprints conservatively invalidate across periods. Published snapshots are intentionally never revised after finalization.
 
@@ -100,7 +100,7 @@ Existing users, teams, preferences, submissions, assignments and publication row
 2. Assign an eligible employee to a positive-staffing cell. Try a leader, an unqualified expert candidate, an overlapping or consecutive shift, a full cell and a blocked date. Verify Hebrew reasons and server rejection. Check neighboring days/month boundaries.
 3. Open two administrator sessions on the same token. Save a manual edit in one; the other must receive STALE_DRAFT. Exercise replacement, move and removal; inspect `/audit`.
 4. Acknowledge review. Attempt preliminary publication without accepting shortages; verify it is blocked. Accept shortages and confirm publication. Inspect immutable version 1.
-5. Sign in as an employee/deputy and open סידור העבודה שלי. Verify only their assignments appear and no administrator draft is accessible. Submit an explanation for an assigned shift; verify own status.
+5. Sign in as an employee/deputy and open סידור העבודה שלי. Verify the full published roster appears, their own assignments are highlighted by ID, and no administrator draft is accessible. Submit an explanation for an assigned shift; verify own status.
 6. Enter correction mode. Move/remove a draft assignment. Refresh the employee view; version 1 must remain unchanged. Review and resolve/reject the report with an administrator response.
 7. Make a delegated availability change after preliminary publication. Verify the old snapshot remains visible, the working draft becomes stale and conflicts prevent acknowledgment/publication until resolved. Republish preliminary to create version 2.
 8. Leave a report unresolved. Final publication must require explicit acknowledgment or resolution. Confirm final publication creates the next immutable version; verify the employee's final label and absence of new-report actions.

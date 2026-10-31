@@ -5,6 +5,7 @@ import ScheduleReviewPanel from "./components/ScheduleReviewPanel";
 import MySchedule from "./pages/MySchedule";
 import { api } from "./api";
 import { compareVersions, type Review, type Publication } from "./publication";
+vi.mock("./auth", () => ({ useAuth: () => ({ user: { id: "employee" } }) }));
 vi.mock("./api", () => ({
   api: vi.fn()
 }));
@@ -215,7 +216,7 @@ it("employees see final label without issue action and can choose weekly view", 
     name: "דיווח על בעיה"
   })).not.toBeInTheDocument();
   await userEvent.selectOptions(screen.getByLabelText("תצוגה שבועית"), "2026-09-27");
-  expect(screen.getByText("בוקר")).toBeInTheDocument();
+  expect(screen.getAllByText("בוקר").length).toBeGreaterThan(0);
 });
 it("denies administrative review when the server returns forbidden", async () => {
   mocked.mockRejectedValue(new Error("FORBIDDEN"));

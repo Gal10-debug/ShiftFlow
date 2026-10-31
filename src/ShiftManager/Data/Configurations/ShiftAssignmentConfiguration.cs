@@ -9,6 +9,7 @@ public sealed class ShiftAssignmentConfiguration : IEntityTypeConfiguration<Shif
     public void Configure(EntityTypeBuilder<ShiftAssignment> b)
     {
         b.HasKey(x => x.Id);
+        b.Property(x => x.Note).HasMaxLength(1000);
         b.HasOne(x => x.Cell).WithMany(x => x.Assignments).HasForeignKey(x => x.SchedulingCellId);
         b.HasOne(x => x.GeneratedByRun).WithMany().HasForeignKey(x => x.GeneratedByRunId);
         b.HasIndex(x => new { x.SchedulingCellId, x.UserId }).IsUnique();

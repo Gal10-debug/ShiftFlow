@@ -185,9 +185,9 @@ public static class DemoCli
         var definitions = await scheduling.List();
         var selected = definitions.Where(d => d.Semantic != "ORDINARY").Select(d => d.Id)
             .Concat(definitions.Where(d => d.Semantic == "ORDINARY").OrderBy(d => d.Slot).Take(6).Select(d => d.Id)).ToHashSet();
-        await scheduling.Update(new(definitions.Select((d) => new ShiftTypeUpdate(d.Id, d.Version, d.Name, d.DisplayOrder,
-            d.Slot == 3 ? "NIGHT" : "DAY", selected.Contains(d.Id) ? 1 : 0, selected.Contains(d.Id),
-            d.Semantic == SchedulingRules.SixNine ? "H06_09" : d.Slot == 3 ? "NIGHT" : "DAY", d.Slot == 4)).ToArray()), admin);
+        await scheduling.Update(new(definitions.Select((d) => new ShiftTypeUpdate(d.Id, d.Version, d.Slot == 16 ? "כונן סופ״ש" : d.Slot == 2 ? "מומחה א׳" : d.Slot == 3 ? "מתקן א׳ בוקר" : d.Slot == 4 ? "מומחה א׳ לילה" : d.Slot == 5 ? "מתקן א׳ לילה" : d.Name, d.DisplayOrder,
+            d.Slot is 4 or 5 ? "NIGHT" : "DAY", selected.Contains(d.Id) ? 1 : 0, selected.Contains(d.Id),
+            d.Semantic == SchedulingRules.SixNine ? "H06_09" : d.Slot is 4 or 5 ? "NIGHT" : "DAY", d.Slot is 2 or 4)).ToArray()), admin);
         // Scheduling settings use parameterized SQL; start the next service operation
         // with a fresh identity map, as separate HTTP request scopes normally do.
         db.ChangeTracker.Clear();

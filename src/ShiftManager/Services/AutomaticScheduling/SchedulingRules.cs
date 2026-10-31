@@ -13,7 +13,12 @@ public static class SchedulingRules
     public static DateOnly AllocationMonth(Work w) => Month(w.Semantic == OnCall ? Friday(w.Date) : w.Date);
     public static DateOnly Month(DateOnly date) => new(date.Year, date.Month, 1);
     public static DateOnly Week(DateOnly date) => AvailabilityService.WeekStart(date);
-    public static int Required(string semantic, DateOnly date, int required) => semantic == OnCall && !Weekend(date) ? 0 : required;
+    // Immutable seeded identities confirmed against the demo board: slots 2, 3, 4, 5, 16.
+    private static readonly HashSet<Guid> WeekendDefinitions = new[] { 2, 3, 4, 5, 16 }
+        .Select(slot => Guid.Parse($"40000000-0000-0000-0000-{slot:000000000000}")).ToHashSet();
+    public static bool Applicable(Guid? definition, string semantic, DateOnly date) =>
+        semantic == OnCall ? Weekend(date) : !Weekend(date) || definition.HasValue && WeekendDefinitions.Contains(definition.Value);
+    public static int Required(string semantic, DateOnly date, int required, Guid? definition = null) => Applicable(definition, semantic, date) ? required : 0;
     public static Work Proposed(Guid user, CandidateCell c) => new(Guid.NewGuid(), user, c.DefinitionId, c.Date, c.Start, c.End, Guid.Empty, false, false, c.AnchorType, c.Semantic);
     public static int Allocations(IEnumerable<Work> work) => work.Count(w => w.Semantic != OnCall)
         + work.Where(w => w.Semantic == OnCall).Select(w => (w.DefinitionId, Friday(w.Date))).Distinct().Count();
@@ -27,6 +32,8 @@ public static class SchedulingRules
             var rows = group.ToArray(); if (!Touches(rows)) return;
             result.Add(new(code, rows[0].UserId, rows.Min(w => w.Date), rows.Select(w => w.AssignmentId).ToArray()));
         }
+        foreach (var w in work.Where(w => !Applicable(w.DefinitionId, w.Semantic, w.Date)))
+            Add(w.Semantic == OnCall ? "ON_CALL_WEEKEND_ONLY" : "WEEKEND_SHIFT_PROHIBITED", new[] { w });
         foreach (var g in work.Where(w => Weekend(w.Date)).GroupBy(w => (w.UserId, Month: AllocationMonth(w))))
             if (Allocations(g) > 2) Add("WEEKEND_ALLOCATION_LIMIT", g);
         foreach (var g in work.Where(w => w.Semantic == SixNine).GroupBy(w => (w.UserId, Week: Week(w.Date))))
@@ -43,7 +50,7 @@ public static class SchedulingRules
     }
     public static string[] CandidateReasons(SchedulingProblem p, CandidateCell cell, Guid user, bool pairing = true)
     {
-        if (cell.Semantic == OnCall && !Weekend(cell.Date)) return ["ON_CALL_WEEKEND_ONLY"];
+        if (!Applicable(cell.DefinitionId, cell.Semantic, cell.Date)) return [cell.Semantic == OnCall ? "ON_CALL_WEEKEND_ONLY" : "WEEKEND_SHIFT_PROHIBITED"];
         var proposed = Proposed(user, cell);
         return Violations(p.Work.Append(proposed), cell.Date.Year, cell.Date.Month, pairing)
             .Where(v => v.UserId == user && v.AssignmentIds.Contains(proposed.AssignmentId)).Select(v => v.Code).Distinct().ToArray();

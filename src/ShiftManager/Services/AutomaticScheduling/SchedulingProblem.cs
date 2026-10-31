@@ -7,7 +7,7 @@ using ShiftManager.Domain;
 namespace ShiftManager.Services.AutomaticScheduling;
 
 public sealed record Work(Guid AssignmentId, Guid UserId, Guid? DefinitionId, DateOnly Date,
-    DateTime Start, DateTime End, Guid ShiftId, bool Replaceable, bool Lead, ShiftType AnchorType, string Semantic = "ORDINARY");
+    DateTime Start, DateTime End, Guid ShiftId, bool Replaceable, bool Lead, ShiftType AnchorType, string Semantic = "ORDINARY", string? Note = null);
 public sealed record CandidateCell(Guid DefinitionId, DateOnly Date, DateTime Start, DateTime End,
     int Required, long Version, ShiftType AnchorType, bool RequiresShiftLeadQualification = false, string Semantic = "ORDINARY");
 public sealed record Employee(Guid Id, string Name, bool IsShiftLeadQualified = false, bool IsTeamLeader = false);
@@ -17,7 +17,7 @@ public sealed record SchedulingProblem(int Year, int Month, string Fingerprint, 
 {
     public static bool Conflicts(DateTime start, DateTime end, DateTime otherStart, DateTime otherEnd) => start <= otherEnd && otherStart <= end;
     public bool Eligible(Employee employee, CandidateCell cell) =>
-        !employee.IsTeamLeader && (!cell.RequiresShiftLeadQualification || employee.IsShiftLeadQualified)
+        SchedulingRules.Applicable(cell.DefinitionId, cell.Semantic, cell.Date) && !employee.IsTeamLeader && (!cell.RequiresShiftLeadQualification || employee.IsShiftLeadQualified)
         && !Preferences.Any(p => p.UserId == employee.Id && p.State == PreferenceType.BLOCKED && OverlapsAnchor(cell, p))
         && !Work.Any(w => !w.Replaceable && w.UserId == employee.Id &&
             (Conflicts(cell.Start, cell.End, w.Start, w.End) || (w.Date == cell.Date && w.AnchorType == cell.AnchorType)));
@@ -53,7 +53,7 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
         }
         var cells = await db.Set<SchedulingCell>().AsNoTracking().Where(c => c.Date >= from && c.Date <= through).OrderBy(x => x.Id).ToArrayAsync(ct);
         var assignments = await db.Set<ShiftAssignment>().AsNoTracking().Where(a => a.Shift.ShiftDate >= from && a.Shift.ShiftDate <= through)
-            .OrderBy(x => x.Id).Select(a => new { a.Id, a.ShiftId, a.UserId, a.IsShiftLead, a.IsLocked, a.SchedulingCellId, a.GeneratedByRunId, HasTasks = a.Tasks.Any() }).ToArrayAsync(ct);
+            .OrderBy(x => x.Id).Select(a => new { a.Id, a.ShiftId, a.UserId, a.IsShiftLead, a.IsLocked, a.SchedulingCellId, a.GeneratedByRunId, a.Note, HasTasks = a.Tasks.Any() }).ToArrayAsync(ct);
         var submissions = await db.Set<AvailabilitySubmission>().AsNoTracking().OrderBy(x => x.Id).ToArrayAsync(ct);
         var preferences = await db.Set<ShiftPreference>().AsNoTracking().Where(p => p.Shift.ShiftDate >= from && p.Shift.ShiftDate <= through)
             .OrderBy(x => x.Id).Select(p => new { p.Id, p.UserId, p.ShiftId, p.PreferenceType, p.UpdatedAt }).ToArrayAsync(ct);
@@ -65,16 +65,16 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
             var shift = shifts.Single(s => s.Id == a.ShiftId);
             var cell = cells.SingleOrDefault(c => c.Id == a.SchedulingCellId);
             var definition = definitions.SingleOrDefault(d => d.Id == cell?.ShiftTypeDefinitionId);
-            var replaceable = a.GeneratedByRunId.HasValue && !a.IsLocked && !a.IsShiftLead && !a.HasTasks && cell is not null
+            var replaceable = a.GeneratedByRunId.HasValue && !a.IsLocked && !a.IsShiftLead && !a.HasTasks && a.Note == null && cell is not null
                 && cell.Date >= first && cell.Date < end && definition is { IncludeInAutomaticScheduling: true, RequiredEmployees: > 0 };
             return new Work(a.Id, a.UserId, cell?.ShiftTypeDefinitionId, cell?.Date ?? shift.ShiftDate,
-                cell?.StartsAt ?? shift.StartsAt, cell?.EndsAt ?? shift.EndsAt, shift.Id, replaceable, a.IsShiftLead, shift.ShiftType, definition?.Semantic ?? "ORDINARY");
+                cell?.StartsAt ?? shift.StartsAt, cell?.EndsAt ?? shift.EndsAt, shift.Id, replaceable, a.IsShiftLead, shift.ShiftType, definition?.Semantic ?? "ORDINARY", a.Note);
         }).ToArray();
         if (!review && work.Any(w => teams.Any(t => t.LeaderUserId == w.UserId))) throw new ApiException("TEAM_LEADER_ASSIGNED", 409);
         var proposed = definitions.Where(d => d.IncludeInAutomaticScheduling && d.RequiredEmployees > 0)
             .SelectMany(d => Enumerable.Range(0, end.DayNumber - first.DayNumber).Select(i => {
                 var date = first.AddDays(i); var times = ShiftTimeRanges.Boundaries(date, ShiftTimeRanges.Effective(d));
-                return new CandidateCell(d.Id, date, times.StartsAt, times.EndsAt, SchedulingRules.Required(d.Semantic, date, d.RequiredEmployees), d.Version, d.Period, d.RequiresShiftLeadQualification, d.Semantic);
+                return new CandidateCell(d.Id, date, times.StartsAt, times.EndsAt, SchedulingRules.Required(d.Semantic, date, d.RequiredEmployees, d.Id), d.Version, d.Period, d.RequiresShiftLeadQualification, d.Semantic);
             })).ToArray();
         // Snapshot includes fixed work, configuration, role/account state and submitted versions.
         var bytes = JsonSerializer.SerializeToUtf8Bytes(new { definitions, teams, periods = periods.Select(p => new { p.Id, p.Year, p.Month, p.Status, p.UpdatedAt, p.Revision }), users, roles,

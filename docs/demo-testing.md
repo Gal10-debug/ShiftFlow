@@ -195,3 +195,11 @@ administrator window controls; seeding does not overwrite a completed scenario.
 For CLI rejection check environment, database name, seed, month and loopback host.
 For occupied port 55432 choose a dedicated unused loopback port in the compose file
 and connection string. Never change the normal database to resolve a demo error.
+
+## Phase 5.3
+
+New seeds classify slot 16 as weekend on-call; Friday/Saturday permit only fixed
+slots 2, 3, 4, 5 and 16, as confirmed for the demo board. The smoke test now includes
+public assignment notes and a complete employee published roster. Use a fresh empty
+scenario; do not migrate or overwrite an existing manually edited demo for testing.
+See [scheduling-board-ux.md](scheduling-board-ux.md) for migration and note policy.

@@ -126,11 +126,11 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
             }).ToArray();
             var canonicalId = range is ShiftTimeRange.DAY or ShiftTimeRange.NIGHT ? anchors.Single().ShiftId : null;
             var saved = savedCells.GetValueOrDefault((definition.Id, day.Date));
-            var required = AutomaticScheduling.SchedulingRules.Required(definition.Semantic, day.Date, definition.RequiredEmployees);
+            var required = AutomaticScheduling.SchedulingRules.Required(definition.Semantic, day.Date, definition.RequiredEmployees, definition.Id);
             var members = saved?.Assignments.OrderBy(a => a.UserId).Select(a => new ScheduledEmployee(a.UserId,
-                $"{a.User.FirstName} {a.User.LastName}", !a.GeneratedByRunId.HasValue || a.IsLocked || a.IsShiftLead || a.Tasks.Count > 0 || !definition.IncludeInAutomaticScheduling || definition.RequiredEmployees == 0, a.IsShiftLead)).ToArray();
+                $"{a.User.FirstName} {a.User.LastName}", a.Note != null || !a.GeneratedByRunId.HasValue || a.IsLocked || a.IsShiftLead || a.Tasks.Count > 0 || !definition.IncludeInAutomaticScheduling || definition.RequiredEmployees == 0, a.IsShiftLead, a.Id, a.Note)).ToArray();
             return new BoardCellResponse(day.Date, canonicalId, saved?.StartsAt ?? boundaries.StartsAt, saved?.EndsAt ?? boundaries.EndsAt,
-                saved is not null ? "SAVED_DRAFT" : required == 0 ? "NOT_REQUIRED" : "UNASSIGNED", anchors,
+                !AutomaticScheduling.SchedulingRules.Applicable(definition.Id, definition.Semantic, day.Date) ? "NOT_APPLICABLE" : saved is not null ? "SAVED_DRAFT" : required == 0 ? "NOT_REQUIRED" : "UNASSIGNED", anchors,
                 members, required, Math.Max(0, required - (saved?.Assignments.Count ?? 0)));
         }).ToArray())).ToArray();
         await tx.CommitAsync();

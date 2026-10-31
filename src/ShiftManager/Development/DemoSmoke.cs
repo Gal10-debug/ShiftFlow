@@ -48,6 +48,8 @@ public static class DemoSmoke
             // Remove and restore through the same validated, audited manual workflow used by the board.
             r = await reviews.Manual(month.Year, month.Month, new(r.Token, "REMOVE", original.AssignmentId, null, null, cell.Date), admin);
             r = await reviews.Manual(month.Year, month.Month, new(r.Token, "ASSIGN", null, original.UserId, cell.DefinitionId, cell.Date), admin);
+            var noted = r.Draft.Cells.Single(c => c.DefinitionId == cell.DefinitionId && c.Date == cell.Date).Employees.Single(e => e.UserId == original.UserId);
+            r = await reviews.Manual(month.Year, month.Month, new(r.Token, "NOTE", noted.AssignmentId, null, null, null, "הערת הדגמה — להגיע חצי שעה מוקדם"), admin);
             r = await reviews.Acknowledge(month.Year, month.Month, new(r.Token), admin);
             steps.Add("Valid manual correction and review");
             var preliminary = await reviews.Publish(month.Year, month.Month, "PRELIMINARY", new(r.Token, true, true, "Synthetic demo smoke"), admin);
@@ -56,7 +58,7 @@ public static class DemoSmoke
             if (!await users.CheckPasswordAsync(employeeUser, employeeCredential.GetProperty("Password").GetString()!)) throw new InvalidOperationException("Employee login verification failed.");
             var employee = DemoCli.Principal(employeeUser, "EMPLOYEE");
             var visible = await reviews.Mine(month.Year, month.Month, employee);
-            if (visible.Id != preliminary.Id) throw new InvalidOperationException("Employee publication mismatch.");
+            if (visible.Id != preliminary.Id || visible.Snapshot!.Cells.Length != preliminary.Snapshot!.Cells.Length || !visible.Snapshot.Cells.SelectMany(c => c.Employees).Any(e => e.Note != null)) throw new InvalidOperationException("Employee publication mismatch.");
             var assigned = visible.Snapshot!.Cells.SelectMany(c => c.Employees).First(e => e.UserId == employeeUser.Id);
             var issue = await reviews.Report(month.Year, month.Month, new(preliminary.Id, assigned.AssignmentId, "Synthetic shift correction request"), employee);
             var issues = await reviews.Issues(month.Year, month.Month, admin, true);
@@ -67,6 +69,8 @@ public static class DemoSmoke
             r = await reviews.Manual(month.Year, month.Month, new(r.Token, "ASSIGN", null, original.UserId, cell.DefinitionId, cell.Date), admin);
             await reviews.UpdateIssue(month.Year, month.Month, issue.Id, new(issue.Version, "RESOLVED", "Reviewed synthetic correction"), admin);
             r = await reviews.Review(month.Year, month.Month, admin);
+            noted = r.Draft.Cells.Single(c => c.DefinitionId == cell.DefinitionId && c.Date == cell.Date).Employees.Single(e => e.UserId == original.UserId);
+            r = await reviews.Manual(month.Year, month.Month, new(r.Token, "NOTE", noted.AssignmentId, null, null, null, "הערה שפורסמה בגרסה הסופית"), admin);
             r = await reviews.Acknowledge(month.Year, month.Month, new(r.Token), admin);
             var final = await reviews.Publish(month.Year, month.Month, "FINAL", new(r.Token, true, false, "Synthetic final"), admin);
             var history = await reviews.History(month.Year, month.Month, admin);

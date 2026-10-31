@@ -33,7 +33,7 @@ public sealed partial class SchedulingTests
     {
         var (admin,d,r)=await ManualSetup();using(admin)
         {
-            await Semantic(d,SchedulingRules.SixNine);var request=Request(await Types(admin));request.ShiftTypes[0]=request.ShiftTypes[0] with{Name="שם חופשי"};await Send(admin,TypesPath,request);
+            await Semantic(d,SchedulingRules.SixNine);var request=Request(await Types(admin));request.ShiftTypes[1]=request.ShiftTypes[1] with{Name="שם חופשי"};await Send(admin,TypesPath,request);
             r=await Review(admin);r=await Edit(admin,r,"ASSIGN",ids["employee"],d,1);
             var invalid=await Send(admin,ReviewPath+"/assignments",new ManualAssignmentRequest(r.Token,"ASSIGN",null,ids["employee"],d,new(2026,10,2)),"POST");
             Assert.Equal("SIX_NINE_WEEKLY_LIMIT",(await invalid.Content.ReadFromJsonAsync<ApiError>())!.Code);
@@ -45,7 +45,7 @@ public sealed partial class SchedulingTests
     {
         var (admin,d,r)=await ManualSetup();using(admin)
         {
-            var request=Request(await Types(admin));request.ShiftTypes[0]=request.ShiftTypes[0] with{Period="NIGHT",TimeRange="NIGHT"};await Send(admin,TypesPath,request);
+            var request=Request(await Types(admin));request.ShiftTypes[1]=request.ShiftTypes[1] with{Period="NIGHT",TimeRange="NIGHT"};await Send(admin,TypesPath,request);
             using(var scope=factory.Services.CreateScope())
             {
                 var db=scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();var period=new SchedulePeriod{Year=2026,Month=9};
@@ -57,15 +57,14 @@ public sealed partial class SchedulingTests
         }
     }
     [PostgresFact]
-    public async Task Constraint_pair_editor_is_atomic_and_ordinary_editor_cannot_break_pair()
+    public async Task Constraint_ordinary_editor_transparently_removes_entire_pair()
     {
         var (admin,d,r)=await ManualSetup();using(admin)
         {
             await Semantic(d,SchedulingRules.OnCall);r=await Review(admin);
             var response=await Pair(admin,r,"ASSIGN",new(2026,10,2),ids["employee"]);Assert.Equal(HttpStatusCode.OK,response.StatusCode);r=(await response.Content.ReadFromJsonAsync<ReviewResponse>())!;
             Assert.Equal(2,r.Draft.Cells.Sum(c=>c.Employees.Length));Assert.Empty(r.Conflicts);Assert.Equal(0,r.Draft.Cells.Single(c=>c.Date==new DateOnly(2026,10,1)&&c.DefinitionId==d).RequiredEmployees);
-            var a=r.Draft.Cells.SelectMany(c=>c.Employees).First();var remove=await Send(admin,ReviewPath+"/assignments",new ManualAssignmentRequest(r.Token,"REMOVE",a.AssignmentId,null,null,null),"POST");Assert.Equal("ON_CALL_PAIR_OPERATION_REQUIRED",(await remove.Content.ReadFromJsonAsync<ApiError>())!.Code);
-            response=await Pair(admin,r,"REMOVE",new(2026,10,2),null,a.AssignmentId);Assert.Equal(HttpStatusCode.OK,response.StatusCode);r=(await response.Content.ReadFromJsonAsync<ReviewResponse>())!;Assert.Empty(r.Draft.Cells.SelectMany(c=>c.Employees));
+            var a=r.Draft.Cells.SelectMany(c=>c.Employees).First();var remove=await Send(admin,ReviewPath+"/assignments",new ManualAssignmentRequest(r.Token,"REMOVE",a.AssignmentId,null,null,null),"POST");Assert.Equal(HttpStatusCode.OK,remove.StatusCode);r=(await remove.Content.ReadFromJsonAsync<ReviewResponse>())!;Assert.Empty(r.Draft.Cells.SelectMany(c=>c.Employees));
         }
     }
     [PostgresFact]

@@ -357,3 +357,6 @@ See [the demo testing guide](docs/demo-testing.md) for deterministic synthetic a
 validated availability, an isolated PostgreSQL setup, end-to-end scheduling/publication
 verification and confirmed cleanup. Demo commands never select the normal development
 database automatically.
+
+Phase 5.3 scheduling-board behavior, confirmed weekend row identities, note lifecycle,
+migration and known limitations: [Scheduling board UX](docs/scheduling-board-ux.md).

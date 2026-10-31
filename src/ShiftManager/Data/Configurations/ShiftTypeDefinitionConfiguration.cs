@@ -34,7 +34,7 @@ public sealed class ShiftTypeDefinitionConfiguration : IEntityTypeConfiguration<
             b.HasData(new ShiftTypeDefinition
             {
                 Id = Guid.Parse($"40000000-0000-0000-0000-{i:000000000000}"), Slot = i,
-                Semantic = i == 1 ? "SIX_NINE" : i == 26 ? "WEEKEND_ON_CALL" : "ORDINARY",
+                Semantic = i == 1 ? "SIX_NINE" : i == 16 ? "WEEKEND_ON_CALL" : "ORDINARY",
                 Name = $"משמרת {i}", DisplayOrder = i, Period = ShiftType.DAY,
                 RequiredEmployees = 0, IncludeInAutomaticScheduling = false, Version = 1,
                 UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, DateTimeKind.Utc)
