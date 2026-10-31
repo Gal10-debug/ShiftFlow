@@ -7,6 +7,9 @@ set +x
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 MODE="${1:-start}"
+case "$MODE" in
+  seed-demo|clean-demo|smoke-demo) exec dotnet run --project "$ROOT/src/ShiftManager" --no-launch-profile -- "$@" ;;
+esac
 BACKEND_PID=""
 FRONTEND_PID=""
 
@@ -14,6 +17,9 @@ fail() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 usage() {
   cat <<'HELP'
 Usage: ./scripts/dev.sh [start|setup|migrate]
+       ./scripts/dev.sh seed-demo|smoke-demo|clean-demo --month YYYY-MM [--seed 42] [--confirm DATABASE]
+Demo commands require an explicit isolated connection and Development/Testing.
+See docs/demo-testing.md.
   start    Start PostgreSQL, backend and frontend (default).
   setup    Restore .NET dependencies/tools, install frontend dependencies and migrate.
   migrate  Apply EF migrations explicitly; does not reinstall tools or npm dependencies.

@@ -14,8 +14,10 @@ using ShiftManager.Security;
 using ShiftManager.Services;
 using ShiftManager.Services.AutomaticScheduling;
 
+var demo = args.FirstOrDefault() is "seed-demo" or "clean-demo" or "smoke-demo";
 var bootstrap = args.Contains("--bootstrap-admin");
-var builder = WebApplication.CreateBuilder(args.Where(arg => arg != "--bootstrap-admin").ToArray());
+var builder = WebApplication.CreateBuilder(demo ? [] : args.Where(arg => arg != "--bootstrap-admin").ToArray());
+if (demo) builder.Configuration["ConnectionStrings:Database"] = Environment.GetEnvironmentVariable("SHIFTFLOW_DEMO_CONNECTION") ?? "";
 builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(
     builder.Configuration.GetConnectionString("Database") ?? "Host=localhost;Database=shiftmanager;Username=shiftmanager"));
 builder.Services.AddDataProtection();
@@ -88,6 +90,12 @@ builder.Services.AddOpenApi();
 builder.Services.Configure<RequestLocalizationOptions>(options => options
     .SetDefaultCulture("he-IL").AddSupportedCultures("he-IL").AddSupportedUICultures("he-IL"));
 var app = builder.Build();
+if (demo)
+{
+    try { await ShiftManager.Development.DemoCli.Run(app.Services, app.Environment.EnvironmentName, builder.Configuration.GetConnectionString("Database")!, args); }
+    catch (Exception error) { Console.Error.WriteLine($"Demo command failed ({error.GetType().Name}): { (error is InvalidOperationException ? error.Message : "See local verification output; no success is claimed.") }"); Environment.ExitCode = 1; }
+    return;
+}
 if (bootstrap)
 {
     try { await AdminBootstrap.Run(app.Services, app.Configuration); }
