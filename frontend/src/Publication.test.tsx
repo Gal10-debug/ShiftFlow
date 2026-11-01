@@ -241,14 +241,18 @@ it("shows stale draft warning and requires an explicit fresh review", async () =
     expectedToken: review.token
   });
 });
-it("expanded version history does not render a second board or enumerate historical shortages", async () => {
+it("version history keeps its board and removes the duplicate lists below it", async () => {
   publication.snapshot = { ...publication.snapshot!, cells: [...publication.snapshot!.cells, {
     ...publication.snapshot!.cells[0], definitionId: "empty-history-row", name: "שורה חסרה בהיסטוריה", requiredEmployees: 3, employees: []
   }] };
   render(<ScheduleReviewPanel year={2026} month={10} reload={0} selected={null} onChanged={vi.fn()} />);
   await userEvent.click(await screen.findByText(/גרסה 1 · ראשוני/));
-  expect(screen.queryByRole("region", { name: "לוח סידור עבודה שבועי" })).not.toBeInTheDocument();
-  expect(screen.queryByText("שורה חסרה בהיסטוריה")).not.toBeInTheDocument();
-  expect(screen.queryByText("חסרים 3 עובדים")).not.toBeInTheDocument();
+  const board = screen.getByRole("region", { name: "לוח סידור עבודה שבועי" });
+  expect(board).toBeInTheDocument();
+  expect(screen.getByText("שורה חסרה בהיסטוריה")).toBeInTheDocument();
+  expect(screen.getByText("חסרים 3 עובדים")).toBeInTheDocument();
+  const history = board.closest("details")!;
+  expect(history.querySelector("ul")).toBeNull();
+  expect(history.querySelectorAll(".schedule-grid")).toHaveLength(1);
   expect(screen.getByText(/דנה כהן/)).toBeInTheDocument();
 });
