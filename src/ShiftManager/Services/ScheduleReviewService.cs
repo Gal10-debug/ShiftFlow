@@ -227,14 +227,17 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
                 if (await db.Set<ShiftAssignment>().AnyAsync(a => a.SchedulingCellId == cell.Id)) throw new ApiException("CELL_CONFIGURATION_CHANGED", 409);
                 // An empty cell can adopt current configuration without retiming anyone's work.
                 cell.StartsAt = candidate.Start; cell.EndsAt = candidate.End;
-                cell.RequiredEmployees = d.RequiredEmployees; cell.ConfigurationVersion = d.Version;
+                cell.RequiredEmployees = candidate.Required; cell.ConfigurationVersion = d.Version;
             }
             if (cell is null)
             {
                 var run = new SchedulingRun { Id = Guid.NewGuid(), Year = year, Month = month, SavedByUserId = actorId, SavedAt = Now, SolverStatus = "MANUAL" };
                 db.Add(run); cell = new SchedulingCell { Date = date, ShiftTypeDefinitionId = d.Id, SchedulePeriodId = period.Id,
-                    StartsAt = candidate.Start, EndsAt = candidate.End, RequiredEmployees = d.RequiredEmployees, ConfigurationVersion = d.Version, SchedulingRunId = run.Id }; db.Add(cell);
+                    StartsAt = candidate.Start, EndsAt = candidate.End, RequiredEmployees = candidate.Required, ConfigurationVersion = d.Version, SchedulingRunId = run.Id }; db.Add(cell);
             }
+            // Persist the same effective demand used by candidates, review and the board,
+            // including an existing cell saved before a weekend-specific staffing change.
+            cell.RequiredEmployees = candidate.Required;
             var shift = await db.Set<Shift>().SingleOrDefaultAsync(s => s.ShiftDate == date && s.ShiftType == d.Period);
             if (shift is null) { var t = ShiftClock.Boundaries(date, d.Period); shift = new Shift { ShiftDate = date, ShiftType = d.Period, SchedulePeriodId = period.Id, StartsAt = t.StartsAt, EndsAt = t.EndsAt }; db.Add(shift); }
             added = new ShiftAssignment { UserId = userId, ShiftId = shift.Id, SchedulingCellId = cell.Id, IsLocked = true, IsShiftLead = old?.IsShiftLead ?? false, Note = input.Operation == "MOVE" ? old?.Note : string.IsNullOrWhiteSpace(input.Note) ? null : input.Note.Trim(), CreatedAt = Now };

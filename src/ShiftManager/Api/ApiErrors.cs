@@ -95,6 +95,12 @@ public static class ApiErrors
             var name = entry.Key.Split('.').Last().ToLowerInvariant();
             var (field, code) = name switch
             {
+                "note" => ("note", "INVALID_ASSIGNMENT_NOTE"),
+                "expectedtoken" => ("expectedToken", "STALE_DRAFT"),
+                "assignmentid" => ("assignmentId", "INVALID_ASSIGNMENT_REQUEST"),
+                "userid" => ("userId", "INVALID_ASSIGNMENT_REQUEST"),
+                "definitionid" => ("definitionId", "INVALID_ASSIGNMENT_REQUEST"),
+                "date" => ("date", "INVALID_ASSIGNMENT_REQUEST"),
                 "firstname" => ("firstName", "INVALID_NAME"),
                 "lastname" => ("lastName", "INVALID_NAME"),
                 "username" => ("username", "INVALID_USERNAME"),

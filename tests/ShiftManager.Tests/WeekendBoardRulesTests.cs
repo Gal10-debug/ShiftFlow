@@ -17,7 +17,7 @@ public sealed class WeekendBoardRulesTests
         {
             var allowed = slot is 2 or 3 or 4 or 5 or 16;
             Assert.Equal(allowed, SchedulingRules.Applicable(id, semantic, date));
-            Assert.Equal(allowed ? 3 : 0, SchedulingRules.Required(semantic, date, 3, id));
+            Assert.Equal(slot == 3 ? 1 : allowed ? 3 : 0, SchedulingRules.Required(semantic, date, 3, id));
         }
         Assert.Equal(slot != 16, SchedulingRules.Applicable(id, semantic, new(2026, 10, 4)));
     }

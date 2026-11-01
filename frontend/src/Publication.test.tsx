@@ -39,6 +39,7 @@ beforeEach(() => {
     legacyAssignments: []
   };
   review = {
+    editingContractVersion: 1,
     state: "DRAFT",
     revision: 1,
     token: "a".repeat(64),

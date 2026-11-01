@@ -11,7 +11,7 @@ const definition = "40000000-0000-0000-0000-000000000016";
 let review: Review;
 beforeEach(() => {
   mocked.mockReset();
-  review = { state: "DRAFT", revision: 1, token: "a".repeat(64), needsReview: true, publicationReady: false,
+  review = { editingContractVersion: 1, state: "DRAFT", revision: 1, token: "a".repeat(64), needsReview: true, publicationReady: false,
     shortage: 2, openIssues: 0, conflicts: [], draft: { year: 2027, month: 5, legacyAssignments: [], cells: [{
       semantic: "WEEKEND_ON_CALL", definitionId: definition, name: "שם ששונה", date: "2027-05-01", displayOrder: 16,
       period: "DAY", timeRange: "DAY", startsAt: "2027-05-01T04:00:00Z", endsAt: "2027-05-01T16:00:00Z",
@@ -82,4 +82,18 @@ it("immutable published state has no manual editor", async () => {
   review.state="FINAL_PUBLISHED";panel("assigned");
   await screen.findByText("סידור עבודה סופי");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+it("rejects a stale backend contract before submitting edits and explains restarting the server", async () => {
+  delete review.editingContractVersion;
+  panel("assigned");
+  expect(await screen.findByRole("alert")).toHaveTextContent("שרת הסידור פועל בגרסה שאינה תואמת");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(mocked.mock.calls.filter(([,method])=>method === "POST")).toHaveLength(0);
+});
+it("shows safe field-specific Hebrew feedback for an actual note validation failure", async () => {
+  panel("assigned"); const dialog = await screen.findByRole("dialog");
+  await userEvent.selectOptions(within(dialog).getByLabelText("פעולה"),"NOTE");
+  mocked.mockRejectedValueOnce(Object.assign(new Error("VALIDATION_ERROR"),{fieldErrors:{note:"INVALID_ASSIGNMENT_NOTE"}}));
+  await userEvent.click(within(dialog).getByRole("button",{name:"שמירת תיקון ידני"}));
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent("הערת שיבוץ יכולה להכיל עד 1000 תווים");
 });

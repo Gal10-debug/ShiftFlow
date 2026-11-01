@@ -16,9 +16,15 @@ public static class SchedulingRules
     // Immutable seeded identities confirmed against the demo board: slots 2, 3, 4, 5, 16.
     private static readonly HashSet<Guid> WeekendDefinitions = new[] { 2, 3, 4, 5, 16 }
         .Select(slot => Guid.Parse($"40000000-0000-0000-0000-{slot:000000000000}")).ToHashSet();
+    private static readonly Guid Row3 = Guid.Parse("40000000-0000-0000-0000-000000000003");
+    private static bool WeekendAllowed(Guid? definition, string semantic) => semantic == OnCall || definition.HasValue && WeekendDefinitions.Contains(definition.Value);
     public static bool Applicable(Guid? definition, string semantic, DateOnly date) =>
-        semantic == OnCall ? Weekend(date) : !Weekend(date) || definition.HasValue && WeekendDefinitions.Contains(definition.Value);
-    public static int Required(string semantic, DateOnly date, int required, Guid? definition = null) => Applicable(definition, semantic, date) ? required : 0;
+        semantic == OnCall ? Weekend(date) : !Weekend(date) || WeekendAllowed(definition, semantic);
+    public static int WeekendRequired(string semantic, int required, Guid? definition = null) =>
+        !WeekendAllowed(definition, semantic) ? 0 : definition == Row3 ? 1 : required;
+    public static int Required(string semantic, DateOnly date, int required, Guid? definition = null) =>
+        Weekend(date) ? WeekendRequired(semantic, required, definition) : semantic == OnCall ? 0 : required;
+    public static bool HasDemand(Guid definition, string semantic, int required) => required > 0 || WeekendRequired(semantic, required, definition) > 0;
     public static Work Proposed(Guid user, CandidateCell c) => new(Guid.NewGuid(), user, c.DefinitionId, c.Date, c.Start, c.End, Guid.Empty, false, false, c.AnchorType, c.Semantic);
     public static int Allocations(IEnumerable<Work> work) => work.Count(w => w.Semantic != OnCall)
         + work.Where(w => w.Semantic == OnCall).Select(w => (w.DefinitionId, Friday(w.Date))).Distinct().Count();

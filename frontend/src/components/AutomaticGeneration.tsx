@@ -11,7 +11,6 @@ export default function AutomaticGeneration({ definitions, value, onChange, onSa
   const [busy, setBusy] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
-  const [shortagesOnly, setShortagesOnly] = useState(false);
   const pending = value?.state === "QUEUED" || value?.state === "RUNNING";
   useEffect(() => {
     if (!pending || !value) return;
@@ -47,7 +46,7 @@ export default function AutomaticGeneration({ definitions, value, onChange, onSa
     try { onChange(await api<Generation>(`/admin/scheduling/generation/${value.id}/save`, "POST")); onSaved(); }
     catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
-  const rows = definitions.filter(d => d.includeInAutomaticScheduling && d.requiredEmployees > 0);
+  const rows = definitions.filter(d => d.includeInAutomaticScheduling && (d.requiredEmployees > 0 || (d.weekendRequiredEmployees ?? 0) > 0));
   const summary = value?.summary;
   const unavailableReason = disabledReason ?? (disabled
     ? "יצירת הסידור אינה זמינה כרגע. יש להמתין לסיום טעינת הנתונים או שמירת ההגדרות."
@@ -75,10 +74,7 @@ export default function AutomaticGeneration({ definitions, value, onChange, onSa
     {summary && <>
       <p aria-label="סיכום איוש">נדרשים: {summary.required} · שובצו: {summary.filled} · חסרים: {summary.missing} · תאים בחוסר: {summary.understaffedCells} · תאים מאוישים: {summary.fullyStaffedCells}</p>
       <p>{value?.coverageOptimal ? "הוכח איוש מרבי לאחראי משמרת, ולאחריו לשאר השורות, בהתאם לאילוצים ולשיבוצים המוגנים." : "ייתכן שניתן לצמצם חוסרים בהרצה נוספת."}</p>
-      <label><input type="checkbox" checked={shortagesOnly} onChange={e => setShortagesOnly(e.target.checked)} />הצגת רשימת תאים בחוסר</label>
-      {shortagesOnly && <div className="shortage-list">{value?.cells.filter(c => c.shortage > 0).map(c => <p key={`${c.definitionId}-${c.date}`}>
-        {definitions.find(d => d.id === c.definitionId)?.requiresShiftLeadQualification && <strong>חוסר באחראי משמרת · </strong>}{definitions.find(d => d.id === c.definitionId)?.name} · {c.date} · {c.shortage === 1 ? "חסר עובד 1" : `חסרים ${c.shortage} עובדים`}
-      </p>)}</div>}
+
     </>}
     {value?.state === "READY" && <button className="primary" disabled={busy} onClick={() => void save()}>אישור ושמירת טיוטה</button>}
     {value && value.state !== "SAVED" && <button disabled={busy} onClick={() => void cancel()}>ביטול תצוגה מקדימה</button>}

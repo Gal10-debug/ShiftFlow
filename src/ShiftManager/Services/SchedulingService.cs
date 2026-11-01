@@ -21,7 +21,7 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
     public DateOnly CurrentWeek() => WeekStart(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(), TimeZoneInfo.FindSystemTimeZoneById(ZoneId)).DateTime));
 
     private static ShiftTypeResponse Response(ShiftTypeDefinition row) => new(row.Id, row.Slot, row.Name,
-        row.DisplayOrder, row.Period.ToString(), row.RequiredEmployees, row.IncludeInAutomaticScheduling, row.Version, row.UpdatedAt, ShiftTimeRanges.Effective(row).ToString(), row.RequiresShiftLeadQualification, row.Semantic);
+        row.DisplayOrder, row.Period.ToString(), row.RequiredEmployees, row.IncludeInAutomaticScheduling, row.Version, row.UpdatedAt, ShiftTimeRanges.Effective(row).ToString(), row.RequiresShiftLeadQualification, row.Semantic, AutomaticScheduling.SchedulingRules.WeekendRequired(row.Semantic, row.RequiredEmployees, row.Id));
 
     public async Task<ShiftTypeResponse[]> List() => (await db.Set<ShiftTypeDefinition>().AsNoTracking()
         .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Slot).ToArrayAsync()).Select(Response).ToArray();
@@ -128,7 +128,7 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
             var saved = savedCells.GetValueOrDefault((definition.Id, day.Date));
             var required = AutomaticScheduling.SchedulingRules.Required(definition.Semantic, day.Date, definition.RequiredEmployees, definition.Id);
             var members = saved?.Assignments.OrderBy(a => a.UserId).Select(a => new ScheduledEmployee(a.UserId,
-                $"{a.User.FirstName} {a.User.LastName}", a.Note != null || !a.GeneratedByRunId.HasValue || a.IsLocked || a.IsShiftLead || a.Tasks.Count > 0 || !definition.IncludeInAutomaticScheduling || definition.RequiredEmployees == 0, a.IsShiftLead, a.Id, a.Note)).ToArray();
+                $"{a.User.FirstName} {a.User.LastName}", a.Note != null || !a.GeneratedByRunId.HasValue || a.IsLocked || a.IsShiftLead || a.Tasks.Count > 0 || !definition.IncludeInAutomaticScheduling || !AutomaticScheduling.SchedulingRules.HasDemand(definition.Id, definition.Semantic, definition.RequiredEmployees), a.IsShiftLead, a.Id, a.Note)).ToArray();
             return new BoardCellResponse(day.Date, canonicalId, saved?.StartsAt ?? boundaries.StartsAt, saved?.EndsAt ?? boundaries.EndsAt,
                 !AutomaticScheduling.SchedulingRules.Applicable(definition.Id, definition.Semantic, day.Date) ? "NOT_APPLICABLE" : saved is not null ? "SAVED_DRAFT" : required == 0 ? "NOT_REQUIRED" : "UNASSIGNED", anchors,
                 members, required, Math.Max(0, required - (saved?.Assignments.Count ?? 0)));
@@ -140,7 +140,7 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
     public async Task<AutomaticSchedulingConfigurationResponse> GetConfiguration()
     {
         var rows = await List();
-        return new(ZoneId, "UNPUBLISHED", rows.Where(x => x.IncludeInAutomaticScheduling && x.RequiredEmployees > 0).ToArray(),
-            rows.Where(x => !x.IncludeInAutomaticScheduling || x.RequiredEmployees == 0).Select(x => x.Id).ToArray());
+        return new(ZoneId, "UNPUBLISHED", rows.Where(x => x.IncludeInAutomaticScheduling && (x.RequiredEmployees > 0 || x.WeekendRequiredEmployees > 0)).ToArray(),
+            rows.Where(x => !x.IncludeInAutomaticScheduling || (x.RequiredEmployees == 0 && x.WeekendRequiredEmployees is null or 0)).Select(x => x.Id).ToArray());
     }
 }

@@ -28,8 +28,8 @@ it("shows preview summary and shortages without claiming optimality", async () =
   expect(screen.getByRole("status")).toHaveTextContent("טרם נשמרו");
   expect(screen.getByLabelText("סיכום איוש")).toHaveTextContent("נדרשים: 3 · שובצו: 1 · חסרים: 2");
   expect(screen.getByText(/ייתכן שניתן לצמצם/)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("checkbox"));
-  expect(screen.getByText(/חסרים 2 עובדים/)).toBeInTheDocument();
+  expect(screen.queryByRole("checkbox", { name: /הצגת רשימת תאים בחוסר/ })).not.toBeInTheDocument();
+  expect(screen.queryByText(/חסרים 2 עובדים/)).not.toBeInTheDocument();
 });
 it("cancel removes the preview using the cancellation endpoint", async () => {
   mocked.mockResolvedValue(undefined); render(<Harness initial={ready} />);
@@ -85,9 +85,13 @@ it("shows the reason generation is blocked by unsaved settings", () => {
   expect(screen.getByRole("button", { name: "צור סידור אוטומטי" })).toBeDisabled();
   expect(screen.getByText("יש לשמור את השינויים לפני יצירת סידור")).toBeInTheDocument();
 });
-it("identifies expert shortages after the expert row is renamed", async () => {
-  render(<AutomaticGeneration definitions={[{ ...definition, name: "שם חדש", requiresShiftLeadQualification: true }]} value={ready} onChange={vi.fn()} onSaved={vi.fn()} disabled={false} />);
-  await userEvent.click(screen.getByRole("checkbox"));
-  expect(screen.getByText(/חוסר באחראי משמרת/)).toBeInTheDocument();
-  expect(screen.getByText(/שם חדש · 2026-10-01/)).toBeInTheDocument();
+it("keeps expert staffing metadata without rendering an aggregate shortage list", () => {
+  const { container } = render(<AutomaticGeneration definitions={[{ ...definition, name: "שם חדש", requiresShiftLeadQualification: true }]} value={ready} onChange={vi.fn()} onSaved={vi.fn()} disabled={false} />);
+  expect(container.querySelector(".shortage-list")).toBeNull();
+  expect(screen.queryByText(/הצגת רשימת תאים בחוסר/)).not.toBeInTheDocument();
+  expect(screen.getByLabelText("סיכום איוש")).toHaveTextContent("חסרים: 2");
+});
+it("permits generation when an enabled row has weekend demand and zero weekday staffing", () => {
+  render(<AutomaticGeneration definitions={[{ ...definition, requiredEmployees: 0, weekendRequiredEmployees: 1 }]} value={null} onChange={vi.fn()} onSaved={vi.fn()} disabled={false} />);
+  expect(screen.getByRole("button", { name: "צור סידור אוטומטי" })).toBeEnabled();
 });

@@ -6,7 +6,7 @@ public sealed record SnapshotCell(Guid DefinitionId, DateOnly Date, string Name,
 public sealed record LegacyWork(Guid AssignmentId, Guid UserId, string Name, DateOnly Date, string Period, DateTime StartsAt, DateTime EndsAt, bool IsShiftLead, string? Note = null);
 public sealed record ScheduleSnapshot(int Year, int Month, SnapshotCell[] Cells, LegacyWork[] LegacyAssignments);
 public sealed record ReviewResponse(string State, long Revision, string Token, bool NeedsReview, bool PublicationReady,
-    int Shortage, int OpenIssues, RosterProblem[] Conflicts, ScheduleSnapshot Draft);
+    int Shortage, int OpenIssues, RosterProblem[] Conflicts, ScheduleSnapshot Draft, int EditingContractVersion = 1);
 public sealed record RosterProblem(Guid? AssignmentId, Guid? UserId, DateOnly Date, string Code);
 public sealed record CandidateResponse(Guid UserId, string Name, bool Eligible, string[] Reasons, bool IsShiftLeadQualified = false, bool Preferred = false);
 public sealed record ReviewTokenRequest([Required, StringLength(64, MinimumLength = 64)] string ExpectedToken);

@@ -51,8 +51,8 @@ export default function ScheduleReviewPanel({
   const [compareB, setCompareB] = useState("");
   const [responses, setResponses] = useState<Record<string, string>>({});
   useEffect(() => {
-    onEditableChange?.(review?.state === "DRAFT" || review?.state === "UNDER_CORRECTION");
-  }, [review?.state, onEditableChange]);
+    onEditableChange?.(review?.editingContractVersion === 1 && (review?.state === "DRAFT" || review?.state === "UNDER_CORRECTION"));
+  }, [review?.state, review?.editingContractVersion, onEditableChange]);
   useEffect(() => {
     if (operation === "NOTE") setAssignmentNote(review?.draft.cells.flatMap(c => c.employees).find(e => e.assignmentId === oldAssignment)?.note ?? "");
   }, [operation, oldAssignment]);
@@ -113,6 +113,7 @@ export default function ScheduleReviewPanel({
     };
   }, [base, destination, targetDate, oldAssignment, operation, reload]);
   async function action(path: string, body: unknown, method = "POST") {
+    if (path === "assignments" && review?.editingContractVersion !== 1) { setError(he.errors.SCHEDULING_SERVER_OUTDATED); return; }
     if (submitting.current) return;
     submitting.current = true;
     setBusy(true);
@@ -127,7 +128,8 @@ export default function ScheduleReviewPanel({
       setOpenIssues(false);
       onChanged();
     } catch (e) {
-      setError(message(e));
+      const fields = (e as { fieldErrors?: Record<string, string> }).fieldErrors;
+      setError(fields ? [...new Set(Object.values(fields))].map(code => message(new Error(code))).join(" ") : message(e));
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -149,9 +151,9 @@ export default function ScheduleReviewPanel({
     if (typeof dialog.showModal === "function") { if (!dialog.open) dialog.showModal(); }
     else dialog.setAttribute("open", "");
     return () => { if (dialog.open && typeof dialog.close === "function") dialog.close(); previous?.focus(); };
-  }, [!!cell, selected?.definitionId, selected?.date, review?.state]);
+  }, [!!cell, selected?.definitionId, selected?.date, review?.state, review?.editingContractVersion]);
   if (!review?.draft) return <div className="panel"><h2>בדיקה ופרסום הסידור</h2><Notice error={error} /></div>;
-  const editable = review.state === "DRAFT" || review.state === "UNDER_CORRECTION";
+  const editable = review.editingContractVersion === 1 && (review.state === "DRAFT" || review.state === "UNDER_CORRECTION");
   const definitions = [...new Map(review.draft.cells.map(c => [c.definitionId, c])).values()];
   const assignments = [...review.draft.cells.flatMap(c => c.employees.map(e => ({
     ...e,
@@ -172,6 +174,7 @@ export default function ScheduleReviewPanel({
   }
   const differences = compareVersions(history.find(h => h.id === compareA)?.snapshot ?? null, history.find(h => h.id === compareB)?.snapshot ?? null);
   return <section className="panel" dir="rtl" aria-label="בדיקה ופרסום הסידור"><h2>בדיקה ופרסום הסידור</h2><Notice error={cell && editable ? "" : error} success={cell && editable ? "" : success} />
+    {review.editingContractVersion !== 1 && <p role="alert" className="notice error">{he.errors.SCHEDULING_SERVER_OUTDATED}</p>}
     <p><strong>{lifecycle[review.state]}</strong> · חוסרים: {review.shortage} · דיווחים פתוחים: {review.openIssues}</p>
     <p>{review.publicationReady ? "הטיוטה תקינה לפרסום בכפוף לאישור חוסרים ודיווחים." : "נדרשת בדיקת הטיוטה לפני פרסום."}</p>
     {review.needsReview && <p className="notice">הזמינות או נתוני השיבוץ דורשים בדיקה מחודשת. יש לפתור סתירות ולאשר בדיקה לפני הפרסום.</p>}

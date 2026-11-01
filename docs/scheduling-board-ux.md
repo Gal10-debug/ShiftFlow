@@ -169,3 +169,79 @@ and HTTP integration tests do not substitute for a visual inspection.
 
 Existing development and manually edited demo databases were not migrated or
 reseeded. The supplied migration is tested only in disposable databases here.
+
+## Focused follow-up fixes — 2026-11-01
+
+Row 3 (immutable ID suffix `000000000003`) now requires **one person on Friday
+and one on Saturday**, independently of its weekday setting. Sunday–Thursday and
+all other definitions keep their configured counts and previous applicability.
+The approved weekend identities remain 2/3/4/5/16. This is an effective domain
+staffing override, not a React constant or an update to saved configuration.
+`WeekendRequiredEmployees` exposes the same derived demand to configuration clients;
+an enabled row with zero weekday demand still has weekend demand. Solver inputs,
+manual capacity checks, board cells, stored cell demand on successful edits,
+review and newly published snapshots use the same calculation. Existing snapshots
+and live allocations are not automatically rewritten. Existing excess allocations
+must be corrected explicitly before publication. No new database migration is needed.
+
+The automatic-generation aggregate shortage checkbox/list was removed. Per-cell
+counts/shortages, backend summary data, hard constraints and mandatory publication
+acknowledgments remain.
+
+### Editing failure investigation
+
+Read-only inspection of the existing demo startup record identified backend PID
+36621, started 2026-10-31 at 15:07 with `dotnet run --no-build --no-restore`.
+The Phase 5.3 commit was created later that day at 19:03. The earlier server's
+`ManualAssignmentRequest` lacks `Note`. The new board sends `note`, including a
+JSON null value for operations without a note. Both application versions configure
+`JsonUnmappedMemberHandling.Disallow`. The old MVC JSON binder therefore rejects
+that payload before the domain service/EF pipeline and returns the application's
+400 `VALIDATION_ERROR`; the frontend displayed its generic Hebrew field/length
+message. Existing database schema does not explain that particular binding failure:
+EF is never reached in this reproduction.
+
+`BoardBugFixTests` reproduces all five operations with the exact old DTO shape and
+strict JSON settings, then exercises an isolated MVC TestServer using the real
+`ApiErrors.Validation` factory. The old shape returns 400/VALIDATION_ERROR and the
+current shape binds successfully. PostgreSQL tests submit the board's exact
+camelCase JSON, including null IDs/date/note fields, and verify persisted/reloaded
+Hebrew notes, empty/null notes, exactly 1000 characters, rejection at 1001, manual
+operations, authorization, state restrictions and immutable published history.
+No live browser request body was captured; the available evidence is the recorded
+process start and the reproducible old/new binding behavior.
+
+Review responses now advertise `editingContractVersion: 1`. The UI blocks manual
+edits when it is missing/unsupported and explains that the updated server must be
+started after migration checks, rather than sending incompatible JSON. Genuine
+note/ID/token validation failures return safe field identifiers and stable codes;
+the editor displays the corresponding Hebrew explanation, without echoing JSON
+parser messages, note text or credentials. Length limits and strict validation
+remain unchanged.
+
+**Operational limitation:** the existing demo/development databases and running demo
+process were intentionally not changed, migrated, reseeded or restarted during this
+fix. To use Phase 5.3 in that environment, its server binary and previously supplied
+schema migration must be brought into sync through a separately controlled update.
+The compatibility message identifies this requirement; it does not bypass it.
+
+A subsequent read-only metadata query confirmed the existing demo's latest applied
+migration is `20261027224058_AdditionalSchedulingConstraints`; `ShiftAssignment.Note`
+is absent. Thus that environment needs the **previous Phase 5.3** migration
+`20261031164800_WeekendBoardNotes` as well as a server restart. This follow-up adds
+no new schema migration. Applying the earlier migration to a manually edited demo
+was explicitly outside the authorized testing/setup scope and was not performed.
+
+Follow-up verification results:
+
+- Before the staffing fix: 3 new staffing cases failed, while all 5 legacy/current
+  payload reproduction cases and the already-one-person case passed.
+- Final full backend/PostgreSQL run: 248 passed, zero failed/skipped, including all
+  scheduling/publication/demo regressions and the new persisted-request tests.
+- Final standalone backend run: 131 passed; 117 PostgreSQL-only tests skipped.
+  The strengthened real-MVC contract reproduction passed in this final run.
+- Frontend: 95 passed across 7 files. Script tests: 7 passed.
+- Frontend production and backend Release builds succeeded; no backend build warnings.
+- Existing databases and published schedules were preserved; tests used disposable
+  databases. The live demo was queried only for migration/column metadata, not used
+  as an automated test target.

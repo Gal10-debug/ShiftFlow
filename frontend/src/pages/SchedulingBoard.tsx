@@ -241,7 +241,7 @@ export default function SchedulingBoard() {
             <RosterGrid snapshot={{ year: reviewYear, month: reviewMonth, legacyAssignments: [], cells: board.rows.flatMap(row => row.cells.map(saved => {
               const proposed = preview ? generation.cells.find(c => c.definitionId === row.definition.id && c.date === saved.date) : undefined;
               const cell = proposed ? { ...saved, ...proposed } : saved;
-              return { state: proposed ? "PREVIEW" : saved.state, includeInAutomaticScheduling: row.definition.includeInAutomaticScheduling, configuredRequiredEmployees: row.definition.requiredEmployees, definitionId: row.definition.id, date: cell.date, name: row.definition.name, displayOrder: row.definition.displayOrder,
+              return { state: proposed ? "PREVIEW" : saved.state, includeInAutomaticScheduling: row.definition.includeInAutomaticScheduling, configuredRequiredEmployees: row.definition.requiredEmployees, weekendRequiredEmployees: row.definition.weekendRequiredEmployees, definitionId: row.definition.id, date: cell.date, name: row.definition.name, displayOrder: row.definition.displayOrder,
                 period: row.definition.period, timeRange: row.definition.timeRange ?? row.definition.period, startsAt: cell.startsAt, endsAt: cell.endsAt,
                 requiredEmployees: cell.requiredEmployees ?? row.definition.requiredEmployees, requiresShiftLeadQualification: row.definition.requiresShiftLeadQualification ?? false,
                 semantic: row.definition.semantic, employees: (cell.employees ?? []).map(e => ({ ...e, assignmentId: e.assignmentId ?? "", isShiftLead: e.isShiftLead ?? false })) };

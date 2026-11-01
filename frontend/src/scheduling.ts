@@ -21,6 +21,7 @@ export interface ShiftTypeDefinition {
   period: "DAY" | "NIGHT";
   timeRange?: ShiftTimeRange;
   requiredEmployees: number;
+  weekendRequiredEmployees?: number;
   includeInAutomaticScheduling: boolean;
   requiresShiftLeadQualification?: boolean;
   version: number;

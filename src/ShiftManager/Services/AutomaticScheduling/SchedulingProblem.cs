@@ -66,12 +66,12 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
             var cell = cells.SingleOrDefault(c => c.Id == a.SchedulingCellId);
             var definition = definitions.SingleOrDefault(d => d.Id == cell?.ShiftTypeDefinitionId);
             var replaceable = a.GeneratedByRunId.HasValue && !a.IsLocked && !a.IsShiftLead && !a.HasTasks && a.Note == null && cell is not null
-                && cell.Date >= first && cell.Date < end && definition is { IncludeInAutomaticScheduling: true, RequiredEmployees: > 0 };
+                && cell.Date >= first && cell.Date < end && definition is { IncludeInAutomaticScheduling: true } && SchedulingRules.HasDemand(definition.Id, definition.Semantic, definition.RequiredEmployees);
             return new Work(a.Id, a.UserId, cell?.ShiftTypeDefinitionId, cell?.Date ?? shift.ShiftDate,
                 cell?.StartsAt ?? shift.StartsAt, cell?.EndsAt ?? shift.EndsAt, shift.Id, replaceable, a.IsShiftLead, shift.ShiftType, definition?.Semantic ?? "ORDINARY", a.Note);
         }).ToArray();
         if (!review && work.Any(w => teams.Any(t => t.LeaderUserId == w.UserId))) throw new ApiException("TEAM_LEADER_ASSIGNED", 409);
-        var proposed = definitions.Where(d => d.IncludeInAutomaticScheduling && d.RequiredEmployees > 0)
+        var proposed = definitions.Where(d => d.IncludeInAutomaticScheduling && SchedulingRules.HasDemand(d.Id, d.Semantic, d.RequiredEmployees))
             .SelectMany(d => Enumerable.Range(0, end.DayNumber - first.DayNumber).Select(i => {
                 var date = first.AddDays(i); var times = ShiftTimeRanges.Boundaries(date, ShiftTimeRanges.Effective(d));
                 return new CandidateCell(d.Id, date, times.StartsAt, times.EndsAt, SchedulingRules.Required(d.Semantic, date, d.RequiredEmployees, d.Id), d.Version, d.Period, d.RequiresShiftLeadQualification, d.Semantic);
