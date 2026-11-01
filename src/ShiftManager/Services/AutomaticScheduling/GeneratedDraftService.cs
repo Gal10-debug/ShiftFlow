@@ -105,6 +105,7 @@ public sealed class GeneratedDraftService(ApplicationDbContext db, GenerationQue
         }
         var complete = p.Work.Where(w => !w.Replaceable).Concat(proposed.Where(x => !p.Work.Any(w => !w.Replaceable && w.UserId == x.User && w.DefinitionId == x.Cell.DefinitionId && w.Date == x.Cell.Date))
             .Select(x => SchedulingRules.Proposed(x.User, x.Cell))).ToArray();
+        if (p.ExceedsCapacity(complete)) throw new ApiException("STAFFING_EXCEEDED", 409);
         var violations = SchedulingRules.Violations(complete, p.Year, p.Month);
         if (violations.Length > 0) throw new ApiException(violations[0].Code, 409);
         foreach (var group in proposed.GroupBy(x => x.User))

@@ -175,7 +175,7 @@ export default function ScheduleReviewPanel({
   const differences = compareVersions(history.find(h => h.id === compareA)?.snapshot ?? null, history.find(h => h.id === compareB)?.snapshot ?? null);
   return <section className="panel" dir="rtl" aria-label="בדיקה ופרסום הסידור"><h2>בדיקה ופרסום הסידור</h2><Notice error={cell && editable ? "" : error} success={cell && editable ? "" : success} />
     {review.editingContractVersion !== 1 && <p role="alert" className="notice error">{he.errors.SCHEDULING_SERVER_OUTDATED}</p>}
-    <p><strong>{lifecycle[review.state]}</strong> · חוסרים: {review.shortage} · דיווחים פתוחים: {review.openIssues}</p>
+    <p><strong>{lifecycle[review.state]}</strong> · דיווחים פתוחים: {review.openIssues}</p>
     <p>{review.publicationReady ? "הטיוטה תקינה לפרסום בכפוף לאישור חוסרים ודיווחים." : "נדרשת בדיקת הטיוטה לפני פרסום."}</p>
     {review.needsReview && <p className="notice">הזמינות או נתוני השיבוץ דורשים בדיקה מחודשת. יש לפתור סתירות ולאשר בדיקה לפני הפרסום.</p>}
     {!!review.conflicts.length && <ul className="notice error" aria-label="סתירות בסידור">{review.conflicts.map((c, i) => <li key={i}>{c.date} · {message(new Error(c.code))}</li>)}</ul>}
@@ -186,7 +186,7 @@ export default function ScheduleReviewPanel({
       {review.state === "PRELIMINARY_PUBLISHED" && <button onClick={() => action("correction", {
         expectedToken: review.token
       })}>כניסה למצב תיקונים</button>}
-      <label className="check"><input type="checkbox" checked={shortages} onChange={e => setShortages(e.target.checked)} />אני מאשר פרסום עם {review.shortage} מקומות לא מאוישים</label>
+      {(editable || review.state === "PRELIMINARY_PUBLISHED") && review.shortage > 0 && <label className="check"><input type="checkbox" checked={shortages} onChange={e => setShortages(e.target.checked)} />אני מאשר פרסום עם {review.shortage} מקומות לא מאוישים</label>}
       <label className="check"><input type="checkbox" checked={openIssues} onChange={e => setOpenIssues(e.target.checked)} />אני מאשר פרסום סופי עם {review.openIssues} דיווחים שטרם טופלו</label>
       <label className="field">הערות לפרסום<textarea maxLength={2000} value={notes} onChange={e => setNotes(e.target.value)} /></label>
       {editable && <button disabled={!review.publicationReady || review.shortage > 0 && !shortages} onClick={() => publish("PRELIMINARY")}>{review.state === "UNDER_CORRECTION" ? "פרסום ראשוני מעודכן" : "פרסום ראשוני"}</button>}

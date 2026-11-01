@@ -29,6 +29,7 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
                 && (!p.Cells.Any(c => c.DefinitionId == w.DefinitionId && c.Date == mate) || !p.Employees.Any(e => e.Id == w.UserId)))
                 throw new ApiException("ON_CALL_PAIR_REQUIRED", 409);
         }
+        if (p.ExceedsCapacity(fixedWork)) throw new ApiException("STAFFING_EXCEEDED", 409);
         // Validate fixed assignments belonging to included cells; legacy/excluded commitments
         // remain untouched and are obstacles, never candidates to "repair" by deletion.
         foreach (var c in p.Cells)
@@ -160,6 +161,7 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
                 .OrderBy(e => e.UserId).ToArray())).ToArray();
         var completed = fixedWork.Concat(cells.SelectMany(c => c.Employees.Where(e => !e.Protected).Select(e =>
             SchedulingRules.Proposed(e.UserId, p.Cells.Single(input => input.DefinitionId == c.DefinitionId && input.Date == c.Date)))));
+        if (p.ExceedsCapacity(completed)) throw new ApiException("STAFFING_EXCEEDED", 409);
         var finalViolations = SchedulingRules.Violations(completed, p.Year, p.Month);
         if (finalViolations.Length > 0) throw new ApiException(finalViolations[0].Code, 409);
         return new(status, proven, cells);

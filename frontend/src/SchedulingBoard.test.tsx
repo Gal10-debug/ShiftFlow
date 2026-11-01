@@ -66,6 +66,7 @@ function board(anchor: string): WeeklyBoard {
           definition,
           cells: days.map((day) => ({
             date: day.date,
+            requiredEmployees: [5,6].includes(new Date(day.date + "T12:00:00Z").getUTCDay()) ? 0 : definition.requiredEmployees,
             shiftId: null,
             startsAt: `${day.date}T04:00:00Z`,
             endsAt: `${day.date}T16:00:00Z`,

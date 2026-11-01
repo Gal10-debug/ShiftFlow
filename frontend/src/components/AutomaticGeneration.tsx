@@ -47,7 +47,6 @@ export default function AutomaticGeneration({ definitions, value, onChange, onSa
     catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
   const rows = definitions.filter(d => d.includeInAutomaticScheduling && (d.requiredEmployees > 0 || (d.weekendRequiredEmployees ?? 0) > 0));
-  const summary = value?.summary;
   const unavailableReason = disabledReason ?? (disabled
     ? "יצירת הסידור אינה זמינה כרגע. יש להמתין לסיום טעינת הנתונים או שמירת ההגדרות."
     : !rows.length
@@ -56,9 +55,7 @@ export default function AutomaticGeneration({ definitions, value, onChange, onSa
   return <section className="panel automatic-generation" aria-label="סידור אוטומטי">
     <h2>סידור אוטומטי חודשי</h2>
     <label className="field">חודש ליצירת סידור<input type="month" min="0002-01" max="9998-12" value={month} disabled={busy || pending || value?.state === "READY"} onChange={e => setMonth(e.target.value)} /></label>
-    <details><summary>סוגי משמרות ודרישות איוש להרצה ({rows.length})</summary>
-      <ul>{rows.map(d => <li key={d.id}>{d.name}: {d.requiredEmployees} עובדים</li>)}</ul>
-    </details>
+
     <p className="help">ההרצה משתמשת בהגדרות השמורות. התוצאה היא טיוטה בלבד; בחירת אחראי משמרת ובדיקות לפרסום עדיין נדרשות.</p>
     <button aria-describedby={unavailableReason ? "generation-unavailable" : undefined} disabled={busy || disabled || !rows.length || !month || pending || value?.state === "READY"} onClick={() => void start()}>{starting ? "שולח בקשה ליצירת סידור…" : "צור סידור אוטומטי"}</button>
     {unavailableReason && <p id="generation-unavailable" className="help">{unavailableReason}</p>}
@@ -71,11 +68,7 @@ export default function AutomaticGeneration({ definitions, value, onChange, onSa
     {value?.state === "FAILED" && <p role="alert">ההרצה נכשלה. {message(new Error(value.errorCode ?? "INTERNAL_ERROR"))}</p>}
     {value?.state === "CANCELED" && <p role="status">ההרצה בוטלה ללא שמירה</p>}
     {value?.solverStatus === "FEASIBLE" && <p>נמצא פתרון חוקי במסגרת מגבלת הזמן. לא הוכח שכל יעדי האופטימיזציה מיטביים.</p>}
-    {summary && <>
-      <p aria-label="סיכום איוש">נדרשים: {summary.required} · שובצו: {summary.filled} · חסרים: {summary.missing} · תאים בחוסר: {summary.understaffedCells} · תאים מאוישים: {summary.fullyStaffedCells}</p>
-      <p>{value?.coverageOptimal ? "הוכח איוש מרבי לאחראי משמרת, ולאחריו לשאר השורות, בהתאם לאילוצים ולשיבוצים המוגנים." : "ייתכן שניתן לצמצם חוסרים בהרצה נוספת."}</p>
 
-    </>}
     {value?.state === "READY" && <button className="primary" disabled={busy} onClick={() => void save()}>אישור ושמירת טיוטה</button>}
     {value && value.state !== "SAVED" && <button disabled={busy} onClick={() => void cancel()}>ביטול תצוגה מקדימה</button>}
     {error && <p role="alert">{error}</p>}

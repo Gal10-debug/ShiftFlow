@@ -34,7 +34,7 @@ export interface BoardCell {
   endsAt: string;
   state: "NOT_REQUIRED" | "UNASSIGNED" | "SAVED_DRAFT" | "NOT_APPLICABLE";
   employees?: ScheduledEmployee[];
-  requiredEmployees?: number;
+  requiredEmployees: number;
   shortage?: number;
   availabilityAnchors?: {
     date: string;

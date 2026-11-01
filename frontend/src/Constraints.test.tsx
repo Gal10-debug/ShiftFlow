@@ -97,3 +97,16 @@ it("shows safe field-specific Hebrew feedback for an actual note validation fail
   await userEvent.click(within(dialog).getByRole("button",{name:"שמירת תיקון ידני"}));
   expect(await within(dialog).findByRole("alert")).toHaveTextContent("הערת שיבוץ יכולה להכיל עד 1000 תווים");
 });
+it.each(["DRAFT","PRELIMINARY_PUBLISHED","UNDER_CORRECTION","FINAL_PUBLISHED"].flatMap(state=>["", "2027-04-25"].map(week=>[state,week])))
+("keeps per-cell demand without aggregate shortages in state %s and week %s", async (state, week) => {
+  review.state=state;review.shortage=12;
+  const {container}=render(<><ScheduleReviewPanel year={2027} month={5} reload={0} selected={null} onChanged={vi.fn()} /><RosterGrid snapshot={review.draft} currentUserId="me" week={week} /></>);
+  await screen.findByText(/דיווחים פתוחים:/);
+  expect(screen.queryByLabelText("סיכום איוש")).not.toBeInTheDocument();
+  expect(screen.queryByText(/חוסרים:|חסרים:|תאים בחוסר|הצגת רשימת תאים בחוסר/)).not.toBeInTheDocument();
+  expect(container.querySelector(".shortage-list")).toBeNull();
+  expect(screen.getByText("נדרשים: 2 · שובצו: 2")).toBeInTheDocument();
+  const acknowledgment=screen.queryByRole("checkbox",{name:/אני מאשר פרסום עם 12/});
+  if(state==="FINAL_PUBLISHED")expect(acknowledgment).not.toBeInTheDocument();
+  else expect(acknowledgment).toBeInTheDocument();
+});

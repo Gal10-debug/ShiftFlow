@@ -109,6 +109,7 @@ public sealed partial class SchedulingTests
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            (await db.Set<ShiftTypeDefinition>().SingleAsync(d => d.Id == definitions[1])).RequiredEmployees = 1;
             var period = new SchedulePeriod { Year = 2026, Month = 10 };
             var oldRun = new SchedulingRun { Id = Guid.NewGuid(), Year = 2026, Month = 10, SavedByUserId = ids["admin"], SavedAt = DateTime.UtcNow };
             db.AddRange(period, oldRun);

@@ -245,3 +245,69 @@ Follow-up verification results:
 - Existing databases and published schedules were preserved; tests used disposable
   databases. The live demo was queried only for migration/column metadata, not used
   as an automated test target.
+
+## Effective capacity and complete shortage-summary removal — 2026-11-01
+
+The retained-assignment regression is reproduced in
+`StaffingCapacityIntegrationTests`: an excluded row has current effective demand
+zero, but an earlier locked assignment remains in its saved cell. Previously the
+solver validated capacity only for its selected planning cells. The run returned
+READY while leaving that excluded assignment on the board. This was not a CP-SAT
+variable exceeding its existing `sum(choices) <= required - fixed` bound; the
+retained work fell outside that validation set. The regression failed before the
+fix (`READY` rather than expected `FAILED`).
+
+`SchedulingInputs` now constructs effective capacity cells for **all 51 definitions
+and every requested date**, using the existing authoritative
+`SchedulingRules.Required`. The selected planning subset still respects automatic
+inclusion. `SchedulingProblem.ExceedsCapacity` checks the complete retained/output
+roster against all those capacities before optimization, after solving and before
+saving a preview. Zero-demand cells have no eligible solver variables. Required
+0/1/2/N is always the target/upper bound; insufficient eligible staff leaves an
+internal shortage. Existing zero-demand/excess assignments cause
+`STAFFING_EXCEEDED`, without deleting, moving or unlocking them. Review/publication
+and manual edits continue to enforce the same effective required value. On-call
+cell persistence now also stores that derived value, including existing paired
+cells, rather than independently copying the row configuration.
+
+The board API's per-date `requiredEmployees` is now non-null, and the React adapter
+uses it directly instead of falling back to a row's weekday configuration. Row
+headings refer to the per-date count rather than presenting a weekday zero as a
+universal capacity. Sunday–Thursday configured demand, Friday/Saturday restrictions,
+row 3's one-person weekend requirement, on-call equality, adjacent-month rules,
+qualifications, fairness objectives and Phase 5.1 quotas remain in force. Historical
+publication counts stay frozen in their JSON; existing drafts are not rewritten.
+
+Removed UI elements:
+
+- AutomaticGeneration's aggregate “סיכום איוש” block: total required/filled/missing,
+  understaffed/fully staffed counts, and aggregate shortage/coverage suggestion.
+- The separate expandable row staffing-requirements list above the board, which
+  repeated weekday-only counts instead of each cell's effective requirement.
+- ScheduleReviewPanel's aggregate “חוסרים” counter beside lifecycle status.
+- The unused `.shortage-list` CSS container.
+
+The former shortage-list toggle/list remains absent. No replacement summary,
+collapsed shortage list or empty container is rendered. The same RosterGrid keeps
+per-cell required/assigned counts and shortage indicators in weekly/monthly,
+administrative/employee and historical views. The explicit shortage publication
+acknowledgment remains **only when publication is possible and shortages exist**;
+no redundant acknowledgment counter is shown in final read-only state. Backend
+shortage summaries and publication acknowledgments remain unchanged.
+
+Verification includes exact 0/1/2/7 solver capacities, insufficient-staff shortages,
+rejection of retained excluded overstaffing by solver/preview save/publication,
+per-date board metadata, manual capacities, row-3 weekend overrides, on-call pairs
+and boundary months. React lifecycle × week/month tests assert no aggregate
+shortage panel/count/list while retaining cell “נדרשים” and required publication
+acknowledgments. Existing data is not used for testing, migrated, reseeded or
+modified in this task; PostgreSQL tests use disposable databases only. No schema
+migration is introduced.
+
+Final verification for this capacity/UI fix: 254 backend/PostgreSQL tests passed
+with zero failures/skips (disposable databases, including isolated demo and
+publication-history regression tests); standalone backend tests passed 136 with
+118 PostgreSQL-only tests explicitly skipped; frontend passed 103 across 7 files;
+script tests passed 7. Frontend production and backend Release builds succeeded,
+with zero backend warnings/errors. No application schema migration, live demo
+restart, existing-database operation or remote Git write was performed in this task.

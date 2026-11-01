@@ -13,11 +13,18 @@ public sealed record CandidateCell(Guid DefinitionId, DateOnly Date, DateTime St
 public sealed record Employee(Guid Id, string Name, bool IsShiftLeadQualified = false, bool IsTeamLeader = false);
 public sealed record Preference(Guid UserId, DateOnly Date, ShiftType Type, PreferenceType State);
 public sealed record SchedulingProblem(int Year, int Month, string Fingerprint, CandidateCell[] Cells,
-    Employee[] Employees, Work[] Work, Preference[] Preferences)
+    Employee[] Employees, Work[] Work, Preference[] Preferences, CandidateCell[]? StaffingCells = null)
 {
+    // Planning rows may exclude disabled/zero-demand definitions, but retained work in
+    // every visible board cell must still fit that cell's effective displayed demand.
+    public bool ExceedsCapacity(IEnumerable<Work> source)
+    {
+        var counts = source.Where(w => w.DefinitionId.HasValue).GroupBy(w => (w.DefinitionId, w.Date)).ToDictionary(g => g.Key, g => g.Count());
+        return (StaffingCells ?? Cells).Any(c => counts.GetValueOrDefault((c.DefinitionId, c.Date)) > c.Required);
+    }
     public static bool Conflicts(DateTime start, DateTime end, DateTime otherStart, DateTime otherEnd) => start <= otherEnd && otherStart <= end;
     public bool Eligible(Employee employee, CandidateCell cell) =>
-        SchedulingRules.Applicable(cell.DefinitionId, cell.Semantic, cell.Date) && !employee.IsTeamLeader && (!cell.RequiresShiftLeadQualification || employee.IsShiftLeadQualified)
+        cell.Required > 0 && SchedulingRules.Applicable(cell.DefinitionId, cell.Semantic, cell.Date) && !employee.IsTeamLeader && (!cell.RequiresShiftLeadQualification || employee.IsShiftLeadQualified)
         && !Preferences.Any(p => p.UserId == employee.Id && p.State == PreferenceType.BLOCKED && OverlapsAnchor(cell, p))
         && !Work.Any(w => !w.Replaceable && w.UserId == employee.Id &&
             (Conflicts(cell.Start, cell.End, w.Start, w.End) || (w.Date == cell.Date && w.AnchorType == cell.AnchorType)));
@@ -71,15 +78,17 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
                 cell?.StartsAt ?? shift.StartsAt, cell?.EndsAt ?? shift.EndsAt, shift.Id, replaceable, a.IsShiftLead, shift.ShiftType, definition?.Semantic ?? "ORDINARY", a.Note);
         }).ToArray();
         if (!review && work.Any(w => teams.Any(t => t.LeaderUserId == w.UserId))) throw new ApiException("TEAM_LEADER_ASSIGNED", 409);
-        var proposed = definitions.Where(d => d.IncludeInAutomaticScheduling && SchedulingRules.HasDemand(d.Id, d.Semantic, d.RequiredEmployees))
+        var staffing = definitions
             .SelectMany(d => Enumerable.Range(0, end.DayNumber - first.DayNumber).Select(i => {
                 var date = first.AddDays(i); var times = ShiftTimeRanges.Boundaries(date, ShiftTimeRanges.Effective(d));
                 return new CandidateCell(d.Id, date, times.StartsAt, times.EndsAt, SchedulingRules.Required(d.Semantic, date, d.RequiredEmployees, d.Id), d.Version, d.Period, d.RequiresShiftLeadQualification, d.Semantic);
             })).ToArray();
+        var included = definitions.Where(d => d.IncludeInAutomaticScheduling && SchedulingRules.HasDemand(d.Id, d.Semantic, d.RequiredEmployees)).Select(d => d.Id).ToHashSet();
+        var proposed = staffing.Where(c => included.Contains(c.DefinitionId)).ToArray();
         // Snapshot includes fixed work, configuration, role/account state and submitted versions.
         var bytes = JsonSerializer.SerializeToUtf8Bytes(new { definitions, teams, periods = periods.Select(p => new { p.Id, p.Year, p.Month, p.Status, p.UpdatedAt, p.Revision }), users, roles,
             shifts = shifts.Select(s => new { s.Id, s.SchedulePeriodId, s.ShiftDate, s.ShiftType, s.StartsAt, s.EndsAt, s.CoordinatorUserId }),
             cells = cells.Select(c => new { c.Id, c.ShiftTypeDefinitionId, c.Date, c.StartsAt, c.EndsAt, c.RequiredEmployees, c.ConfigurationVersion, c.SchedulingRunId }), assignments, submissions = submissions.Select(s => new { s.Id, s.UserId, s.SchedulePeriodId, s.Version, s.LastSubmittedAt }), preferences });
-        return new(year, month, Convert.ToHexString(SHA256.HashData(bytes)), proposed, employees, work, prefs);
+        return new(year, month, Convert.ToHexString(SHA256.HashData(bytes)), proposed, employees, work, prefs, staffing);
     }
 }

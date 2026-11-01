@@ -314,8 +314,9 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
                 {
                     var run = new SchedulingRun { Id = Guid.NewGuid(), Year = date.Year, Month = date.Month, SavedByUserId = actorId, SavedAt = Now, SolverStatus = "MANUAL_PAIR" };
                     db.Add(run); cell = new SchedulingCell { Date = date, ShiftTypeDefinitionId = definition.Id, SchedulePeriodId = period.Id, StartsAt = candidate.Start, EndsAt = candidate.End,
-                        RequiredEmployees = definition.RequiredEmployees, ConfigurationVersion = definition.Version, SchedulingRunId = run.Id }; db.Add(cell);
+                        RequiredEmployees = candidate.Required, ConfigurationVersion = definition.Version, SchedulingRunId = run.Id }; db.Add(cell);
                 }
+                cell.RequiredEmployees = candidate.Required;
                 var shift = await db.Set<Shift>().SingleOrDefaultAsync(s => s.ShiftDate == date && s.ShiftType == definition.Period);
                 if (shift is null) { var t = ShiftClock.Boundaries(date, definition.Period); shift = new Shift { ShiftDate = date, ShiftType = definition.Period, SchedulePeriodId = period.Id, StartsAt = t.StartsAt, EndsAt = t.EndsAt }; db.Add(shift); }
                 var assignment = new ShiftAssignment { UserId = user.Value, ShiftId = shift.Id, SchedulingCellId = cell.Id, IsLocked = true, IsShiftLead = old.Any(a => a.IsShiftLead), Note = input.Operation == "MOVE" ? old.FirstOrDefault()?.Note : string.IsNullOrWhiteSpace(input.Note) ? null : input.Note.Trim(), CreatedAt = Now };
