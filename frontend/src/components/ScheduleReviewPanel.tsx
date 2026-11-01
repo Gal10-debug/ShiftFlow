@@ -172,14 +172,12 @@ export default function ScheduleReviewPanel({
     const legacy = pub?.snapshot?.legacyAssignments.find(a => a.assignmentId === issue.assignmentId);
     return `גרסה ${pub?.versionNumber ?? "—"} · ${employee?.name ?? legacy?.name ?? issue.reporterUserId} · ${cell?.date ?? legacy?.date ?? ""} · ${cell?.name ?? "שיבוץ קודם"}`;
   }
-  const displayedConflicts = review.conflicts.filter(c => c.code !== "STAFFING_EXCEEDED");
   const differences = compareVersions(history.find(h => h.id === compareA)?.snapshot ?? null, history.find(h => h.id === compareB)?.snapshot ?? null);
   return <section className="panel" dir="rtl" aria-label="בדיקה ופרסום הסידור"><h2>בדיקה ופרסום הסידור</h2><Notice error={cell && editable ? "" : error} success={cell && editable ? "" : success} />
     {review.editingContractVersion !== 1 && <p role="alert" className="notice error">{he.errors.SCHEDULING_SERVER_OUTDATED}</p>}
     <p><strong>{lifecycle[review.state]}</strong> · דיווחים פתוחים: {review.openIssues}</p>
     <p>{review.publicationReady ? "הטיוטה תקינה לפרסום בכפוף לאישור חוסרים ודיווחים." : "נדרשת בדיקת הטיוטה לפני פרסום."}</p>
     {review.needsReview && <p className="notice">הזמינות או נתוני השיבוץ דורשים בדיקה מחודשת. יש לפתור סתירות ולאשר בדיקה לפני הפרסום.</p>}
-    {!!displayedConflicts.length && <ul className="notice error" aria-label="סתירות בסידור">{displayedConflicts.map((c, i) => <li key={i}>{c.date} · {message(new Error(c.code))}</li>)}</ul>}
     <fieldset disabled={busy}>
       {editable && <button disabled={!!review.conflicts.length} onClick={() => action("review", {
         expectedToken: review.token

@@ -265,11 +265,13 @@ it("omits repeated staffing-capacity rows from review while retaining publicatio
   expect(screen.queryByLabelText("סתירות בסידור")).not.toBeInTheDocument();
   expect(screen.queryByText(/התא מלא או שאין בו דרישת איוש/)).not.toBeInTheDocument();
 });
-it("keeps other constraint errors visible when staffing-capacity rows are omitted", async () => {
-  review.conflicts=[{assignmentId:null,userId:null,date:"2026-11-06",code:"STAFFING_EXCEEDED"},{assignmentId:null,userId:null,date:"2026-11-07",code:"HARD_BLOCK_CONFLICT"}];
-  panel();
-  const errors=await screen.findByLabelText("סתירות בסידור");
-  expect(errors.querySelectorAll("li")).toHaveLength(1);
-  expect(errors).toHaveTextContent("2026-11-07");
-  expect(errors).not.toHaveTextContent("2026-11-06");
+it("removes the entire review conflict list regardless of error type while retaining safeguards", async () => {
+  review.publicationReady=false;
+  review.conflicts=["STAFFING_EXCEEDED","HARD_BLOCK_CONFLICT","ON_CALL_PAIR_REQUIRED","QUALIFICATION_REQUIRED","NIGHT_WEEKLY_LIMIT","WORK_OVERLAP_OR_CONSECUTIVE"].map((code,i)=>({assignmentId:null,userId:null,date:`2026-11-${String(i+1).padStart(2,"0")}`,code}));
+  const {container}=panel();
+  expect(await screen.findByRole("button",{name:"אישור בדיקת זמינות ואילוצים"})).toBeDisabled();
+  expect(screen.getByRole("button",{name:"פרסום ראשוני"})).toBeDisabled();
+  expect(screen.queryByLabelText("סתירות בסידור")).not.toBeInTheDocument();
+  expect(container.querySelector("ul.notice.error")).toBeNull();
+  for(const conflict of review.conflicts) expect(screen.queryByText(new RegExp(conflict.date))).not.toBeInTheDocument();
 });
