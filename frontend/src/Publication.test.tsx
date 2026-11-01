@@ -256,3 +256,20 @@ it("version history keeps its board and removes the duplicate lists below it", a
   expect(history.querySelectorAll(".schedule-grid")).toHaveLength(1);
   expect(screen.getByText(/דנה כהן/)).toBeInTheDocument();
 });
+it("omits repeated staffing-capacity rows from review while retaining publication safeguards", async () => {
+  review.publicationReady=false;
+  review.conflicts=[6,20,21,27,28].map(day=>({assignmentId:null,userId:null,date:`2026-11-${String(day).padStart(2,"0")}`,code:"STAFFING_EXCEEDED"}));
+  panel();
+  expect(await screen.findByRole("button",{name:"אישור בדיקת זמינות ואילוצים"})).toBeDisabled();
+  expect(screen.getByRole("button",{name:"פרסום ראשוני"})).toBeDisabled();
+  expect(screen.queryByLabelText("סתירות בסידור")).not.toBeInTheDocument();
+  expect(screen.queryByText(/התא מלא או שאין בו דרישת איוש/)).not.toBeInTheDocument();
+});
+it("keeps other constraint errors visible when staffing-capacity rows are omitted", async () => {
+  review.conflicts=[{assignmentId:null,userId:null,date:"2026-11-06",code:"STAFFING_EXCEEDED"},{assignmentId:null,userId:null,date:"2026-11-07",code:"HARD_BLOCK_CONFLICT"}];
+  panel();
+  const errors=await screen.findByLabelText("סתירות בסידור");
+  expect(errors.querySelectorAll("li")).toHaveLength(1);
+  expect(errors).toHaveTextContent("2026-11-07");
+  expect(errors).not.toHaveTextContent("2026-11-06");
+});
