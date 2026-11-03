@@ -24,7 +24,10 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         var roles = await db.UserRoles.AsNoTracking().OrderBy(x => x.UserId).ThenBy(x => x.RoleId).Select(x => new { x.UserId, x.RoleId }).ToArrayAsync();
         var leadership = await db.Set<OrganizationalTeam>().AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.LeaderUserId }).ToArrayAsync();
         var definitions = await db.Set<ShiftTypeDefinition>().AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.Version, x.Semantic }).ToArrayAsync();
-        return Hash(new { submissions, preferences, users, roles, leadership, definitions });
+        var absenceRows = await db.Set<AbsenceRequest>().AsNoTracking().Include(r => r.Weekdays)
+            .Where(r => r.Status == "APPROVED" && r.Kind != "CANCEL").OrderBy(r => r.Id).ToArrayAsync();
+        var absences = absenceRows.Select(r => new { Rule = AbsenceRule.From(r), r.Version });
+        return Hash(new { submissions, preferences, users, roles, leadership, definitions, absences });
     }
     private async Task<Guid> Lock(int year, int month, ClaimsPrincipal actor, bool admin = true)
     {
@@ -65,7 +68,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
             return new SnapshotCell(d.Id, date, d.Name, d.DisplayOrder, d.Period.ToString(), ShiftTimeRanges.Effective(d).ToString(),
                 stored?.StartsAt ?? time.StartsAt, stored?.EndsAt ?? time.EndsAt, SchedulingRules.Required(d.Semantic, date, d.RequiredEmployees, d.Id), d.RequiresShiftLeadQualification,
                 p.Work.Where(w => w.DefinitionId == d.Id && w.Date == date).OrderBy(w => w.UserId)
-                    .Select(w => new SnapshotEmployee(w.AssignmentId, w.UserId, names[w.UserId], w.Lead, w.Note)).ToArray(), d.Semantic, SchedulingRules.Applicable(d.Id, d.Semantic, date));
+                    .Select(w => new SnapshotEmployee(w.AssignmentId, w.UserId, names[w.UserId], w.Lead, w.Note)).ToArray(), d.Semantic, SchedulingRules.Applicable(d.Id, d.Semantic, date), d.AssignmentMode.ToString());
         })).ToArray();
         var legacy = p.Work.Where(w => w.DefinitionId is null && InMonth(w, year, month)).OrderBy(w => w.AssignmentId)
             .Select(w => new LegacyWork(w.AssignmentId, w.UserId, names[w.UserId], w.Date, w.AnchorType.ToString(), w.Start, w.End, w.Lead, w.Note)).ToArray();
@@ -83,6 +86,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
             else if (employee is null) Add("EMPLOYEE_INELIGIBLE");
             var cell = snapshot.Cells.SingleOrDefault(c => c.DefinitionId == w.DefinitionId && c.Date == w.Date);
             if ((cell?.RequiresShiftLeadQualification == true || w.Lead) && employee?.IsShiftLeadQualified != true) Add("QUALIFICATION_REQUIRED");
+            if (p.Absent(w.UserId, w.Start, w.End)) Add("APPROVED_ABSENCE");
             if (p.Preferences.Any(b => b.UserId == w.UserId && b.State == PreferenceType.BLOCKED &&
                 ShiftClock.Boundaries(b.Date, b.Type).StartsAt < w.End && ShiftClock.Boundaries(b.Date, b.Type).EndsAt > w.Start)) Add("HARD_BLOCK_CONFLICT");
             if (p.Work.Any(other => other.AssignmentId != w.AssignmentId && other.UserId == w.UserId &&
@@ -111,7 +115,9 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         var stale = period?.ReviewedInputs != await InputRevision(db);
         var issues = period is null ? 0 : await db.Set<ScheduleIssue>().CountAsync(i => i.SchedulePeriodId == period.Id && (i.Status == "OPEN" || i.Status == "IN_REVIEW"));
         return new(period?.Status.ToString() ?? "DRAFT", period?.Revision ?? 0, p.Fingerprint, stale, !stale && conflicts.Length == 0,
-            snapshot.Cells.Sum(c => Math.Max(0, c.RequiredEmployees - c.Employees.Length)), issues, conflicts, snapshot);
+            snapshot.Cells.Where(c => c.AssignmentMode != "ManualOnly").Sum(c => Math.Max(0, c.RequiredEmployees - c.Employees.Length)), issues, conflicts, snapshot, FinalRevision: period is not null && await db.Set<SchedulePublication>().AnyAsync(pub => pub.SchedulePeriodId == period.Id && pub.PublicationType == "FINAL"),
+            PendingAbsenceWarnings: p.Work.Where(w => InMonth(w, year, month) && (p.PendingAbsences ?? []).Any(a => a.UserId == w.UserId && AbsenceRules.Overlaps(a, w.Start, w.End)))
+                .Select(w => new RosterProblem(w.AssignmentId, w.UserId, w.Date, "PENDING_ABSENCE")).ToArray());
     }
     public async Task<ReviewResponse> Review(int year, int month, ClaimsPrincipal actor)
     {
@@ -119,6 +125,17 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         await teams.Actor(actor, true); var response = await Read(year, month); await tx.CommitAsync(); return response;
     }
     private static void EnsureEditable(SchedulePeriod p) { if (!Editable(p.Status)) throw new ApiException("INVALID_SCHEDULE_TRANSITION", 409); }
+    // The working roster is retained at final publication. Reopen it under the same
+    // scheduling locks; employee reads continue to use the previous immutable JSON.
+    private async Task ResumeFinal(SchedulePeriod period, Guid actorId)
+    {
+        if (period.Status != ScheduleStatus.FINAL_PUBLISHED) return;
+        if (!await db.Set<SchedulePublication>().AnyAsync(p => p.SchedulePeriodId == period.Id && p.PublicationType == "FINAL"))
+            throw new ApiException("INVALID_SCHEDULE_TRANSITION", 409);
+        period.Status = ScheduleStatus.UNDER_CORRECTION; period.Revision++; period.UpdatedAt = Now;
+        db.Add(new ScheduleEditAudit { SchedulePeriodId = period.Id, ActorUserId = actorId, OccurredAt = Now, Operation = "FINAL_CORRECTION" });
+        await db.SaveChangesAsync();
+    }
     private static CandidateCell Candidate(ShiftTypeDefinition d, DateOnly date)
     {
         var t = ShiftTimeRanges.Boundaries(date, ShiftTimeRanges.Effective(d));
@@ -131,6 +148,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         if (leader) reasons.Add("TEAM_LEADER_ASSIGNED"); else if (e is null) reasons.Add("EMPLOYEE_INELIGIBLE");
         if (cell.Required == 0 || p.Work.Count(w => w.DefinitionId == cell.DefinitionId && w.Date == cell.Date) >= cell.Required) reasons.Add("STAFFING_EXCEEDED");
         if (cell.RequiresShiftLeadQualification && e?.IsShiftLeadQualified != true) reasons.Add("QUALIFICATION_REQUIRED");
+        if (p.Absent(user, cell.Start, cell.End)) reasons.Add("APPROVED_ABSENCE");
         if (p.Preferences.Any(b => b.UserId == user && b.State == PreferenceType.BLOCKED && SchedulingProblem.OverlapsAnchor(cell, b))) reasons.Add("HARD_BLOCK_CONFLICT");
         if (p.Work.Any(w => w.UserId == user && (SchedulingProblem.Conflicts(cell.Start, cell.End, w.Start, w.End) || (w.Date == cell.Date && w.AnchorType == cell.AnchorType)))) reasons.Add("WORK_OVERLAP_OR_CONSECUTIVE");
         reasons.AddRange(SchedulingRules.CandidateReasons(p, cell, user, pairing: !pairOperation));
@@ -157,7 +175,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
             var reasons = new List<string>();
             foreach (var day in dates)
             {
-                if (adjacent.Any(period => period.Year == day.Year && period.Month == day.Month && !Editable(period.Status))) reasons.Add("INVALID_SCHEDULE_TRANSITION");
+                if (adjacent.Any(period => period.Year == day.Year && period.Month == day.Month && !Editable(period.Status) && period.Status != ScheduleStatus.FINAL_PUBLISHED)) reasons.Add("INVALID_SCHEDULE_TRANSITION");
                 var candidate = Candidate(d, day) with { RequiresShiftLeadQualification = d.RequiresShiftLeadQualification || sourceRequiresLead };
                 reasons.AddRange(Reasons(proposed, candidate, u.Id, leaderIds.Contains(u.Id), pairOperation: d.Semantic == SchedulingRules.OnCall));
                 proposed = proposed with { Work = proposed.Work.Append(SchedulingRules.Proposed(u.Id, candidate)).ToArray() };
@@ -184,10 +202,10 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
             var date = input.Operation is "REPLACE" or "REMOVE" or "NOTE" ? source?.Cell?.Date : input.Date;
             if (!date.HasValue || !SchedulingRules.Weekend(date.Value)) throw new ApiException("ON_CALL_WEEKEND_ONLY", 409);
             return await OnCallPair(year, month, new(input.ExpectedToken, input.Operation, SchedulingRules.Friday(date.Value),
-                input.UserId, input.AssignmentId, true, input.Note), actor);
+                input.UserId, input.AssignmentId, true, input.Note), actor, resumeFinal: true);
         }
         await using var tx = await db.Database.BeginTransactionAsync(); var actorId = await Lock(year, month, actor);
-        await CheckToken(year, month, input.ExpectedToken); var period = await WorkingPeriod(year, month); EnsureEditable(period);
+        await CheckToken(year, month, input.ExpectedToken); var period = await WorkingPeriod(year, month); await ResumeFinal(period, actorId); EnsureEditable(period);
         if (input.Operation == "NOTE")
         {
             var assignment = await db.Set<ShiftAssignment>().SingleOrDefaultAsync(a => a.Id == input.AssignmentId && a.Shift.SchedulePeriodId == period.Id)
@@ -251,7 +269,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
     }
     // Atomic pair command shared by ordinary cell editing and the compatibility endpoint.
     // Adjacent editable periods participate in the same transaction; automatic monthly runs remain bounded.
-    public async Task<ReviewResponse> OnCallPair(int year, int month, OnCallPairRequest input, ClaimsPrincipal actor)
+    public async Task<ReviewResponse> OnCallPair(int year, int month, OnCallPairRequest input, ClaimsPrincipal actor, bool resumeFinal = false)
     {
         if (input.Note?.Length > 1000) throw new ApiException("VALIDATION_ERROR");
         if (input.Operation is not ("ASSIGN" or "REMOVE" or "REPLACE" or "MOVE" or "NOTE") || input.Friday.DayOfWeek != DayOfWeek.Friday)
@@ -281,7 +299,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         foreach (var date in dates)
         {
             if (periods.ContainsKey((date.Year, date.Month))) continue;
-            var period = await WorkingPeriod(date.Year, date.Month); EnsureEditable(period); periods[(date.Year, date.Month)] = period;
+            var period = await WorkingPeriod(date.Year, date.Month); if (resumeFinal) await ResumeFinal(period, actorId); EnsureEditable(period); periods[(date.Year, date.Month)] = period;
         }
         var before = old.Select(a => new { a.Id, a.UserId, Date = a.Cell!.Date, a.IsShiftLead, a.SchedulingCellId, a.Note }).ToArray();
         if (input.Operation == "NOTE")
@@ -348,13 +366,17 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
     {
         await using var tx = await db.Database.BeginTransactionAsync(); var actorId = await Lock(year, month, actor); await CheckToken(year, month, input.ExpectedToken);
         var period = await Period(year, month) ?? throw new ApiException("PERIOD_NOT_FOUND", 404);
-        if (period.Status != ScheduleStatus.PRELIMINARY_PUBLISHED) throw new ApiException("INVALID_SCHEDULE_TRANSITION", 409);
-        period.Status = ScheduleStatus.UNDER_CORRECTION; period.Revision++; period.UpdatedAt = Now;
-        db.Add(new ScheduleEditAudit { SchedulePeriodId = period.Id, ActorUserId = actorId, OccurredAt = Now, Operation = "UNDER_CORRECTION" });
+        if (period.Status is not (ScheduleStatus.PRELIMINARY_PUBLISHED or ScheduleStatus.FINAL_PUBLISHED)) throw new ApiException("INVALID_SCHEDULE_TRANSITION", 409);
+        if (period.Status == ScheduleStatus.FINAL_PUBLISHED) await ResumeFinal(period, actorId);
+        else
+        {
+            period.Status = ScheduleStatus.UNDER_CORRECTION; period.Revision++; period.UpdatedAt = Now;
+            db.Add(new ScheduleEditAudit { SchedulePeriodId = period.Id, ActorUserId = actorId, OccurredAt = Now, Operation = "UNDER_CORRECTION" });
+        }
         await db.SaveChangesAsync(); var result = await Read(year, month); await tx.CommitAsync(); return result;
     }
     private static PublicationResponse Publication(SchedulePublication p) => new(p.Id, p.VersionNumber, p.PublicationType, p.PublishedByUserId, p.PublishedAt, p.Notes,
-        JsonSerializer.Deserialize<ScheduleSnapshot>(p.Snapshot), p.AcknowledgedShortages, p.AcknowledgedOpenIssues, p.OpenIssueCount);
+        JsonSerializer.Deserialize<ScheduleSnapshot>(p.Snapshot), p.AcknowledgedShortages, p.AcknowledgedOpenIssues, p.OpenIssueCount, p.PublishedByUser is null ? null : p.PublishedByUser.FirstName + " " + p.PublishedByUser.LastName);
     public async Task<PublicationResponse> Publish(int year, int month, string type, PublishScheduleRequest input, ClaimsPrincipal actor)
     {
         if (type is not ("PRELIMINARY" or "FINAL")) throw new ApiException("VALIDATION_ERROR");
@@ -363,6 +385,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         if (type == "PRELIMINARY" ? !Editable(period.Status) : period.Status is not (ScheduleStatus.PRELIMINARY_PUBLISHED or ScheduleStatus.UNDER_CORRECTION)) throw new ApiException("INVALID_SCHEDULE_TRANSITION", 409);
         if (type == "FINAL" && !await db.Set<SchedulePublication>().AnyAsync(p => p.SchedulePeriodId == period.Id && p.PublicationType == "PRELIMINARY")) throw new ApiException("INVALID_SCHEDULE_TRANSITION", 409);
         var review = await Read(year, month);
+        if (type == "PRELIMINARY" && review.FinalRevision) throw new ApiException("INVALID_SCHEDULE_TRANSITION", 409);
         if (review.Conflicts.Length > 0) throw new ApiException("ROSTER_CONFLICT", 409);
         if (review.NeedsReview) throw new ApiException("STALE_DRAFT", 409);
         if (review.Shortage > 0 && !input.AcknowledgeShortages) throw new ApiException("SHORTAGES_REQUIRE_ACKNOWLEDGMENT", 409);
@@ -371,14 +394,19 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         var publication = new SchedulePublication { SchedulePeriodId = period.Id, PublishedByUserId = actorId, PublishedAt = Now,
             AcknowledgedShortages = input.AcknowledgeShortages, AcknowledgedOpenIssues = input.AcknowledgeOpenIssues, OpenIssueCount = review.OpenIssues,
             VersionNumber = version, PublicationType = type, Snapshot = JsonSerializer.Serialize(review.Draft), Notes = input.Notes?.Trim(), InputFingerprint = review.Token };
-        db.Add(publication); period.Status = type == "FINAL" ? ScheduleStatus.FINAL_PUBLISHED : ScheduleStatus.PRELIMINARY_PUBLISHED;
+        db.Add(publication);
+        // Resolving an approved-absence publication conflict requires a replacement
+        // publication. Review above has validated the complete working roster.
+        foreach (var conflict in await db.Set<AbsenceConflict>().Where(c => c.SchedulePeriodId == period.Id && c.ResolvedAt == null).ToArrayAsync())
+        { conflict.ResolvedAt = Now; conflict.ResolvedByPublicationId = publication.Id; }
+        period.Status = type == "FINAL" ? ScheduleStatus.FINAL_PUBLISHED : ScheduleStatus.PRELIMINARY_PUBLISHED;
         period.Revision++; period.UpdatedAt = Now; await db.SaveChangesAsync(); await tx.CommitAsync(); return Publication(publication);
     }
     public async Task<PublicationResponse[]> History(int year, int month, ClaimsPrincipal actor)
     {
         AvailabilityService.MonthStart(year, month); await teams.Actor(actor, true);
         var period = await Period(year, month); if (period is null) return [];
-        return (await db.Set<SchedulePublication>().AsNoTracking().Where(p => p.SchedulePeriodId == period.Id).OrderByDescending(p => p.VersionNumber).ToArrayAsync()).Select(Publication).ToArray();
+        return (await db.Set<SchedulePublication>().AsNoTracking().Include(p => p.PublishedByUser).Where(p => p.SchedulePeriodId == period.Id).OrderByDescending(p => p.VersionNumber).ToArrayAsync()).Select(Publication).ToArray();
     }
     private async Task<Guid> Employee(ClaimsPrincipal actor)
     {
@@ -400,7 +428,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
             .OrderByDescending(p => p.VersionNumber).FirstOrDefaultAsync() ?? throw new ApiException("NOT_FOUND", 404);
         var response = Publication(pub);
         // Only immutable published JSON is returned; live drafts and availability are never queried here.
-        response = response with { PublishedByUserId = Guid.Empty };
+        response = response with { PublishedByUserId = Guid.Empty, PublishedByName = null };
         await tx.CommitAsync(); return response;
     }
     public async Task<ScheduleIssue> Report(int year, int month, CreateIssueRequest input, ClaimsPrincipal actor)

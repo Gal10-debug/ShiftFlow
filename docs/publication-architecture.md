@@ -10,10 +10,10 @@ Root `AGENTS.md` was created and applied during this implementation. `main` and 
 | --- | --- | --- |
 | DRAFT | Review, manually edit, generate/save and acknowledge review; publish preliminary | No draft access |
 | PRELIMINARY_PUBLISHED | Review reports; finalize or enter corrections | Latest preliminary snapshot and own issue reports |
-| UNDER_CORRECTION | Edit the same working schedule; generate/save; republish preliminary or finalize | Last published preliminary snapshot, unchanged by draft edits |
-| FINAL_PUBLISHED | Read-only schedule; historical review; resolve previously acknowledged reports | Official final snapshot; no new issue creation |
+| UNDER_CORRECTION | Edit/generate/review; republish preliminary before the first final, or publish an updated final afterward | Last published snapshot, unchanged by draft edits |
+| FINAL_PUBLISHED | Open a board correction and publish a new final; historical review | Official final snapshot until replacement final; no new issue creation |
 
-Only ADMIN controls transitions. Membership, organizational leadership and COORDINATOR confer no scheduling or publication powers. Multi-role users retain their explicit Identity privileges. Final publication requires a prior PRELIMINARY publication. There is no transition back from FINAL_PUBLISHED and no shift-exchange workflow in Phase 5.
+Only ADMIN controls transitions. Membership, organizational leadership and COORDINATOR confer no scheduling or publication powers. Multi-role users retain their explicit Identity privileges. Final publication requires a prior PRELIMINARY publication. Phase 6 permits FINAL_PUBLISHED → UNDER_CORRECTION → a new FINAL version, repeatedly; it does not restart preliminary publication. No shift-exchange workflow is provided. See [Phase 6](phase-6.md).
 
 The historical `PUBLISHED` enum value remains supported as a read-only legacy state. Old publication rows have type LEGACY and a JSON null snapshot because historical assignment content cannot safely be reconstructed. They are retained in administrator history but are not presented as new preliminary/final publications to employees.
 
@@ -25,7 +25,7 @@ The existing `SchedulePeriod`, `Shift`, `SchedulingCell`, `ShiftAssignment`, 51 
 
 PostgreSQL triggers reject UPDATE and DELETE of publication rows and manual-edit audit rows. A new publication always inserts a new version. A unique `(SchedulePeriodId, VersionNumber)` index and transaction locking serialize publication numbers. Adding acknowledgment columns uses a second additive migration; no existing tables or assignments are recreated.
 
-As of Phase 5.3, the employee endpoint returns the complete authorized published roster, including all published assignment notes; unpublished drafts remain inaccessible. See [scheduling-board-ux.md](scheduling-board-ux.md). Version metadata and optional publication notes are published information. Administrator history returns complete snapshots and the UI compares row/day assignments, names, staffing and legacy assignments.
+As of Phase 5.3, the employee endpoint returns the complete authorized published roster, including all published assignment notes; unpublished drafts remain inaccessible. See [scheduling-board-ux.md](scheduling-board-ux.md). Version metadata and optional publication notes are published information. Administrator history returns complete snapshots with read-only row/day assignments, names, staffing, notes and legacy assignments. Phase 6 removes comparison controls while retaining complete history.
 
 ## Validation and manual edits
 
@@ -72,7 +72,7 @@ Administrator prefix: `/api/admin/scheduling/periods/{year}/{month}`.
 | POST | `/correction` | Enter UNDER_CORRECTION |
 | POST | `/publications/PRELIMINARY` | Publish new preliminary version |
 | POST | `/publications/FINAL` | Publish final version |
-| GET | `/publications` | Complete immutable history for comparison |
+| GET | `/publications` | Complete immutable history for read-only viewing |
 | GET | `/issues` | All period reports |
 | PUT | `/issues/{id}` | Expected-version status/response update |
 | GET | `/audit` | Manual/correction/report-status audit history |
@@ -83,7 +83,7 @@ Employee endpoints: GET `/api/my-schedule/periods`, GET `/api/my-schedule/{year}
 
 ## UI and deliberate limitations
 
-The existing Hebrew RTL scheduling board now supports month selection and monthly/weekly display, manual cell selection, eligible-candidate explanations, review acknowledgment, publication confirmations, issue management and version comparison. `/my-schedule` (סידור העבודה שלי) shows the complete published board with the current employee highlighted, month/week filtering, preliminary/final labels and issue submission/status. Existing team-management permissions remain unchanged.
+The existing Hebrew RTL scheduling board now supports month selection and monthly/weekly display, manual cell selection, eligible-candidate explanations, review acknowledgment, publication confirmations, issue management and read-only version history. `/my-schedule` (סידור העבודה שלי) shows the complete published board with the current employee highlighted, month/week filtering, preliminary/final labels and issue submission/status. Existing team-management permissions remain unchanged.
 
 No exchanges, coordinator task assignment, notifications, deployment or unrelated authentication changes are included. Legacy PUBLISHED history without snapshots is retained but not reconstructed. Saved cells whose timing differs from current definitions must be emptied before a manual addition can adopt the current timing, or regenerated under matching definitions; the application does not silently retime existing assignments. Task-linked assignments require task resolution before removal. Review fingerprints conservatively invalidate across periods. Published snapshots are intentionally never revised after finalization.
 
@@ -104,5 +104,5 @@ Existing users, teams, preferences, submissions, assignments and publication row
 6. Enter correction mode. Move/remove a draft assignment. Refresh the employee view; version 1 must remain unchanged. Review and resolve/reject the report with an administrator response.
 7. Make a delegated availability change after preliminary publication. Verify the old snapshot remains visible, the working draft becomes stale and conflicts prevent acknowledgment/publication until resolved. Republish preliminary to create version 2.
 8. Leave a report unresolved. Final publication must require explicit acknowledgment or resolution. Confirm final publication creates the next immutable version; verify the employee's final label and absence of new-report actions.
-9. Change a user's display name, row name or staffing afterward. Administrator history must retain the original snapshot details and comparisons. Verify no edit/correction transition is available after final publication.
+9. Change a user's display name, row name or staffing afterward. Administrator history must retain the original snapshot details. Verify direct board corrections after final publication preserve the employee-visible final until a new final is published.
 10. Run `RUN_POSTGRES_TESTS=1 dotnet test -m:1`, `dotnet build -c Release --warnaserror -m:1`, `dotnet ef migrations has-pending-model-changes --project src/ShiftManager`, `npm test --prefix frontend` and `npm run build --prefix frontend`. Integration tests use disposable PostgreSQL databases, including legacy migration and rollback checks.

@@ -248,13 +248,14 @@ One Boolean decision is created per legally eligible employee/cell. Constraints:
 * Invalid protected memberships in included cells cause explicit failure. The
   solver never fixes them by deletion. It selects no arbitrary shift leads.
 
-Five **separate lexicographic solves** maximize expert coverage, maximize ordinary coverage, minimize fairness cost,
-maximize preferences, then maximize retained generated memberships. A stage's
+Phase 6 uses seven **separate lexicographic solves**: expert coverage, priority-row expert coverage,
+priority-row ordinary coverage, remaining ordinary coverage, fairness, preferences and stability.
+See [Phase 6](phase-6.md) for stable priority identities and manual-only exclusions. A stage's
 objective is fixed only after CP-SAT proves it optimal; otherwise return its best
 feasible solution and stop. There are no potentially unsafe weighted tradeoffs
 between objectives. Single worker, random seed 42; the wall-time limit may still
 make time-limited results machine-dependent. `AutomaticScheduling:SolverSeconds`
-defaults to 30 seconds, clamped to 0.01–300, shared across all five solves and model
+defaults to 30 seconds, clamped to 0.01–300, shared across all seven solves and model
 construction. Cancellation interrupts native solving. Modeling time and database
 snapshot time are not forcibly interrupted by this solver time budget; model
 construction checks cancellation and an over-budget model returns TIMEOUT.
@@ -316,9 +317,9 @@ writes use the shared account lock; availability changes use month/employee lock
 Future manual scheduling writers must join this protocol. Raw SQL by an external
 operator is outside the application lock protocol.
 
-`OPTIMAL` means all five objectives were proven. `FEASIBLE` means a legal incumbent
+`OPTIMAL` means all seven objectives were proven. `FEASIBLE` means a legal incumbent
 was found before the budget ended; `CoverageOptimal` separately indicates whether
-both coverage objectives were proven. `TIMEOUT` has no solution and cannot be saved; `FAILED`
+all four coverage objectives were proven. `TIMEOUT` has no solution and cannot be saved; `FAILED`
 is a solver/model/technical failure. A READY result may be understaffed. Summary
 reports required, filled, missing, understaffed cells and fully staffed cells over
 included positive-demand generated cells, including their protected members.
@@ -364,12 +365,12 @@ An administrator must explicitly designate the existing expert row; names are ne
 `ShiftTypeDefinition.RequiresShiftLeadQualification` permits multiple designated rows among
 the existing 51. All designated rows share the first coverage objective. Renames preserve classification.
 
-The existing CP-SAT model solves the complete problem in five stages: maximize expert
-coverage; maximize ordinary coverage; minimize existing normalized squared workload cost;
-maximize preferred assignments; maximize retained replaceable assignments. Each stage must
+Phase 6 extends the CP-SAT model to seven stages: expert coverage; priority-row expert
+coverage; priority-row ordinary coverage; remaining ordinary coverage; normalized squared
+workload fairness; preferred assignments; retained replaceable assignments. Each stage must
 be proven optimal before its value is fixed by equality and the next stage starts. On timeout,
 the last feasible solution is returned without claiming unproven optimality; coverage is proven
-only after both coverage stages. Fixed assignments contribute constant coverage and workload.
+only after all four coverage stages. Fixed assignments contribute constant coverage and workload.
 All existing hard constraints apply before any objective. Protected expert members must be
 qualified; conflicts abort generation instead of deleting protected work. Qualification and row
 classification are included in input fingerprints and checked again during transactional save.

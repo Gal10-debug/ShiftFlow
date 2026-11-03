@@ -46,7 +46,7 @@ export default function AutomaticGeneration({ definitions, value, onChange, onSa
     try { onChange(await api<Generation>(`/admin/scheduling/generation/${value.id}/save`, "POST")); onSaved(); }
     catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
-  const rows = definitions.filter(d => d.includeInAutomaticScheduling && (d.requiredEmployees > 0 || (d.weekendRequiredEmployees ?? 0) > 0));
+  const rows = definitions.filter(d => d.assignmentMode !== "ManualOnly" && d.includeInAutomaticScheduling && (d.requiredEmployees > 0 || (d.weekendRequiredEmployees ?? 0) > 0));
   const unavailableReason = disabledReason ?? (disabled
     ? "יצירת הסידור אינה זמינה כרגע. יש להמתין לסיום טעינת הנתונים או שמירת ההגדרות."
     : !rows.length

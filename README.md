@@ -341,7 +341,7 @@ Apply the additive `20261027112256_TeamManagement` migration explicitly using `.
 
 The existing scheduling board now supports monthly/weekly draft review, transactional manual assignment/removal/replacement/moves, eligibility explanations and two-stage publication. The lifecycle is DRAFT → PRELIMINARY_PUBLISHED → optional UNDER_CORRECTION and updated preliminary versions → FINAL_PUBLISHED. Only ADMIN can edit, review or publish. Hard violations block publication; shortages and unresolved final-stage employee reports require explicit acknowledgment.
 
-Each publication stores an immutable, versioned snapshot of row names, work times, staffing and employee assignment details. Employees use **סידור העבודה שלי** (`/my-schedule`) to view only their own published work and report issues against their own latest preliminary assignments. During corrections they continue seeing the last published preliminary snapshot. Delegated availability updates invalidate reviewed draft inputs without changing a published snapshot.
+Each publication stores an immutable, versioned snapshot of row names, work times, staffing and employee assignment details. Employees use **סידור העבודה שלי** (`/my-schedule`) to view the full published roster with their own assignments highlighted and report issues against their own latest preliminary assignments. During corrections they continue seeing the last published snapshot. Delegated availability updates invalidate reviewed draft inputs without changing a published snapshot.
 
 Apply the two additive Phase 5 migrations using `./scripts/dev.sh migrate`. See [publication architecture, API, limitations, rollback and verification](docs/publication-architecture.md). Root [AGENTS.md](AGENTS.md) enforces feature-branch development and keeps main read-only for agents. No shift exchanges or deployment are included.
 
@@ -360,3 +360,14 @@ database automatically.
 
 Phase 5.3 scheduling-board behavior, confirmed weekend row identities, note lifecycle,
 migration and known limitations: [Scheduling board UX](docs/scheduling-board-ux.md).
+
+### Phase 6 — עדיפויות, תיקונים לאחר פרסום והיעדרויות
+
+שבע שורות העדיפות מקבלות קדימות באופטימיזציה מדורגת, תוך שמירת קדימות האחמ״ש וכל
+האילוצים. שורות 12/13/14 מיועדות לשיבוץ ידני בלבד. מנהל יכול לערוך סידור סופי ולפרסם
+גרסה סופית מעודכנת; העובדים ממשיכים לראות את הגרסה הקודמת עד לפרסום החדש, וההיסטוריה נשמרת.
+
+עמוד **היעדרויות** תומך בבקשות חד־פעמיות ושבועיות, ימים מלאים או שעות, ואישור לפי צוות
+או מנהל. בקשות ממתינות הן אזהרות; היעדרות מאושרת מחייבת שיבוץ אוטומטי, ידני ופרסום.
+שינוי וביטול של היעדרות מאושרת דורשים אישור חדש. התנגשויות בפרסום קיים מחייבות תיקון ופרסום
+גרסה חדשה. See [Phase 6 architecture, migrations and verification](docs/phase-6.md).

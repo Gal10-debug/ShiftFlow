@@ -24,7 +24,8 @@ export default function RosterGrid({ snapshot, currentUserId, week, onEdit }: {
       <thead><tr><th scope="col" className="schedule-row-label">סוג משמרת</th>{days.map(date => <th key={date} scope="col"><span className="schedule-weekday">{s.weekdays[new Date(date + "T12:00:00Z").getUTCDay()]}</span><time dateTime={date}>{displayBoardDate(date)}</time></th>)}</tr></thead>
       <tbody>{rows.map(row => <tr key={row.definitionId} style={{ backgroundColor: rowColor(row.definitionId) }}>
         <th scope="row" className="schedule-row-label" style={{ backgroundColor: rowColor(row.definitionId) }}><strong>{row.name}</strong><small>{timeRanges[row.timeRange as ShiftTimeRange] ?? row.timeRange}</small>
-          {row.includeInAutomaticScheduling !== undefined && <small>נדרשים בכל תא לפי התאריך · {row.includeInAutomaticScheduling && ((row.configuredRequiredEmployees ?? 0) > 0 || (row.weekendRequiredEmployees ?? 0) > 0) ? s.selected : s.excluded}</small>}
+          {row.includeInAutomaticScheduling !== undefined && <small>נדרשים בכל תא לפי התאריך · {row.assignmentMode !== "ManualOnly" && row.includeInAutomaticScheduling && ((row.configuredRequiredEmployees ?? 0) > 0 || (row.weekendRequiredEmployees ?? 0) > 0) ? s.selected : s.excluded}</small>}
+          {row.assignmentMode === "ManualOnly" && <small>שיבוץ ידני בלבד</small>}
           {row.semantic === "SIX_NINE" && <small>עד פעם אחת בשבוע</small>}
           {row.semantic === "WEEKEND_ON_CALL" && <small>זוג שישי–שבת בלבד · הקצאה אחת</small>}
           {row.requiresShiftLeadQualification && <small>אחראי משמרת · מוסמכים בלבד</small>}</th>

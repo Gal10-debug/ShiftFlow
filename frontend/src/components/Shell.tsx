@@ -35,6 +35,7 @@ export default function Shell() {
         <nav aria-label={he.workspace}>
           {user!.roles.includes("ADMIN") && (
             <>
+              <NavLink to="/absence-management">ניהול היעדרויות</NavLink>
               <NavLink to="/teams">ניהול צוותים</NavLink>
               <NavLink to="/users">{he.users}</NavLink>
               <NavLink to="/scheduling">{scheduling.title}</NavLink>
@@ -45,7 +46,8 @@ export default function Shell() {
             <NavLink to="/coordinator">{he.coordinator}</NavLink>
           )}
           {user!.roles.includes("EMPLOYEE") && !user!.isTeamLeader && <NavLink to="/my-schedule">סידור העבודה שלי</NavLink>}
-          {user!.canManageTeamAvailability && <NavLink to="/team-availability">זמינות הצוות</NavLink>}
+          {user!.canManageTeamAvailability && <><NavLink to="/team-availability">זמינות הצוות</NavLink>{!user!.roles.includes("ADMIN") && <NavLink to="/team-absences">אישור היעדרויות הצוות</NavLink>}</>}
+          {user!.roles.includes("EMPLOYEE") && <NavLink to="/absences">היעדרויות</NavLink>}
           {user!.roles.includes("EMPLOYEE") && !user!.isTeamLeader && (
             <NavLink to="/employee">{av.title}</NavLink>
           )}

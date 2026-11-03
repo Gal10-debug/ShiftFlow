@@ -175,6 +175,199 @@ namespace ShiftManager.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("ShiftManager.Domain.AbsenceConflict", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AbsenceRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AssignmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PublicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ResolvedByPublicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SchedulePeriodId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ShiftName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PublicationId");
+
+                    b.HasIndex("ResolvedByPublicationId");
+
+                    b.HasIndex("SchedulePeriodId", "ResolvedAt");
+
+                    b.HasIndex("AbsenceRequestId", "PublicationId", "AssignmentId")
+                        .IsUnique();
+
+                    b.ToTable("AbsenceConflict");
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.AbsenceDecision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AbsenceRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AbsenceRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("ActorUserId");
+
+                    b.ToTable("AbsenceDecision", t =>
+                        {
+                            t.HasCheckConstraint("CK_AbsenceDecision_Value", "\"Decision\" IN ('APPROVED','REJECTED','CANCELLED') AND (\"Decision\" <> 'REJECTED' OR length(btrim(\"RejectionReason\")) > 0 AND \"RejectionReason\" IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.AbsenceRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly?>("EndTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<string>("Explanation")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("FullDay")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<bool>("Recurring")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("ReplacesId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long?>("ReplacesVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly?>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReplacesId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'PENDING' AND \"ReplacesId\" IS NOT NULL");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.HasIndex("UserId", "Status", "StartDate");
+
+                    b.ToTable("AbsenceRequest", t =>
+                        {
+                            t.HasCheckConstraint("CK_Absence_Dates", "\"StartDate\" BETWEEN '0002-01-01' AND '9998-12-30' AND (\"EndDate\" IS NULL OR \"EndDate\" BETWEEN \"StartDate\" AND '9998-12-30') AND (\"Recurring\" OR \"EndDate\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_Absence_Kind", "(\"Kind\" = 'CREATE' AND \"ReplacesId\" IS NULL AND \"ReplacesVersion\" IS NULL) OR (\"Kind\" IN ('MODIFY','CANCEL') AND \"ReplacesId\" IS NOT NULL AND \"ReplacesVersion\" > 0)");
+
+                            t.HasCheckConstraint("CK_Absence_Reason", "\"Reason\" IN ('STUDIES','RESERVE','VACATION','OTHER')");
+
+                            t.HasCheckConstraint("CK_Absence_Status", "\"Status\" IN ('PENDING','APPROVED','REJECTED','CANCELLED')");
+
+                            t.HasCheckConstraint("CK_Absence_Times", "(\"FullDay\" AND \"StartTime\" IS NULL AND \"EndTime\" IS NULL) OR (NOT \"FullDay\" AND \"StartTime\" IS NOT NULL AND \"EndTime\" IS NOT NULL AND \"StartTime\" <> \"EndTime\")");
+
+                            t.HasCheckConstraint("CK_Absence_Version", "\"Version\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.AbsenceWeekday", b =>
+                {
+                    b.Property<Guid>("AbsenceRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Day")
+                        .HasColumnType("integer");
+
+                    b.HasKey("AbsenceRequestId", "Day");
+
+                    b.ToTable("AbsenceWeekday", t =>
+                        {
+                            t.HasCheckConstraint("CK_AbsenceWeekday_Day", "\"Day\" BETWEEN 0 AND 6");
+                        });
+                });
+
             modelBuilder.Entity("ShiftManager.Domain.ApplicationUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -936,6 +1129,13 @@ namespace ShiftManager.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AssignmentMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("Automatic");
+
                     b.Property<int>("DisplayOrder")
                         .HasColumnType("integer");
 
@@ -993,6 +1193,8 @@ namespace ShiftManager.Data.Migrations
 
                     b.ToTable("ShiftTypeDefinition", t =>
                         {
+                            t.HasCheckConstraint("CK_ShiftTypeDefinition_AssignmentMode", "\"AssignmentMode\" IN ('Automatic','ManualOnly')");
+
                             t.HasCheckConstraint("CK_ShiftTypeDefinition_Name", "length(btrim(\"Name\")) > 0");
 
                             t.HasCheckConstraint("CK_ShiftTypeDefinition_Order", "\"DisplayOrder\" BETWEEN 1 AND 51");
@@ -1014,6 +1216,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000001"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 1,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 1",
@@ -1028,6 +1231,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000002"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 2,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 2",
@@ -1042,6 +1246,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000003"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 3,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 3",
@@ -1056,6 +1261,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000004"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 4,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 4",
@@ -1070,6 +1276,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000005"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 5,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 5",
@@ -1084,6 +1291,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000006"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 6,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 6",
@@ -1098,6 +1306,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000007"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 7,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 7",
@@ -1112,6 +1321,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000008"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 8,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 8",
@@ -1126,6 +1336,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000009"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 9,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 9",
@@ -1140,6 +1351,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000010"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 10,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 10",
@@ -1154,6 +1366,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000011"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 11,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 11",
@@ -1168,6 +1381,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000012"),
+                            AssignmentMode = "ManualOnly",
                             DisplayOrder = 12,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 12",
@@ -1182,6 +1396,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000013"),
+                            AssignmentMode = "ManualOnly",
                             DisplayOrder = 13,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 13",
@@ -1196,6 +1411,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000014"),
+                            AssignmentMode = "ManualOnly",
                             DisplayOrder = 14,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 14",
@@ -1210,6 +1426,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000015"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 15,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 15",
@@ -1224,6 +1441,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000016"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 16,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 16",
@@ -1238,6 +1456,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000017"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 17,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 17",
@@ -1252,6 +1471,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000018"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 18,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 18",
@@ -1266,6 +1486,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000019"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 19,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 19",
@@ -1280,6 +1501,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000020"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 20,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 20",
@@ -1294,6 +1516,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000021"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 21,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 21",
@@ -1308,6 +1531,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000022"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 22,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 22",
@@ -1322,6 +1546,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000023"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 23,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 23",
@@ -1336,6 +1561,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000024"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 24,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 24",
@@ -1350,6 +1576,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000025"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 25,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 25",
@@ -1364,6 +1591,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000026"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 26,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 26",
@@ -1378,6 +1606,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000027"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 27,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 27",
@@ -1392,6 +1621,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000028"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 28,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 28",
@@ -1406,6 +1636,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000029"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 29,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 29",
@@ -1420,6 +1651,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000030"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 30,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 30",
@@ -1434,6 +1666,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000031"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 31,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 31",
@@ -1448,6 +1681,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000032"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 32,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 32",
@@ -1462,6 +1696,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000033"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 33,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 33",
@@ -1476,6 +1711,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000034"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 34,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 34",
@@ -1490,6 +1726,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000035"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 35,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 35",
@@ -1504,6 +1741,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000036"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 36,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 36",
@@ -1518,6 +1756,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000037"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 37,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 37",
@@ -1532,6 +1771,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000038"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 38,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 38",
@@ -1546,6 +1786,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000039"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 39,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 39",
@@ -1560,6 +1801,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000040"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 40,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 40",
@@ -1574,6 +1816,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000041"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 41,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 41",
@@ -1588,6 +1831,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000042"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 42,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 42",
@@ -1602,6 +1846,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000043"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 43,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 43",
@@ -1616,6 +1861,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000044"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 44,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 44",
@@ -1630,6 +1876,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000045"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 45,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 45",
@@ -1644,6 +1891,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000046"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 46,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 46",
@@ -1658,6 +1906,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000047"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 47,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 47",
@@ -1672,6 +1921,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000048"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 48,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 48",
@@ -1686,6 +1936,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000049"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 49,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 49",
@@ -1700,6 +1951,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000050"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 50,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 50",
@@ -1714,6 +1966,7 @@ namespace ShiftManager.Data.Migrations
                         new
                         {
                             Id = new Guid("40000000-0000-0000-0000-000000000051"),
+                            AssignmentMode = "Automatic",
                             DisplayOrder = 51,
                             IncludeInAutomaticScheduling = false,
                             Name = "משמרת 51",
@@ -1848,6 +2101,88 @@ namespace ShiftManager.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.AbsenceConflict", b =>
+                {
+                    b.HasOne("ShiftManager.Domain.AbsenceRequest", "AbsenceRequest")
+                        .WithMany()
+                        .HasForeignKey("AbsenceRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShiftManager.Domain.SchedulePublication", "Publication")
+                        .WithMany()
+                        .HasForeignKey("PublicationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShiftManager.Domain.SchedulePublication", "ResolvedByPublication")
+                        .WithMany()
+                        .HasForeignKey("ResolvedByPublicationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ShiftManager.Domain.SchedulePeriod", "SchedulePeriod")
+                        .WithMany()
+                        .HasForeignKey("SchedulePeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AbsenceRequest");
+
+                    b.Navigation("Publication");
+
+                    b.Navigation("ResolvedByPublication");
+
+                    b.Navigation("SchedulePeriod");
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.AbsenceDecision", b =>
+                {
+                    b.HasOne("ShiftManager.Domain.AbsenceRequest", "AbsenceRequest")
+                        .WithMany()
+                        .HasForeignKey("AbsenceRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ShiftManager.Domain.ApplicationUser", "ActorUser")
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AbsenceRequest");
+
+                    b.Navigation("ActorUser");
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.AbsenceRequest", b =>
+                {
+                    b.HasOne("ShiftManager.Domain.AbsenceRequest", "Replaces")
+                        .WithMany()
+                        .HasForeignKey("ReplacesId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ShiftManager.Domain.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Replaces");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.AbsenceWeekday", b =>
+                {
+                    b.HasOne("ShiftManager.Domain.AbsenceRequest", "AbsenceRequest")
+                        .WithMany("Weekdays")
+                        .HasForeignKey("AbsenceRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AbsenceRequest");
                 });
 
             modelBuilder.Entity("ShiftManager.Domain.AvailabilitySubmission", b =>
@@ -2163,6 +2498,11 @@ namespace ShiftManager.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("ShiftManager.Domain.AbsenceRequest", b =>
+                {
+                    b.Navigation("Weekdays");
                 });
 
             modelBuilder.Entity("ShiftManager.Domain.SchedulePeriod", b =>

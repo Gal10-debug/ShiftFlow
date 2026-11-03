@@ -6,6 +6,7 @@ export interface PublishedEmployee {
   note?: string | null;
 }
 export interface PublishedCell {
+  assignmentMode?: "Automatic" | "ManualOnly";
   applicable?: boolean;
   state?: string;
   includeInAutomaticScheduling?: boolean;
@@ -47,6 +48,7 @@ export interface Publication {
   publicationType: string;
   publishedAt: string;
   publishedByUserId: string;
+  publishedByName?: string | null;
   notes: string | null;
   snapshot: Snapshot | null;
   acknowledgedShortages?: boolean;
@@ -54,6 +56,8 @@ export interface Publication {
   openIssueCount?: number;
 }
 export interface Review {
+  pendingAbsenceWarnings?: {assignmentId: string; userId: string; date: string; code: string}[];
+  finalRevision?: boolean;
   editingContractVersion?: number;
   state: string;
   revision: number;
@@ -92,7 +96,7 @@ export interface Candidate {
 export const lifecycle: Record<string, string> = {
   DRAFT: "טיוטה",
   PRELIMINARY_PUBLISHED: "סידור עבודה ראשוני",
-  UNDER_CORRECTION: "בהכנת תיקונים — העובדים רואים את הסידור הראשוני האחרון",
+  UNDER_CORRECTION: "בהכנת תיקונים — העובדים רואים את הגרסה האחרונה שפורסמה",
   FINAL_PUBLISHED: "סידור עבודה סופי",
   PUBLISHED: "פרסום היסטורי"
 };
@@ -102,18 +106,3 @@ export const issueStates: Record<string, string> = {
   RESOLVED: "טופל",
   REJECTED: "נדחה"
 };
-export function compareVersions(a: Snapshot | null, b: Snapshot | null) {
-  if (!a || !b) return [];
-  const keys = (s: Snapshot) => s.cells.map(c => [c.definitionId + "/" + c.date, c] as const);
-  const left = new Map(keys(a));
-  const right = new Map(keys(b));
-  return [...new Set([...left.keys(), ...right.keys()])].flatMap(key => {
-    const before = left.get(key);
-    const after = right.get(key);
-    return JSON.stringify(before) === JSON.stringify(after) ? [] : [{
-      key,
-      before,
-      after
-    }];
-  });
-}

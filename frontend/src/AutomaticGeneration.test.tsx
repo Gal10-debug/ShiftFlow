@@ -94,3 +94,8 @@ it("permits generation when an enabled row has weekend demand and zero weekday s
   render(<AutomaticGeneration definitions={[{ ...definition, requiredEmployees: 0, weekendRequiredEmployees: 1 }]} value={null} onChange={vi.fn()} onSaved={vi.fn()} disabled={false} />);
   expect(screen.getByRole("button", { name: "צור סידור אוטומטי" })).toBeEnabled();
 });
+
+it("manual-only definitions do not enable automatic generation even when their inclusion flag is set", () => {
+  render(<AutomaticGeneration definitions={[{...definition, assignmentMode: "ManualOnly"}]} value={null} onChange={vi.fn()} onSaved={vi.fn()} disabled={false} />);
+  expect(screen.getByRole("button", {name: "צור סידור אוטומטי"})).toBeDisabled();
+});

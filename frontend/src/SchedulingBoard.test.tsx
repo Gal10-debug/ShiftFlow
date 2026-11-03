@@ -172,7 +172,7 @@ it("distinguishes the unpublished workspace and zero-staffing cells without fabr
   definitions[0].requiredEmployees = 2;
   page();
   const table = await grid();
-  expect(screen.getByText(s.unpublished)).toBeVisible();
+  expect(screen.getByText("ניהול סידור העבודה")).toBeVisible();
   expect(table.getAllByText(s.unassigned)).toHaveLength(5);
   expect(table.getAllByText(s.noStaffing)).toHaveLength(250);
   expect(screen.getByText(s.preparation)).toBeVisible();
