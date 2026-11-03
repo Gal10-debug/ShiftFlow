@@ -1,17 +1,17 @@
 using System.ComponentModel.DataAnnotations;
 namespace ShiftManager.Api;
-public sealed record SnapshotEmployee(Guid AssignmentId, Guid UserId, string Name, bool IsShiftLead);
+public sealed record SnapshotEmployee(Guid AssignmentId, Guid UserId, string Name, bool IsShiftLead, string? Note = null);
 public sealed record SnapshotCell(Guid DefinitionId, DateOnly Date, string Name, int DisplayOrder, string Period,
-    string TimeRange, DateTime StartsAt, DateTime EndsAt, int RequiredEmployees, bool RequiresShiftLeadQualification, SnapshotEmployee[] Employees, string Semantic = "ORDINARY");
-public sealed record LegacyWork(Guid AssignmentId, Guid UserId, string Name, DateOnly Date, string Period, DateTime StartsAt, DateTime EndsAt, bool IsShiftLead);
+    string TimeRange, DateTime StartsAt, DateTime EndsAt, int RequiredEmployees, bool RequiresShiftLeadQualification, SnapshotEmployee[] Employees, string Semantic = "ORDINARY", bool Applicable = true);
+public sealed record LegacyWork(Guid AssignmentId, Guid UserId, string Name, DateOnly Date, string Period, DateTime StartsAt, DateTime EndsAt, bool IsShiftLead, string? Note = null);
 public sealed record ScheduleSnapshot(int Year, int Month, SnapshotCell[] Cells, LegacyWork[] LegacyAssignments);
 public sealed record ReviewResponse(string State, long Revision, string Token, bool NeedsReview, bool PublicationReady,
-    int Shortage, int OpenIssues, RosterProblem[] Conflicts, ScheduleSnapshot Draft);
+    int Shortage, int OpenIssues, RosterProblem[] Conflicts, ScheduleSnapshot Draft, int EditingContractVersion = 1);
 public sealed record RosterProblem(Guid? AssignmentId, Guid? UserId, DateOnly Date, string Code);
-public sealed record CandidateResponse(Guid UserId, string Name, bool Eligible, string[] Reasons);
+public sealed record CandidateResponse(Guid UserId, string Name, bool Eligible, string[] Reasons, bool IsShiftLeadQualified = false, bool Preferred = false);
 public sealed record ReviewTokenRequest([Required, StringLength(64, MinimumLength = 64)] string ExpectedToken);
 public sealed record ManualAssignmentRequest([Required, StringLength(64, MinimumLength = 64)] string ExpectedToken,
-    string Operation, Guid? AssignmentId, Guid? UserId, Guid? DefinitionId, DateOnly? Date);
+    string Operation, Guid? AssignmentId, Guid? UserId, Guid? DefinitionId, DateOnly? Date, [StringLength(1000)] string? Note = null);
 public sealed record PublishScheduleRequest([Required, StringLength(64, MinimumLength = 64)] string ExpectedToken,
     bool AcknowledgeShortages, bool AcknowledgeOpenIssues, [StringLength(2000)] string? Notes);
 public sealed record PublicationResponse(Guid Id, int VersionNumber, string PublicationType, Guid PublishedByUserId,
@@ -21,4 +21,4 @@ public sealed record CreateIssueRequest(Guid PublicationId, Guid AssignmentId,
 public sealed record UpdateIssueRequest([Range(1, long.MaxValue)] long ExpectedVersion, string Status, [StringLength(2000)] string? Response);
 
 public sealed record OnCallPairRequest([Required, StringLength(64, MinimumLength = 64)] string ExpectedToken,
-    string Operation, DateOnly Friday, Guid? UserId, Guid? AssignmentId, bool AcknowledgeAdjacentPeriod);
+    string Operation, DateOnly Friday, Guid? UserId, Guid? AssignmentId, bool AcknowledgeAdjacentPeriod, [StringLength(1000)] string? Note = null);

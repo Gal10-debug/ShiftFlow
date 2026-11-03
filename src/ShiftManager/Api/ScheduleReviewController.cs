@@ -21,7 +21,7 @@ public sealed class ScheduleReviewController(ScheduleReviewService service) : Co
 public sealed class EmployeeScheduleController(ScheduleReviewService service) : ControllerBase
 {
     [HttpGet("periods")] public async Task<IActionResult> Periods() => Ok(await service.PublishedPeriods(User));
-    [HttpGet("{year:int}/{month:int}")] public async Task<IActionResult> Mine(int year, int month) => Ok(await service.Mine(year, month, User));
+    [HttpGet("{year:int}/{month:int}")] public async Task<IActionResult> Mine(int year, int month, [FromQuery] int? version) => Ok(await service.Mine(year, month, User, version));
     [HttpGet("{year:int}/{month:int}/issues")] public async Task<IActionResult> Issues(int year, int month) => Ok(await service.Issues(year, month, User, false));
     [HttpPost("{year:int}/{month:int}/issues")] public async Task<IActionResult> Report(int year, int month, CreateIssueRequest input) => StatusCode(201, await service.Report(year, month, input, User));
 }

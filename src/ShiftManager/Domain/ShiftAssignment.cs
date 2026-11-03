@@ -9,6 +9,7 @@ public class ShiftAssignment
     public SchedulingCell? Cell { get; set; }
     public Guid? GeneratedByRunId { get; set; }
     public SchedulingRun? GeneratedByRun { get; set; }
+    public string? Note { get; set; }
     public bool IsLocked { get; set; }
     public bool IsShiftLead { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import RosterGrid from "../components/RosterGrid";
 import ScheduleReviewPanel, { type SelectedCell } from "../components/ScheduleReviewPanel";
 import AutomaticGeneration from "../components/AutomaticGeneration";
 import type { Generation } from "../scheduling";
@@ -19,6 +20,7 @@ import {
 
 export default function SchedulingBoard() {
   const [monthly, setMonthly] = useState(false);
+  const [canEdit, setCanEdit] = useState(false);
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Jerusalem" }).format(new Date());
   const [generation, setGeneration] = useState<Generation | null>(null);
@@ -98,6 +100,7 @@ export default function SchedulingBoard() {
   }, [dirty]);
   function navigate(date: string | null) {
     if (dirty && !window.confirm(s.discard)) return;
+    setSelectedCell(null);
     setDrafts(baseline);
     setRequestedDate(date);
     setReload((n) => n + 1);
@@ -180,7 +183,7 @@ export default function SchedulingBoard() {
       <AutomaticGeneration definitions={baseline} value={generation} onChange={setGeneration}
         onSaved={() => setReload(n => n + 1)} disabled={busy || loading || dirty}
         disabledReason={loading ? "טוען את הגדרות המשמרות…" : busy ? "שומר את הגדרות המשמרות…" : dirty ? "יש שינויים שלא נשמרו. יש לשמור או לבטל את השינויים בהגדרות לפני יצירת סידור אוטומטי." : undefined} />
-      <ScheduleReviewPanel year={reviewYear} month={reviewMonth} reload={reload} selected={selectedCell} onChanged={() => setReload(n => n + 1)} />
+      <ScheduleReviewPanel year={Number((selectedCell?.date ?? reviewDate).slice(0,4))} month={Number((selectedCell?.date ?? reviewDate).slice(5,7))} reload={reload} selected={selectedCell} onEditableChange={setCanEdit} onClose={() => setSelectedCell(null)} onChanged={() => setReload(n => n + 1)} />
       <div className="schedule-navigation">
         <label className="field">חודש לבדיקה<input type="month" min="0002-01" max="9998-12" value={`${reviewYear}-${String(reviewMonth).padStart(2,"0")}`} onChange={e => { if (e.target.value) navigate(e.target.value + "-01"); }} /></label>
         <label className="field">תצוגת לוח<select value={monthly ? "month" : "week"} onChange={e => setMonthly(e.target.value === "month")}><option value="week">שבועית</option><option value="month">חודשית</option></select></label>
@@ -235,91 +238,14 @@ export default function SchedulingBoard() {
             <p className="help" id="board-scroll-help">
               {s.scrolling}
             </p>
-            <div
-              className="schedule-scroll"
-              tabIndex={0}
-              role="region"
-              aria-label={s.grid}
-              aria-describedby="board-scroll-help"
-            >
-              <table className="schedule-grid">
-                <caption className="sr-only">
-                  {s.grid} — {s.unpublished}
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col" className="schedule-row-label">
-                      {s.rowHeader}
-                    </th>
-                    {board.days.map((day) => (
-                      <th scope="col" key={day.date}>
-                        <span className="schedule-weekday">
-                          {s.weekdays[new Date(`${day.date}T12:00:00Z`).getUTCDay()]}
-                        </span>
-                        <time dateTime={day.date}>
-                          {displayBoardDate(day.date)}
-                        </time>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {board.rows.map((row) => (
-                    <tr key={row.definition.id}>
-                      <th scope="row" className="schedule-row-label">
-                        <strong>{row.definition.name}</strong>
-                        {row.definition.semantic === "SIX_NINE" && <small>עד פעם אחת בשבוע</small>}
-                        {row.definition.semantic === "WEEKEND_ON_CALL" && <small>זוג שישי–שבת בלבד · הקצאה אחת</small>}
-                        {row.definition.requiresShiftLeadQualification && <span className="status">אחראי משמרת · מוסמכים בלבד</span>}
-                        <small>
-                          <bdi dir="ltr">
-                            {
-                              timeRanges[
-                                row.definition.timeRange ??
-                                  row.definition.period
-                              ]
-                            }
-                          </bdi>
-                        </small>
-                        <small>
-                          {row.definition.requiredEmployees} {s.workers} ·{" "}
-                          {row.definition.includeInAutomaticScheduling &&
-                          row.definition.requiredEmployees > 0
-                            ? s.selected
-                            : s.excluded}
-                        </small>
-                      </th>
-                      {row.cells.map((savedCell) => {
-                        const proposed = preview ? generation.cells.find(c => c.definitionId === row.definition.id && c.date === savedCell.date) : undefined;
-                        const cell = proposed ? { ...savedCell, ...proposed } : savedCell;
-                        return <td key={cell.date} className={cell.shortage ? "staffing-shortage" : undefined}>
-                          {!preview && <button className="cell-edit" aria-label={`עריכת ${row.definition.name} ${cell.date}`} onClick={() => { setRequestedDate(cell.date); setSelectedCell({ definitionId: row.definition.id, date: cell.date }); }}>עריכה</button>}
-                          {proposed && <small>תצוגה מקדימה</small>}
-                          {!proposed && savedCell.state === "SAVED_DRAFT" && <small>טיוטה שמורה</small>}
-                          {cell.employees?.map(e => <div key={e.userId}>{e.name}{e.isShiftLead ? " · אחראי משמרת" : ""}{e.protected ? " · מוגן" : ""}</div>)}
-                          {cell.requiredEmployees !== undefined && cell.requiredEmployees !== null && <small>נדרשים: {cell.requiredEmployees} · שובצו: {cell.employees?.length ?? 0}</small>}
-                          {!!cell.shortage && <strong>{cell.shortage === 1 ? "חסר עובד 1" : `חסרים ${cell.shortage} עובדים`}</strong>}
-                          {!cell.employees?.length && !cell.shortage && <>
-
-                          <span
-                            className={
-                              cell.state === "NOT_REQUIRED"
-                                ? "schedule-not-required"
-                                : "schedule-unassigned"
-                            }
-                          >
-                            {cell.state === "NOT_REQUIRED"
-                              ? s.noStaffing
-                              : s.unassigned}
-                          </span>
-                          </>}
-                        </td>;
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <RosterGrid snapshot={{ year: reviewYear, month: reviewMonth, legacyAssignments: [], cells: board.rows.flatMap(row => row.cells.map(saved => {
+              const proposed = preview ? generation.cells.find(c => c.definitionId === row.definition.id && c.date === saved.date) : undefined;
+              const cell = proposed ? { ...saved, ...proposed } : saved;
+              return { state: proposed ? "PREVIEW" : saved.state, includeInAutomaticScheduling: row.definition.includeInAutomaticScheduling, configuredRequiredEmployees: row.definition.requiredEmployees, weekendRequiredEmployees: row.definition.weekendRequiredEmployees, definitionId: row.definition.id, date: cell.date, name: row.definition.name, displayOrder: row.definition.displayOrder,
+                period: row.definition.period, timeRange: row.definition.timeRange ?? row.definition.period, startsAt: cell.startsAt, endsAt: cell.endsAt,
+                requiredEmployees: cell.requiredEmployees, requiresShiftLeadQualification: row.definition.requiresShiftLeadQualification ?? false,
+                semantic: row.definition.semantic, employees: (cell.employees ?? []).map(e => ({ ...e, assignmentId: e.assignmentId ?? "", isShiftLead: e.isShiftLead ?? false })) };
+            })) }} onEdit={canEdit && !preview && !generating ? setSelectedCell : undefined} />
           </>
         ) : (
           <p className="panel empty">{s.empty}</p>

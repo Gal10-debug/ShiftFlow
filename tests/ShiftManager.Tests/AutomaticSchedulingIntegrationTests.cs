@@ -19,7 +19,7 @@ public sealed partial class SchedulingTests
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var rows = await db.Set<ShiftTypeDefinition>().OrderBy(x => x.Slot).ToArrayAsync();
+        var rows = await db.Set<ShiftTypeDefinition>().OrderBy(x => x.Slot == 1).ThenBy(x => x.Slot).ToArrayAsync();
         foreach (var r in rows) { r.IncludeInAutomaticScheduling = false; r.RequiredEmployees = 0; r.Version++; }
         for (var i = 0; i < requirements.Length; i++) { rows[i].IncludeInAutomaticScheduling = true; rows[i].RequiredEmployees = requirements[i]; rows[i].Period = ShiftType.DAY; rows[i].TimeRange = ShiftTimeRange.DAY; }
         await db.SaveChangesAsync();
@@ -109,6 +109,7 @@ public sealed partial class SchedulingTests
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            (await db.Set<ShiftTypeDefinition>().SingleAsync(d => d.Id == definitions[1])).RequiredEmployees = 1;
             var period = new SchedulePeriod { Year = 2026, Month = 10 };
             var oldRun = new SchedulingRun { Id = Guid.NewGuid(), Year = 2026, Month = 10, SavedByUserId = ids["admin"], SavedAt = DateTime.UtcNow };
             db.AddRange(period, oldRun);

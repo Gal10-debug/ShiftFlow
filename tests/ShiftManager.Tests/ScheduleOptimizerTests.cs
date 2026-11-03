@@ -10,7 +10,7 @@ public sealed class ScheduleOptimizerTests
     private static CandidateCell Cell(int i, int day = 0, ShiftTimeRange range = ShiftTimeRange.DAY, int required = 1)
     {
         var date = Date.AddDays(day); var times = ShiftTimeRanges.Boundaries(date, range);
-        return new(Guid.Parse($"00000000-0000-0000-0002-{i:000000000000}"), date, times.StartsAt, times.EndsAt, required, 1, ShiftTimeRanges.Classification(range));
+        return new(Guid.Parse($"40000000-0000-0000-0000-{i + 1:000000000000}"), date, times.StartsAt, times.EndsAt, required, 1, ShiftTimeRanges.Classification(range));
     }
     private static SchedulingProblem Problem(CandidateCell[] cells, int employees = 3, Work[]? work = null, Preference[]? preferences = null) =>
         new(2026, 10, "fingerprint", cells, Enumerable.Range(1, employees).Select(Employee).ToArray(), work ?? [], preferences ?? []);

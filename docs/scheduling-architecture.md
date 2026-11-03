@@ -401,6 +401,12 @@ The same working assignment/cell model now supports manual edits and immutable p
 
 ### Stable classification
 
+**Phase 5.3 update:** the following Phase 5.1 description records its original
+slot-26 classification and separate pair UI. Current behavior uses confirmed slots
+2/3/4/5/16 for weekend work, transfers on-call to slot 16, and edits pairs through
+normal board cells. See [the current Phase 5.3 specification](scheduling-board-ux.md)
+for migration, public notes and the shared published employee board.
+
 `ShiftTypeDefinition.Semantic` is a persisted, non-user-editable classification: ORDINARY, SIX_NINE or WEEKEND_ON_CALL. The additive `20261027224058_AdditionalSchedulingConstraints` migration identifies existing rows by their stable UUIDs, not editable names: slot 1 / `40000000-0000-0000-0000-000000000001` is SIX_NINE (observed local name “6 עד 9”), and slot 26 / `40000000-0000-0000-0000-000000000026` is WEEKEND_ON_CALL (observed local name “כונן סופש”). No 52nd row is created. The remaining 49 rows are ORDINARY. A check constraint validates values; a filtered unique index permits at most one row of each special classification. Renaming or changing time ranges never transfers semantics to another row. Other rows using H06_09 do not receive SIX_NINE limits. Existing names, staffing, assignments, users and availability are preserved.
 
 The read-only classification is included in administrative DTOs, input fingerprints/review hashes and new immutable publication snapshots. Historical snapshots are not rewritten. Rolling the migration back removes only the new classification column/index/constraint, preserving every shift-type row and existing assignment; new scheduling rules require the upgraded application/schema together.

@@ -29,6 +29,7 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
                 && (!p.Cells.Any(c => c.DefinitionId == w.DefinitionId && c.Date == mate) || !p.Employees.Any(e => e.Id == w.UserId)))
                 throw new ApiException("ON_CALL_PAIR_REQUIRED", 409);
         }
+        if (p.ExceedsCapacity(fixedWork)) throw new ApiException("STAFFING_EXCEEDED", 409);
         // Validate fixed assignments belonging to included cells; legacy/excluded commitments
         // remain untouched and are obstacles, never candidates to "repair" by deletion.
         foreach (var c in p.Cells)
@@ -44,7 +45,7 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
             ct.ThrowIfCancellationRequested();
             var c = p.Cells[ci];
             for (var ei = 0; ei < p.Employees.Length; ei++)
-                if ((c.Semantic != SchedulingRules.OnCall || SchedulingRules.Weekend(c.Date)) && p.Eligible(p.Employees[ei], c)) choices[(ci, ei)] = model.NewBoolVar($"x{ci}_{ei}");
+                if (SchedulingRules.Applicable(c.DefinitionId, c.Semantic, c.Date) && p.Eligible(p.Employees[ei], c)) choices[(ci, ei)] = model.NewBoolVar($"x{ci}_{ei}");
             var capacity = c.Required - fixedWork.Count(w => w.DefinitionId == c.DefinitionId && w.Date == c.Date);
             model.Add(LinearExpr.Sum(choices.Where(x => x.Key.Cell == ci).Select(x => x.Value)) <= capacity);
         }
@@ -155,11 +156,12 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
         if (best is null) return new(status, proven, []);
         if (proven == stages.Length) status = "OPTIMAL";
         var cells = p.Cells.Select((c, ci) => new GeneratedCell(c.DefinitionId, c.Date, c.Start, c.End, c.Required,
-            fixedWork.Where(w => w.DefinitionId == c.DefinitionId && w.Date == c.Date).Select(w => new ScheduledEmployee(w.UserId, p.Employees.Single(e => e.Id == w.UserId).Name, true, w.Lead))
+            fixedWork.Where(w => w.DefinitionId == c.DefinitionId && w.Date == c.Date).Select(w => new ScheduledEmployee(w.UserId, p.Employees.Single(e => e.Id == w.UserId).Name, true, w.Lead, w.AssignmentId, w.Note))
                 .Concat(best.Where(x => x.Key.Cell == ci && x.Value).Select(x => { var e = p.Employees[x.Key.Employee]; return new ScheduledEmployee(e.Id, e.Name, false, false); }))
                 .OrderBy(e => e.UserId).ToArray())).ToArray();
         var completed = fixedWork.Concat(cells.SelectMany(c => c.Employees.Where(e => !e.Protected).Select(e =>
             SchedulingRules.Proposed(e.UserId, p.Cells.Single(input => input.DefinitionId == c.DefinitionId && input.Date == c.Date)))));
+        if (p.ExceedsCapacity(completed)) throw new ApiException("STAFFING_EXCEEDED", 409);
         var finalViolations = SchedulingRules.Violations(completed, p.Year, p.Month);
         if (finalViolations.Length > 0) throw new ApiException(finalViolations[0].Code, 409);
         return new(status, proven, cells);

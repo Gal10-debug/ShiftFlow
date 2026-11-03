@@ -66,11 +66,12 @@ function board(anchor: string): WeeklyBoard {
           definition,
           cells: days.map((day) => ({
             date: day.date,
+            requiredEmployees: [5,6].includes(new Date(day.date + "T12:00:00Z").getUTCDay()) ? 0 : definition.requiredEmployees,
             shiftId: null,
             startsAt: `${day.date}T04:00:00Z`,
             endsAt: `${day.date}T16:00:00Z`,
             state:
-              definition.requiredEmployees === 0
+              [5,6].includes(new Date(day.date + "T12:00:00Z").getUTCDay()) ? "NOT_APPLICABLE" : definition.requiredEmployees === 0
                 ? "NOT_REQUIRED"
                 : "UNASSIGNED",
           })),
@@ -172,8 +173,8 @@ it("distinguishes the unpublished workspace and zero-staffing cells without fabr
   page();
   const table = await grid();
   expect(screen.getByText(s.unpublished)).toBeVisible();
-  expect(table.getAllByText(s.unassigned)).toHaveLength(7);
-  expect(table.getAllByText(s.noStaffing)).toHaveLength(350);
+  expect(table.getAllByText(s.unassigned)).toHaveLength(5);
+  expect(table.getAllByText(s.noStaffing)).toHaveLength(250);
   expect(screen.getByText(s.preparation)).toBeVisible();
   expect(
     screen.queryByRole("button", { name: /יצירת סידור|שיבוץ אוטומטי/ }),

@@ -117,10 +117,10 @@ public sealed partial class SchedulingTests
             }
             await Expect("HARD_BLOCK_CONFLICT",1); r=await Edit(admin,r,"ASSIGN",ids["employee"],d,2);
             await Expect("STAFFING_EXCEEDED",2);
-            var defs=await Types(admin);var request=Request(defs);request.ShiftTypes[1]=request.ShiftTypes[1] with {RequiredEmployees=1,Period="NIGHT",TimeRange="NIGHT"}; await Send(admin,TypesPath,request);
-            await Expect("WORK_OVERLAP_OR_CONSECUTIVE",2,defs[1].Id);
-            request=Request(await Types(admin));request.ShiftTypes[1]=request.ShiftTypes[1] with {RequiredEmployees=1,RequiresShiftLeadQualification=true};await Send(admin,TypesPath,request);
-            await Expect("QUALIFICATION_REQUIRED",4,defs[1].Id);
+            var defs=await Types(admin);var request=Request(defs);request.ShiftTypes[2]=request.ShiftTypes[2] with {RequiredEmployees=1,Period="NIGHT",TimeRange="NIGHT"}; await Send(admin,TypesPath,request);
+            await Expect("WORK_OVERLAP_OR_CONSECUTIVE",2,defs[2].Id);
+            request=Request(await Types(admin));request.ShiftTypes[2]=request.ShiftTypes[2] with {RequiredEmployees=1,RequiresShiftLeadQualification=true};await Send(admin,TypesPath,request);
+            await Expect("QUALIFICATION_REQUIRED",4,defs[2].Id);
             var team=await SetupTeam(admin); await Send(admin,$"{TeamsPath}/{team.Id}",new UpdateTeamRequest(team.Name,ids["employee"],ids["coordinator"],team.Version));
             await Expect("TEAM_LEADER_ASSIGNED",4);
         }
@@ -143,7 +143,7 @@ public sealed partial class SchedulingTests
         var (admin,d,r)=await ManualSetup();using(admin)
         {
             r=await Edit(admin,r,"ASSIGN",ids["employee"],d,1);r=await Ack(admin,r);
-            var request=Request(await Types(admin));request.ShiftTypes[0]=request.ShiftTypes[0] with {RequiresShiftLeadQualification=true};await Send(admin,TypesPath,request);
+            var request=Request(await Types(admin));request.ShiftTypes[1]=request.ShiftTypes[1] with {RequiresShiftLeadQualification=true};await Send(admin,TypesPath,request);
             var stale=await Review(admin);Assert.True(stale.NeedsReview);Assert.Contains(stale.Conflicts,c=>c.Code=="QUALIFICATION_REQUIRED");
             var response=await Send(admin,ReviewPath+"/publications/PRELIMINARY",new PublishScheduleRequest(stale.Token,true,true,null),"POST");Assert.Equal(HttpStatusCode.Conflict,response.StatusCode);
             Assert.Empty((await admin.GetFromJsonAsync<PublicationResponse[]>(ReviewPath+"/publications"))!);
@@ -187,7 +187,8 @@ public sealed partial class SchedulingTests
             var pub=await Publish(admin,r,"PRELIMINARY");var assignment=pub.Snapshot!.Cells.SelectMany(c=>c.Employees).Single(e=>e.UserId==ids["employee"]);
             using var deputy=await Login("coordinator");
             var privateView=(await deputy.GetFromJsonAsync<PublicationResponse>("/api/my-schedule/2026/10"))!;
-            Assert.DoesNotContain(privateView.Snapshot!.Cells.SelectMany(c=>c.Employees),e=>e.UserId==ids["employee"]);
+            Assert.Contains(privateView.Snapshot!.Cells.SelectMany(c=>c.Employees),e=>e.UserId==ids["employee"]);
+            Assert.Equal(51 * 31, privateView.Snapshot.Cells.Length);
             Assert.Equal(HttpStatusCode.Forbidden,(await Send(deputy,"/api/my-schedule/2026/10/issues",new CreateIssueRequest(pub.Id,assignment.AssignmentId,"בעיה"),"POST")).StatusCode);
             var report=await Send(employee,"/api/my-schedule/2026/10/issues",new CreateIssueRequest(pub.Id,assignment.AssignmentId,"שיבוץ לא צפוי לבדיקה"),"POST");Assert.Equal(HttpStatusCode.Created,report.StatusCode);
             var issue=(await report.Content.ReadFromJsonAsync<ScheduleIssue>())!;
@@ -221,10 +222,10 @@ public sealed partial class SchedulingTests
             r=await Edit(admin,r,"ASSIGN",ids["employee"],d,1);r=await Ack(admin,r);using var second=await Login();
             var request=new PublishScheduleRequest(r.Token,true,true,null);var responses=await Task.WhenAll(Send(admin,ReviewPath+"/publications/PRELIMINARY",request,"POST"),Send(second,ReviewPath+"/publications/PRELIMINARY",request,"POST"));
             Assert.Single(responses,x=>x.StatusCode==HttpStatusCode.OK);Assert.Single(responses,x=>x.StatusCode==HttpStatusCode.Conflict);
-            var initial=(await admin.GetFromJsonAsync<PublicationResponse[]>(ReviewPath+"/publications"))!.Single();var name=initial.Snapshot!.Cells[0].Name;var employeeName=initial.Snapshot.Cells.SelectMany(c=>c.Employees).Single().Name;
-            var definitions=await Types(admin);var change=Request(definitions);change.ShiftTypes[0]=change.ShiftTypes[0] with{Name="שם חדש",RequiredEmployees=3};await Send(admin,TypesPath,change);
+            var initial=(await admin.GetFromJsonAsync<PublicationResponse[]>(ReviewPath+"/publications"))!.Single();var name=initial.Snapshot!.Cells.First(c=>c.DefinitionId==d).Name;var employeeName=initial.Snapshot.Cells.SelectMany(c=>c.Employees).Single().Name;
+            var definitions=await Types(admin);var change=Request(definitions);change.ShiftTypes[1]=change.ShiftTypes[1] with{Name="שם חדש",RequiredEmployees=3};await Send(admin,TypesPath,change);
             await Send(admin,$"/api/users/{ids["employee"]}",new ProfileRequest("שם","חדש","employee"));
-            var history=(await admin.GetFromJsonAsync<PublicationResponse[]>(ReviewPath+"/publications"))!.Single();Assert.Equal(name,history.Snapshot!.Cells[0].Name);Assert.Equal(employeeName,history.Snapshot.Cells.SelectMany(c=>c.Employees).Single().Name);Assert.Equal(1,history.Snapshot.Cells[0].RequiredEmployees);
+            var history=(await admin.GetFromJsonAsync<PublicationResponse[]>(ReviewPath+"/publications"))!.Single();Assert.Equal(name,history.Snapshot!.Cells.First(c=>c.DefinitionId==d).Name);Assert.Equal(employeeName,history.Snapshot.Cells.SelectMany(c=>c.Employees).Single().Name);Assert.Equal(1,history.Snapshot.Cells.First(c=>c.DefinitionId==d).RequiredEmployees);
         }
     }
     [PostgresFact]

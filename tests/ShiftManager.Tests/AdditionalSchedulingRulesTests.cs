@@ -5,7 +5,7 @@ namespace ShiftManager.Tests;
 public sealed class AdditionalSchedulingRulesTests
 {
     private static readonly Guid User = Guid.NewGuid();
-    private static readonly Guid Row = Guid.NewGuid();
+    private static readonly Guid Row = Guid.Parse("40000000-0000-0000-0000-000000000002");
     private static CandidateCell Cell(DateOnly date, string semantic = "ORDINARY", ShiftType type = ShiftType.DAY, bool expert = false)
     {
         var t = ShiftClock.Boundaries(date, type); return new(Row,date,t.StartsAt,t.EndsAt,1,1,type,expert,semantic);

@@ -17,19 +17,18 @@ beforeEach(() => { mocked.mockReset(); vi.spyOn(window, "confirm").mockReturnVal
 it("shows saved requirements and starts monthly generation", async () => {
   mocked.mockResolvedValue({ ...ready, state: "QUEUED", summary: null, cells: [] });
   render(<Harness />);
-  await userEvent.click(screen.getByText(/סוגי משמרות ודרישות איוש/));
-  expect(screen.getByText("בוקר: 3 עובדים")).toBeInTheDocument();
+  expect(screen.queryByText(/סוגי משמרות ודרישות איוש/)).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "צור סידור אוטומטי" }));
   expect(mocked).toHaveBeenCalledWith("/admin/scheduling/generation", "POST", expect.objectContaining({ year: expect.any(Number), month: expect.any(Number) }));
   expect(screen.getByRole("status")).toHaveTextContent("ממתין להרצה");
 });
-it("shows preview summary and shortages without claiming optimality", async () => {
+it("shows preview state without an aggregate shortage summary", async () => {
   render(<Harness initial={ready} />);
   expect(screen.getByRole("status")).toHaveTextContent("טרם נשמרו");
-  expect(screen.getByLabelText("סיכום איוש")).toHaveTextContent("נדרשים: 3 · שובצו: 1 · חסרים: 2");
-  expect(screen.getByText(/ייתכן שניתן לצמצם/)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("checkbox"));
-  expect(screen.getByText(/חסרים 2 עובדים/)).toBeInTheDocument();
+  expect(screen.queryByLabelText("סיכום איוש")).not.toBeInTheDocument();
+  expect(screen.queryByText(/ייתכן שניתן לצמצם/)).not.toBeInTheDocument();
+  expect(screen.queryByRole("checkbox", { name: /הצגת רשימת תאים בחוסר/ })).not.toBeInTheDocument();
+  expect(screen.queryByText(/חסרים 2 עובדים/)).not.toBeInTheDocument();
 });
 it("cancel removes the preview using the cancellation endpoint", async () => {
   mocked.mockResolvedValue(undefined); render(<Harness initial={ready} />);
@@ -85,9 +84,13 @@ it("shows the reason generation is blocked by unsaved settings", () => {
   expect(screen.getByRole("button", { name: "צור סידור אוטומטי" })).toBeDisabled();
   expect(screen.getByText("יש לשמור את השינויים לפני יצירת סידור")).toBeInTheDocument();
 });
-it("identifies expert shortages after the expert row is renamed", async () => {
-  render(<AutomaticGeneration definitions={[{ ...definition, name: "שם חדש", requiresShiftLeadQualification: true }]} value={ready} onChange={vi.fn()} onSaved={vi.fn()} disabled={false} />);
-  await userEvent.click(screen.getByRole("checkbox"));
-  expect(screen.getByText(/חוסר באחראי משמרת/)).toBeInTheDocument();
-  expect(screen.getByText(/שם חדש · 2026-10-01/)).toBeInTheDocument();
+it("keeps expert staffing metadata without rendering an aggregate shortage list", () => {
+  const { container } = render(<AutomaticGeneration definitions={[{ ...definition, name: "שם חדש", requiresShiftLeadQualification: true }]} value={ready} onChange={vi.fn()} onSaved={vi.fn()} disabled={false} />);
+  expect(container.querySelector(".shortage-list")).toBeNull();
+  expect(screen.queryByText(/הצגת רשימת תאים בחוסר/)).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("סיכום איוש")).not.toBeInTheDocument();
+});
+it("permits generation when an enabled row has weekend demand and zero weekday staffing", () => {
+  render(<AutomaticGeneration definitions={[{ ...definition, requiredEmployees: 0, weekendRequiredEmployees: 1 }]} value={null} onChange={vi.fn()} onSaved={vi.fn()} disabled={false} />);
+  expect(screen.getByRole("button", { name: "צור סידור אוטומטי" })).toBeEnabled();
 });

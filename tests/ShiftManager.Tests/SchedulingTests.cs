@@ -166,7 +166,7 @@ public sealed partial class SchedulingTests : IAsyncLifetime
             Assert.Equal(DateOnly.Parse(sunday), board.WeekStartsOn); Assert.Equal(DateOnly.Parse(saturday), board.WeekEndsOn);
             Assert.Equal(7, board.Days.Length); Assert.Equal(51, board.Rows.Length); Assert.Equal("UNPUBLISHED", board.WorkspaceState);
             Assert.All(board.Days, d => { Assert.Null(d.SchedulePeriodId); Assert.Equal(d.Date.Month, d.Month); Assert.Equal(d.Date.Year, d.Year); });
-            Assert.All(board.Rows, r => { Assert.Equal(7, r.Cells.Length); Assert.All(r.Cells, c => { Assert.Null(c.ShiftId); Assert.Equal("NOT_REQUIRED", c.State); }); });
+            Assert.All(board.Rows, r => { Assert.Equal(7, r.Cells.Length); Assert.All(r.Cells, c => { Assert.Null(c.ShiftId); Assert.Equal(ShiftManager.Services.AutomaticScheduling.SchedulingRules.Applicable(r.Definition.Id, r.Definition.Semantic, c.Date) ? c.RequiredEmployees > 0 ? "UNASSIGNED" : "NOT_REQUIRED" : "NOT_APPLICABLE", c.State); }); });
         }
         using var scope = factory.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         Assert.Empty(await db.Set<SchedulePeriod>().ToArrayAsync()); Assert.Empty(await db.Set<Shift>().ToArrayAsync());
@@ -193,7 +193,7 @@ public sealed partial class SchedulingTests : IAsyncLifetime
         {
             var board = (await admin.GetFromJsonAsync<WeeklyBoardResponse>($"/api/admin/scheduling/board?date={anchor}"))!;
             var cell = board.Rows.Single(x => x.Definition.Id == request.ShiftTypes[0].Id).Cells.Single(x => x.Date == DateOnly.Parse(date));
-            Assert.Equal(hours, (cell.EndsAt - cell.StartsAt).TotalHours); Assert.Equal("UNASSIGNED", cell.State);
+            Assert.Equal(hours, (cell.EndsAt - cell.StartsAt).TotalHours); Assert.Equal(ShiftManager.Services.AutomaticScheduling.SchedulingRules.Weekend(cell.Date) ? "NOT_APPLICABLE" : "UNASSIGNED", cell.State);
             var zone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Jerusalem");
             Assert.Equal(19, TimeZoneInfo.ConvertTimeFromUtc(cell.StartsAt, zone).Hour);
             Assert.Equal(cell.Date.AddDays(1), DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(cell.EndsAt, zone)));

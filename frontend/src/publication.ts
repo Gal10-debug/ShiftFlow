@@ -3,8 +3,14 @@ export interface PublishedEmployee {
   userId: string;
   name: string;
   isShiftLead: boolean;
+  note?: string | null;
 }
 export interface PublishedCell {
+  applicable?: boolean;
+  state?: string;
+  includeInAutomaticScheduling?: boolean;
+  configuredRequiredEmployees?: number;
+  weekendRequiredEmployees?: number;
   semantic?: "ORDINARY" | "SIX_NINE" | "WEEKEND_ON_CALL";
   definitionId: string;
   date: string;
@@ -27,6 +33,7 @@ export interface LegacyAssignment {
   startsAt: string;
   endsAt: string;
   isShiftLead: boolean;
+  note?: string | null;
 }
 export interface Snapshot {
   year: number;
@@ -47,6 +54,7 @@ export interface Publication {
   openIssueCount?: number;
 }
 export interface Review {
+  editingContractVersion?: number;
   state: string;
   revision: number;
   token: string;
@@ -78,6 +86,8 @@ export interface Candidate {
   name: string;
   eligible: boolean;
   reasons: string[];
+  isShiftLeadQualified?: boolean;
+  preferred?: boolean;
 }
 export const lifecycle: Record<string, string> = {
   DRAFT: "טיוטה",

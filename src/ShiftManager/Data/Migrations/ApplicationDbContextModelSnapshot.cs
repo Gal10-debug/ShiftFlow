@@ -821,6 +821,10 @@ namespace ShiftManager.Data.Migrations
                     b.Property<bool>("IsShiftLead")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<Guid?>("SchedulingCellId")
                         .HasColumnType("uuid");
 
@@ -1226,7 +1230,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
-                            Semantic = "ORDINARY",
+                            Semantic = "WEEKEND_ON_CALL",
                             Slot = 16,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L
@@ -1366,7 +1370,7 @@ namespace ShiftManager.Data.Migrations
                             Period = "DAY",
                             RequiredEmployees = 0,
                             RequiresShiftLeadQualification = false,
-                            Semantic = "WEEKEND_ON_CALL",
+                            Semantic = "ORDINARY",
                             Slot = 26,
                             UpdatedAt = new DateTime(2026, 10, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = 1L

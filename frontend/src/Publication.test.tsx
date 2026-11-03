@@ -5,6 +5,7 @@ import ScheduleReviewPanel from "./components/ScheduleReviewPanel";
 import MySchedule from "./pages/MySchedule";
 import { api } from "./api";
 import { compareVersions, type Review, type Publication } from "./publication";
+vi.mock("./auth", () => ({ useAuth: () => ({ user: { id: "employee" } }) }));
 vi.mock("./api", () => ({
   api: vi.fn()
 }));
@@ -38,6 +39,7 @@ beforeEach(() => {
     legacyAssignments: []
   };
   review = {
+    editingContractVersion: 1,
     state: "DRAFT",
     revision: 1,
     token: "a".repeat(64),
@@ -215,7 +217,7 @@ it("employees see final label without issue action and can choose weekly view", 
     name: "דיווח על בעיה"
   })).not.toBeInTheDocument();
   await userEvent.selectOptions(screen.getByLabelText("תצוגה שבועית"), "2026-09-27");
-  expect(screen.getByText("בוקר")).toBeInTheDocument();
+  expect(screen.getAllByText("בוקר").length).toBeGreaterThan(0);
 });
 it("denies administrative review when the server returns forbidden", async () => {
   mocked.mockRejectedValue(new Error("FORBIDDEN"));
@@ -238,4 +240,38 @@ it("shows stale draft warning and requires an explicit fresh review", async () =
   expect(mocked).toHaveBeenCalledWith("/admin/scheduling/periods/2026/10/review", "POST", {
     expectedToken: review.token
   });
+});
+it("version history keeps its board and removes the duplicate lists below it", async () => {
+  publication.snapshot = { ...publication.snapshot!, cells: [...publication.snapshot!.cells, {
+    ...publication.snapshot!.cells[0], definitionId: "empty-history-row", name: "שורה חסרה בהיסטוריה", requiredEmployees: 3, employees: []
+  }] };
+  render(<ScheduleReviewPanel year={2026} month={10} reload={0} selected={null} onChanged={vi.fn()} />);
+  await userEvent.click(await screen.findByText(/גרסה 1 · ראשוני/));
+  const board = screen.getByRole("region", { name: "לוח סידור עבודה שבועי" });
+  expect(board).toBeInTheDocument();
+  expect(screen.getByText("שורה חסרה בהיסטוריה")).toBeInTheDocument();
+  expect(screen.getByText("חסרים 3 עובדים")).toBeInTheDocument();
+  const history = board.closest("details")!;
+  expect(history.querySelector("ul")).toBeNull();
+  expect(history.querySelectorAll(".schedule-grid")).toHaveLength(1);
+  expect(screen.getByText(/דנה כהן/)).toBeInTheDocument();
+});
+it("omits repeated staffing-capacity rows from review while retaining publication safeguards", async () => {
+  review.publicationReady=false;
+  review.conflicts=[6,20,21,27,28].map(day=>({assignmentId:null,userId:null,date:`2026-11-${String(day).padStart(2,"0")}`,code:"STAFFING_EXCEEDED"}));
+  panel();
+  expect(await screen.findByRole("button",{name:"אישור בדיקת זמינות ואילוצים"})).toBeDisabled();
+  expect(screen.getByRole("button",{name:"פרסום ראשוני"})).toBeDisabled();
+  expect(screen.queryByLabelText("סתירות בסידור")).not.toBeInTheDocument();
+  expect(screen.queryByText(/התא מלא או שאין בו דרישת איוש/)).not.toBeInTheDocument();
+});
+it("removes the entire review conflict list regardless of error type while retaining safeguards", async () => {
+  review.publicationReady=false;
+  review.conflicts=["STAFFING_EXCEEDED","HARD_BLOCK_CONFLICT","ON_CALL_PAIR_REQUIRED","QUALIFICATION_REQUIRED","NIGHT_WEEKLY_LIMIT","WORK_OVERLAP_OR_CONSECUTIVE"].map((code,i)=>({assignmentId:null,userId:null,date:`2026-11-${String(i+1).padStart(2,"0")}`,code}));
+  const {container}=panel();
+  expect(await screen.findByRole("button",{name:"אישור בדיקת זמינות ואילוצים"})).toBeDisabled();
+  expect(screen.getByRole("button",{name:"פרסום ראשוני"})).toBeDisabled();
+  expect(screen.queryByLabelText("סתירות בסידור")).not.toBeInTheDocument();
+  expect(container.querySelector("ul.notice.error")).toBeNull();
+  for(const conflict of review.conflicts) expect(screen.queryByText(new RegExp(conflict.date))).not.toBeInTheDocument();
 });

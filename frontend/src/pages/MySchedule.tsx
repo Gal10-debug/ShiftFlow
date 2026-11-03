@@ -1,15 +1,20 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import RosterGrid from "../components/RosterGrid";
+import { useAuth } from "../auth";
 import { he, message } from "../he";
 import { monthLabel, instant, weekStart } from "../availability";
 import { issueStates, type Publication, type Issue } from "../publication";
 import { Notice } from "../components/forms";
 export default function MySchedule() {
+  const { user } = useAuth();
   const [periods, setPeriods] = useState<{
     year: number;
     month: number;
   }[]>([]);
   const [selected, setSelected] = useState("");
+  const [version, setVersion] = useState("");
+  const [latestVersion, setLatestVersion] = useState(0);
   const [publication, setPublication] = useState<Publication | null>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [week, setWeek] = useState("");
@@ -43,9 +48,10 @@ export default function MySchedule() {
     setSuccess("");
     setWeek("");
     setReporting("");
-    Promise.all([api<Publication>(`/my-schedule/${selected}`), api<Issue[]>(`/my-schedule/${selected}/issues`)]).then(([p, i]) => {
+    Promise.all([api<Publication>(`/my-schedule/${selected}${version ? `?version=${version}` : ""}`), api<Issue[]>(`/my-schedule/${selected}/issues`)]).then(([p, i]) => {
       if (alive) {
         setPublication(p);
+        if (!version) setLatestVersion(p.versionNumber);
         setIssues(i);
       }
     }).catch(e => {
@@ -54,10 +60,11 @@ export default function MySchedule() {
     return () => {
       alive = false;
     };
-  }, [selected]);
+  }, [selected, version]);
   const snapshot = publication?.snapshot;
   const assignments = [...(snapshot?.cells.flatMap(c => c.employees.map(e => ({
     assignmentId: e.assignmentId,
+    userId: e.userId,
     name: c.name,
     date: c.date,
     startsAt: c.startsAt,
@@ -89,10 +96,11 @@ export default function MySchedule() {
     }
   }
   return <section dir="rtl"><h1>סידור העבודה שלי</h1><Notice error={error} success={success} />
-    <label className="field">חודש סידור<select disabled={busy} value={selected} onChange={e => setSelected(e.target.value)}>{periods.map(p => <option key={`${p.year}/${p.month}`} value={`${p.year}/${p.month}`}>{monthLabel(p.year, p.month)}</option>)}</select></label>
+    <label className="field">חודש סידור<select disabled={busy} value={selected} onChange={e => { setVersion(""); setSelected(e.target.value); }}>{periods.map(p => <option key={`${p.year}/${p.month}`} value={`${p.year}/${p.month}`}>{monthLabel(p.year, p.month)}</option>)}</select></label>
     {!periods.length && <p>עדיין לא פורסם עבורך סידור עבודה.</p>}
-    {publication && <><h2>{publication.publicationType === "FINAL" ? "סידור עבודה סופי" : "סידור עבודה ראשוני"}</h2><p>גרסה {publication.versionNumber} · פורסם {instant(publication.publishedAt)}</p><p>{publication.notes}</p><label className="field">תצוגה שבועית<select value={week} onChange={e => setWeek(e.target.value)}><option value="">כל החודש</option>{[...new Set(assignments.map(a => weekStart(a.date)))].map(w => <option key={w} value={w}>שבוע {w}</option>)}</select></label>
-    <div className="table-scroll"><table><caption>המשמרות שלי בלבד</caption><thead><tr><th>תאריך</th><th>סוג משמרת</th><th>התחלה</th><th>סיום</th><th>דיווח</th></tr></thead><tbody>{assignments.filter(a => !week || weekStart(a.date) === week).map(a => <tr key={a.assignmentId} className="own-assignment"><td>{a.date}</td><td>{a.name}{a.isShiftLead ? " · אחראי משמרת" : ""}</td><td>{instant(a.startsAt)}</td><td>{instant(a.endsAt)}</td><td>{publication.publicationType === "PRELIMINARY" && !issues.some(i => i.publicationId === publication.id && i.assignmentId === a.assignmentId) && <button disabled={busy} onClick={() => {
+    {publication && <><label className="field">גרסת פרסום<select value={version} onChange={e => setVersion(e.target.value)}><option value="">הגרסה האחרונה</option>{Array.from({length: latestVersion}, (_, i) => i + 1).map(v => <option key={v} value={String(v)}>גרסה {v}</option>)}</select></label><h2>{publication.publicationType === "FINAL" ? "סידור עבודה סופי" : "סידור עבודה ראשוני"}</h2><p>גרסה {publication.versionNumber} · פורסם {instant(publication.publishedAt)}</p><p>{publication.notes}</p><label className="field">תצוגה שבועית<select value={week} onChange={e => setWeek(e.target.value)}><option value="">כל החודש</option>{[...new Set([...(snapshot?.cells.map(c => weekStart(c.date)) ?? []), ...assignments.map(a => weekStart(a.date))])].sort().map(w => <option key={w} value={w}>שבוע {w}</option>)}</select></label>
+    {snapshot && <RosterGrid snapshot={snapshot} currentUserId={user?.id} week={week} />}
+    <div className="table-scroll"><table><caption>המשמרות שלי — דיווח על בעיות</caption><thead><tr><th>תאריך</th><th>סוג משמרת</th><th>התחלה</th><th>סיום</th><th>דיווח</th></tr></thead><tbody>{assignments.filter(a => a.userId === user?.id && (!week || weekStart(a.date) === week)).map(a => <tr key={a.assignmentId} className="own-assignment"><td>{a.date}</td><td>{a.name}{a.isShiftLead ? " · אחראי משמרת" : ""}</td><td>{instant(a.startsAt)}</td><td>{instant(a.endsAt)}</td><td>{publication.publicationType === "PRELIMINARY" && (!version || Number(version) === latestVersion) && !issues.some(i => i.publicationId === publication.id && i.assignmentId === a.assignmentId) && <button disabled={busy} onClick={() => {
                   setReporting(a.assignmentId);
                   setExplanation("");
                 }}>דיווח על בעיה</button>}</td></tr>)}</tbody></table></div>
