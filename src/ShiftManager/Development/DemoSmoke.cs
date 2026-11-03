@@ -59,7 +59,10 @@ public static class DemoSmoke
             var employee = DemoCli.Principal(employeeUser, "EMPLOYEE");
             var visible = await reviews.Mine(month.Year, month.Month, employee);
             if (visible.Id != preliminary.Id || visible.Snapshot!.Cells.Length != preliminary.Snapshot!.Cells.Length || !visible.Snapshot.Cells.SelectMany(c => c.Employees).Any(e => e.Note != null)) throw new InvalidOperationException("Employee publication mismatch.");
-            var assigned = visible.Snapshot!.Cells.SelectMany(c => c.Employees).First(e => e.UserId == employeeUser.Id);
+            // An employee can have earlier shifts in other rows. Report and correct
+            // the exact noted assignment, so removal and restoration target one cell.
+            var assigned = visible.Snapshot!.Cells.Single(c => c.DefinitionId == cell.DefinitionId && c.Date == cell.Date)
+                .Employees.Single(e => e.AssignmentId == noted.AssignmentId && e.UserId == employeeUser.Id);
             var issue = await reviews.Report(month.Year, month.Month, new(preliminary.Id, assigned.AssignmentId, "Synthetic shift correction request"), employee);
             var issues = await reviews.Issues(month.Year, month.Month, admin, true);
             if (!issues.Any(i => i.Id == issue.Id)) throw new InvalidOperationException("Administrator cannot review employee issue.");

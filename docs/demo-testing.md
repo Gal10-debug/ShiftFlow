@@ -203,3 +203,32 @@ slots 2, 3, 4, 5 and 16, as confirmed for the demo board. The smoke test now inc
 public assignment notes and a complete employee published roster. Use a fresh empty
 scenario; do not migrate or overwrite an existing manually edited demo for testing.
 See [scheduling-board-ux.md](scheduling-board-ux.md) for migration and note policy.
+
+## Smoke correction identity regression
+
+The publication smoke workflow reports the exact assignment it manually restored
+and annotated, identified by definition, date and assignment ID. Selecting the first
+published shift belonging to that employee is unsafe: the employee can also have an
+earlier shift in another row. Removing that other shift leaves the intended cell
+full, and the correct staffing guard rejects restoration with `STAFFING_EXCEEDED`.
+Different solver solutions or demo seeds can expose this intermittently in CI.
+
+`DemoSmokeIntegrationTests` supplies a legal preview with an earlier SIX_NINE shift
+and a later ordinary shift for the same employee. It exercises the actual seed,
+manual-edit, publication, issue-reporting and correction services, verifying that
+the issue targets the annotated assignment, the other shift remains unchanged,
+and preliminary/final notes remain in their respective immutable snapshots. The
+normal integration test continues exercising the real CP-SAT optimizer. No staffing
+constraint, seeding ownership rule or cleanup guard is relaxed by this fix.
+
+Verification for this correction:
+
+- The new deterministic regression failed before the fix with the same
+  `STAFFING_EXCEEDED` at the restore command as the reported CI failure, then passed
+  after selecting the exact published assignment.
+- Full backend/PostgreSQL suite: 283 passed, zero failed/skipped on Ubuntu 24.04
+  ARM64 with a two-CPU limit and .NET SDK 10.0.403. Hosted GitHub CI uses x64 and was
+  not rerun by the agent.
+- Strict Release build: zero warnings/errors. EF model matches its migration.
+- Tests used a new disposable PostgreSQL server with per-test databases; existing
+  development/demo databases and running demo processes were not accessed or changed.
