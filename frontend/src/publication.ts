@@ -43,6 +43,9 @@ export interface Snapshot {
   legacyAssignments: LegacyAssignment[];
 }
 export interface Publication {
+  hidden?: boolean;
+  deleted?: boolean;
+  controlVersion?: number;
   id: string;
   versionNumber: number;
   publicationType: string;

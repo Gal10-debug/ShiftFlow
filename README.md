@@ -371,3 +371,12 @@ migration and known limitations: [Scheduling board UX](docs/scheduling-board-ux.
 או מנהל. בקשות ממתינות הן אזהרות; היעדרות מאושרת מחייבת שיבוץ אוטומטי, ידני ופרסום.
 שינוי וביטול של היעדרות מאושרת דורשים אישור חדש. התנגשויות בפרסום קיים מחייבות תיקון ופרסום
 גרסה חדשה. See [Phase 6 architecture, migrations and verification](docs/phase-6.md).
+
+### Phase 6.1 — operational corrections
+
+See [Phase 6.1 architecture and deployment notes](docs/phase-6-1.md) for separate
+administrator/team-leader accounts, audited publication hiding and soft deletion,
+employee shift exchanges and Friday-only weekend eligibility for rehabilitation
+morning. This phase adds an explicit additive migration; it does not migrate or
+repair an existing demo automatically. Fresh isolated seeds have 61 accounts
+(including a separate administrator), while existing accounts remain unchanged.

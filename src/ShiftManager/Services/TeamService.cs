@@ -17,9 +17,12 @@ public sealed class TeamService(ApplicationDbContext db, AccountService accounts
         if (admin && !await (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id where ur.UserId == id && r.NormalizedName == "ADMIN" select ur).AnyAsync()) throw new ApiException("FORBIDDEN", 403);
         return id;
     }
+    public Task<bool> IsAdministrator(Guid id) => (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id
+        where ur.UserId == id && r.NormalizedName == "ADMIN" select ur).AnyAsync();
     public async Task<Guid> AuthorizeTarget(ClaimsPrincipal actor, Guid target)
     {
         var id = await Actor(actor);
+        if (await IsAdministrator(id) || await IsAdministrator(target)) throw new ApiException("ADMIN_NOT_TEAM_MEMBER", 403);
         var team = await (from m in db.Set<TeamMembership>() join t in db.Set<OrganizationalTeam>() on m.TeamId equals t.Id
             where m.UserId == target && (t.LeaderUserId == id || t.DeputyUserId == id) select t.Id).SingleOrDefaultAsync();
         if (team == Guid.Empty) throw new ApiException("FORBIDDEN", 403);
@@ -33,6 +36,7 @@ public sealed class TeamService(ApplicationDbContext db, AccountService accounts
     {
         await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
         var id = await Actor(actor, admin);
+        if (!admin && await IsAdministrator(id)) throw new ApiException("ADMIN_NOT_TEAM_MEMBER", 403);
         var teams = await db.Set<OrganizationalTeam>().AsNoTracking().Where(t => admin || t.LeaderUserId == id || t.DeputyUserId == id).OrderBy(t => t.Slot).ToArrayAsync();
         if (!admin && teams.Length == 0) throw new ApiException("FORBIDDEN", 403);
         var teamIds = teams.Select(t => t.Id).ToArray();
@@ -49,8 +53,11 @@ public sealed class TeamService(ApplicationDbContext db, AccountService accounts
         if (t.Version != input.ExpectedVersion) throw new ApiException("CONFLICT", 409);
         if (input.LeaderUserId.HasValue && input.LeaderUserId == input.DeputyUserId) throw new ApiException("INVALID_TEAM_LEADERSHIP");
         foreach (var userId in new[] { input.LeaderUserId, input.DeputyUserId }.Where(x => x.HasValue))
+        {
+            if (await IsAdministrator(userId!.Value)) throw new ApiException("ADMIN_NOT_TEAM_MEMBER");
             if (!await (from m in db.Set<TeamMembership>() join u in db.Users on m.UserId equals u.Id
                 where m.TeamId == id && m.UserId == userId && u.IsActive select m).AnyAsync()) throw new ApiException("INVALID_TEAM_LEADERSHIP");
+        }
         if (input.DeputyUserId.HasValue && !await (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id
             where ur.UserId == input.DeputyUserId && r.NormalizedName == "EMPLOYEE" select ur).AnyAsync()) throw new ApiException("DEPUTY_REQUIRES_EMPLOYEE");
         t.Name = input.Name.Trim(); t.LeaderUserId = input.LeaderUserId; t.DeputyUserId = input.DeputyUserId; t.Version++;
@@ -61,6 +68,7 @@ public sealed class TeamService(ApplicationDbContext db, AccountService accounts
         await using var tx = await db.Database.BeginTransactionAsync();
         await accounts.Lock(); await Actor(actor, true);
         if (!await db.Users.AnyAsync(u => u.Id == userId)) throw new ApiException("USER_NOT_FOUND", 404);
+        if (teamId.HasValue && await IsAdministrator(userId)) throw new ApiException("ADMIN_NOT_TEAM_MEMBER");
         if (teamId.HasValue && !await db.Set<OrganizationalTeam>().AnyAsync(t => t.Id == teamId)) throw new ApiException("NOT_FOUND", 404);
         var old = await db.Set<TeamMembership>().SingleOrDefaultAsync(m => m.UserId == userId);
         if (old?.TeamId == teamId) { await tx.CommitAsync(); return; }

@@ -8,7 +8,7 @@ using ShiftManager.Domain;
 using ShiftManager.Services.AutomaticScheduling;
 namespace ShiftManager.Services;
 
-public sealed class ScheduleReviewService(ApplicationDbContext db, AccountService accounts, TeamService teams,
+public sealed partial class ScheduleReviewService(ApplicationDbContext db, AccountService accounts, TeamService teams,
     AvailabilityService availability, SchedulingInputs inputs, TimeProvider clock)
 {
     public static bool Editable(ScheduleStatus status) => status is ScheduleStatus.DRAFT or ScheduleStatus.UNDER_CORRECTION;
@@ -186,7 +186,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         }).OrderByDescending(c => c.Eligible).ThenByDescending(c => c.Preferred).ThenBy(c => c.Name).ToArray();
         await tx.CommitAsync(); return result;
     }
-    public async Task<ReviewResponse> Manual(int year, int month, ManualAssignmentRequest input, ClaimsPrincipal actor)
+    public async Task<ReviewResponse> Manual(int year, int month, ManualAssignmentRequest input, ClaimsPrincipal actor, bool alreadyLocked = false)
     {
         if (input.Note?.Length > 1000) throw new ApiException("VALIDATION_ERROR");
         if (input.Operation is not ("ASSIGN" or "REMOVE" or "REPLACE" or "MOVE" or "NOTE")) throw new ApiException("VALIDATION_ERROR");
@@ -202,9 +202,9 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
             var date = input.Operation is "REPLACE" or "REMOVE" or "NOTE" ? source?.Cell?.Date : input.Date;
             if (!date.HasValue || !SchedulingRules.Weekend(date.Value)) throw new ApiException("ON_CALL_WEEKEND_ONLY", 409);
             return await OnCallPair(year, month, new(input.ExpectedToken, input.Operation, SchedulingRules.Friday(date.Value),
-                input.UserId, input.AssignmentId, true, input.Note), actor, resumeFinal: true);
+                input.UserId, input.AssignmentId, true, input.Note), actor, resumeFinal: true, alreadyLocked: alreadyLocked);
         }
-        await using var tx = await db.Database.BeginTransactionAsync(); var actorId = await Lock(year, month, actor);
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync() : null; var actorId = alreadyLocked ? await teams.Actor(actor, true) : await Lock(year, month, actor);
         await CheckToken(year, month, input.ExpectedToken); var period = await WorkingPeriod(year, month); await ResumeFinal(period, actorId); EnsureEditable(period);
         if (input.Operation == "NOTE")
         {
@@ -214,7 +214,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
             period.Revision++; period.UpdatedAt = Now;
             db.Add(new ScheduleEditAudit { SchedulePeriodId = period.Id, ActorUserId = actorId, OccurredAt = Now, Operation = "NOTE",
                 Before = JsonSerializer.Serialize(new { assignment.Id, Note = previous }), After = JsonSerializer.Serialize(new { assignment.Id, assignment.Note }) });
-            await db.SaveChangesAsync(); var noted = await Read(year, month); await tx.CommitAsync(); return noted;
+            await db.SaveChangesAsync(); var noted = await Read(year, month); if (tx is not null) await tx.CommitAsync(); return noted;
         }
         ShiftAssignment? old = null; object? before = null;
         if (input.Operation != "ASSIGN")
@@ -265,11 +265,11 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         period.Revision++; period.UpdatedAt = Now;
         db.Add(new ScheduleEditAudit { SchedulePeriodId = period.Id, ActorUserId = actorId, OccurredAt = Now, Operation = input.Operation,
             Before = JsonSerializer.Serialize(before), After = JsonSerializer.Serialize(after) });
-        await db.SaveChangesAsync(); var response = await Read(year, month); await tx.CommitAsync(); return response;
+        await db.SaveChangesAsync(); var response = await Read(year, month); if (tx is not null) await tx.CommitAsync(); return response;
     }
     // Atomic pair command shared by ordinary cell editing and the compatibility endpoint.
     // Adjacent editable periods participate in the same transaction; automatic monthly runs remain bounded.
-    public async Task<ReviewResponse> OnCallPair(int year, int month, OnCallPairRequest input, ClaimsPrincipal actor, bool resumeFinal = false)
+    public async Task<ReviewResponse> OnCallPair(int year, int month, OnCallPairRequest input, ClaimsPrincipal actor, bool resumeFinal = false, bool alreadyLocked = false)
     {
         if (input.Note?.Length > 1000) throw new ApiException("VALIDATION_ERROR");
         if (input.Operation is not ("ASSIGN" or "REMOVE" or "REPLACE" or "MOVE" or "NOTE") || input.Friday.DayOfWeek != DayOfWeek.Friday)
@@ -277,7 +277,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         var first = AvailabilityService.MonthStart(year, month);
         bool Touches(DateOnly f) => f >= first.AddDays(-1) && f < first.AddMonths(1);
         if (!Touches(input.Friday)) throw new ApiException("VALIDATION_ERROR");
-        await using var tx = await db.Database.BeginTransactionAsync(); var actorId = await Lock(year, month, actor);
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync() : null; var actorId = alreadyLocked ? await teams.Actor(actor, true) : await Lock(year, month, actor);
         await CheckToken(year, month, input.ExpectedToken);
         var definition = await db.Set<ShiftTypeDefinition>().SingleOrDefaultAsync(d => d.Semantic == SchedulingRules.OnCall) ?? throw new ApiException("NOT_FOUND", 404);
         var old = new List<ShiftAssignment>(); DateOnly? sourceFriday = null;
@@ -312,7 +312,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
                 db.Add(new ScheduleEditAudit { SchedulePeriodId = period.Id, ActorUserId = actorId, OccurredAt = Now, Operation = "PAIR_NOTE",
                     Before = JsonSerializer.Serialize(before), After = JsonSerializer.Serialize(old.Select(a => new { a.Id, a.Note })) });
             }
-            await db.SaveChangesAsync(); var noted = await Read(year, month); await tx.CommitAsync(); return noted;
+            await db.SaveChangesAsync(); var noted = await Read(year, month); if (tx is not null) await tx.CommitAsync(); return noted;
         }
         db.RemoveRange(old); await db.SaveChangesAsync();
         var added = new List<ShiftAssignment>();
@@ -351,7 +351,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
             db.Add(new ScheduleEditAudit { SchedulePeriodId = period.Id, ActorUserId = actorId, OccurredAt = Now, Operation = "PAIR_" + input.Operation,
                 Before = JsonSerializer.Serialize(before), After = JsonSerializer.Serialize(added.Select(a => new { a.Id, a.UserId, a.ShiftId, a.SchedulingCellId, a.Note })) });
         }
-        await db.SaveChangesAsync(); var response = await Read(year, month); await tx.CommitAsync(); return response;
+        await db.SaveChangesAsync(); var response = await Read(year, month); if (tx is not null) await tx.CommitAsync(); return response;
     }
 
     public async Task<ReviewResponse> Acknowledge(int year, int month, ReviewTokenRequest input, ClaimsPrincipal actor)
@@ -377,13 +377,17 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
     }
     private static PublicationResponse Publication(SchedulePublication p) => new(p.Id, p.VersionNumber, p.PublicationType, p.PublishedByUserId, p.PublishedAt, p.Notes,
         JsonSerializer.Deserialize<ScheduleSnapshot>(p.Snapshot), p.AcknowledgedShortages, p.AcknowledgedOpenIssues, p.OpenIssueCount, p.PublishedByUser is null ? null : p.PublishedByUser.FirstName + " " + p.PublishedByUser.LastName);
-    public async Task<PublicationResponse> Publish(int year, int month, string type, PublishScheduleRequest input, ClaimsPrincipal actor)
+    public async Task<PublicationResponse> Publish(int year, int month, string type, PublishScheduleRequest input, ClaimsPrincipal actor, bool atomicPair = false)
     {
         if (type is not ("PRELIMINARY" or "FINAL")) throw new ApiException("VALIDATION_ERROR");
-        await using var tx = await db.Database.BeginTransactionAsync(); var actorId = await Lock(year, month, actor); await CheckToken(year, month, input.ExpectedToken);
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync() : null; var actorId = atomicPair ? await teams.Actor(actor, true) : await Lock(year, month, actor); await CheckToken(year, month, input.ExpectedToken);
         var period = await Period(year, month) ?? throw new ApiException("PERIOD_NOT_FOUND", 404);
         if (type == "PRELIMINARY" ? !Editable(period.Status) : period.Status is not (ScheduleStatus.PRELIMINARY_PUBLISHED or ScheduleStatus.UNDER_CORRECTION)) throw new ApiException("INVALID_SCHEDULE_TRANSITION", 409);
         if (type == "FINAL" && !await db.Set<SchedulePublication>().AnyAsync(p => p.SchedulePeriodId == period.Id && p.PublicationType == "PRELIMINARY")) throw new ApiException("INVALID_SCHEDULE_TRANSITION", 409);
+        if (!atomicPair && await db.Set<ShiftExchange>().AnyAsync(r => r.Status == "APPROVED_PENDING_PUBLICATION"
+            && r.Assignments.Any(a => a.Date.Year == year && a.Date.Month == month)
+            && r.Assignments.Select(a => new { a.Date.Year, a.Date.Month }).Distinct().Count() > 1))
+            throw new ApiException("EXCHANGE_PAIR_PUBLICATION", 409);
         var review = await Read(year, month);
         if (type == "PRELIMINARY" && review.FinalRevision) throw new ApiException("INVALID_SCHEDULE_TRANSITION", 409);
         if (review.Conflicts.Length > 0) throw new ApiException("ROSTER_CONFLICT", 409);
@@ -400,31 +404,40 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         foreach (var conflict in await db.Set<AbsenceConflict>().Where(c => c.SchedulePeriodId == period.Id && c.ResolvedAt == null).ToArrayAsync())
         { conflict.ResolvedAt = Now; conflict.ResolvedByPublicationId = publication.Id; }
         period.Status = type == "FINAL" ? ScheduleStatus.FINAL_PUBLISHED : ScheduleStatus.PRELIMINARY_PUBLISHED;
-        period.Revision++; period.UpdatedAt = Now; await db.SaveChangesAsync(); await tx.CommitAsync(); return Publication(publication);
+        period.Revision++; period.UpdatedAt = Now; await db.SaveChangesAsync();
+        await ReconcileExchanges(publication, actorId);
+        await db.SaveChangesAsync(); if (tx is not null) await tx.CommitAsync(); return Publication(publication);
     }
     public async Task<PublicationResponse[]> History(int year, int month, ClaimsPrincipal actor)
     {
         AvailabilityService.MonthStart(year, month); await teams.Actor(actor, true);
         var period = await Period(year, month); if (period is null) return [];
-        return (await db.Set<SchedulePublication>().AsNoTracking().Include(p => p.PublishedByUser).Where(p => p.SchedulePeriodId == period.Id).OrderByDescending(p => p.VersionNumber).ToArrayAsync()).Select(Publication).ToArray();
+        var controls = await db.Set<PublicationControl>().AsNoTracking().ToDictionaryAsync(c => c.PublicationId);
+        return (await db.Set<SchedulePublication>().AsNoTracking().Include(p => p.PublishedByUser).Where(p => p.SchedulePeriodId == period.Id).OrderByDescending(p => p.VersionNumber).ToArrayAsync()).Select(p => {
+            controls.TryGetValue(p.Id, out var c);
+            return Publication(p) with { Hidden = c?.Hidden ?? false, Deleted = c?.DeletedAt != null, ControlVersion = c?.Version ?? 0 };
+        }).ToArray();
     }
     private async Task<Guid> Employee(ClaimsPrincipal actor)
     {
         var id = await teams.Actor(actor);
         if (!await (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id where ur.UserId == id && r.NormalizedName == "EMPLOYEE" select ur).AnyAsync()) throw new ApiException("FORBIDDEN", 403);
+        if (await teams.IsAdministrator(id) || await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == id)) throw new ApiException("FORBIDDEN", 403);
         return id;
     }
     public async Task<object[]> PublishedPeriods(ClaimsPrincipal actor)
     {
         await Employee(actor);
-        return await db.Set<SchedulePublication>().AsNoTracking().Where(p => p.PublicationType == "PRELIMINARY" || p.PublicationType == "FINAL")
+        return await EmployeePublications().Where(p => !db.Set<SchedulePublication>().Any(newer => newer.SchedulePeriodId == p.SchedulePeriodId && newer.VersionNumber > p.VersionNumber))
             .Join(db.Set<SchedulePeriod>(), p => p.SchedulePeriodId, p => p.Id, (pub, p) => new { p.Year, p.Month }).Distinct().OrderByDescending(p => p.Year).ThenByDescending(p => p.Month).Cast<object>().ToArrayAsync();
     }
+
     public async Task<PublicationResponse> Mine(int year, int month, ClaimsPrincipal actor, int? version = null)
     {
         AvailabilityService.MonthStart(year, month); await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead); var id = await Employee(actor);
         var period = await Period(year, month) ?? throw new ApiException("NOT_FOUND", 404);
-        var pub = await db.Set<SchedulePublication>().AsNoTracking().Where(p => p.SchedulePeriodId == period.Id && (!version.HasValue || p.VersionNumber == version) && (p.PublicationType == "PRELIMINARY" || p.PublicationType == "FINAL"))
+        await VisibleLatest(period.Id);
+        var pub = await EmployeePublications().Where(p => p.SchedulePeriodId == period.Id && (!version.HasValue || p.VersionNumber == version))
             .OrderByDescending(p => p.VersionNumber).FirstOrDefaultAsync() ?? throw new ApiException("NOT_FOUND", 404);
         var response = Publication(pub);
         // Only immutable published JSON is returned; live drafts and availability are never queried here.
@@ -436,7 +449,7 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
         await using var tx = await db.Database.BeginTransactionAsync(); var id = await Lock(year, month, actor, false); await Employee(actor);
         var period = await Period(year, month) ?? throw new ApiException("NOT_FOUND", 404);
         if (period.Status is not (ScheduleStatus.PRELIMINARY_PUBLISHED or ScheduleStatus.UNDER_CORRECTION)) throw new ApiException("ISSUE_REPORTING_CLOSED", 409);
-        var latest = await db.Set<SchedulePublication>().Where(p => p.SchedulePeriodId == period.Id).OrderByDescending(p => p.VersionNumber).FirstOrDefaultAsync();
+        var latest = await VisibleLatest(period.Id);
         if (latest is null || latest.Id != input.PublicationId || latest.PublicationType != "PRELIMINARY") throw new ApiException("STALE_PUBLICATION", 409);
         var snapshot = JsonSerializer.Deserialize<ScheduleSnapshot>(latest.Snapshot)!;
         if (!snapshot.Cells.SelectMany(c => c.Employees).Any(e => e.AssignmentId == input.AssignmentId && e.UserId == id)
@@ -447,9 +460,12 @@ public sealed class ScheduleReviewService(ApplicationDbContext db, AccountServic
     }
     public async Task<ScheduleIssue[]> Issues(int year, int month, ClaimsPrincipal actor, bool admin)
     {
+        await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
         AvailabilityService.MonthStart(year, month); var id = admin ? await teams.Actor(actor, true) : await Employee(actor);
         var period = await Period(year, month); if (period is null) return [];
-        return await db.Set<ScheduleIssue>().AsNoTracking().Where(i => i.SchedulePeriodId == period.Id && (admin || i.ReporterUserId == id)).OrderByDescending(i => i.CreatedAt).ToArrayAsync();
+        if (!admin) await VisibleLatest(period.Id);
+        var result = await db.Set<ScheduleIssue>().AsNoTracking().Where(i => i.SchedulePeriodId == period.Id && (admin || i.ReporterUserId == id && EmployeePublications().Any(p => p.Id == i.PublicationId))).OrderByDescending(i => i.CreatedAt).ToArrayAsync();
+        await tx.CommitAsync(); return result;
     }
     public async Task<ScheduleIssue> UpdateIssue(int year, int month, Guid issueId, UpdateIssueRequest input, ClaimsPrincipal actor)
     {

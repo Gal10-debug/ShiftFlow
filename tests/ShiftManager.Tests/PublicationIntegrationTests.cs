@@ -157,7 +157,7 @@ public sealed partial class SchedulingTests
             await SetupTeam(admin);
             var candidates=(await admin.GetFromJsonAsync<CandidateResponse[]>($"{ReviewPath}/candidates?definitionId={d}&date=2026-10-01"))!;
             Assert.Contains(candidates,c=>c.UserId==ids["coordinator"]&&c.Eligible);
-            Assert.Contains(candidates,c=>c.UserId==ids["admin"]&&!c.Eligible&&c.Reasons.Contains("TEAM_LEADER_ASSIGNED"));
+            Assert.Contains(candidates,c=>c.UserId==ids["leader"]&&!c.Eligible&&c.Reasons.Contains("TEAM_LEADER_ASSIGNED"));
         }
     }
     [PostgresFact]

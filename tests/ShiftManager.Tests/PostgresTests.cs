@@ -14,6 +14,15 @@ public sealed class PostgresFactAttribute : FactAttribute
     }
 }
 
+public sealed class PostgresTheoryAttribute : TheoryAttribute
+{
+    public PostgresTheoryAttribute()
+    {
+        if (Environment.GetEnvironmentVariable("RUN_POSTGRES_TESTS") != "1")
+            Skip = "Set RUN_POSTGRES_TESTS=1 to run isolated PostgreSQL integration tests.";
+    }
+}
+
 public partial class PostgresTests : IAsyncLifetime
 {
     private readonly TestDatabase database = new();

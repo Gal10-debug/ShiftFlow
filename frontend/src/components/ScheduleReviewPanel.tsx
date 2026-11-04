@@ -1,3 +1,4 @@
+import { monthLabel } from "../availability";
 import RosterGrid from "./RosterGrid";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
@@ -47,6 +48,25 @@ export default function ScheduleReviewPanel({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
+  const controlDialog = useRef<HTMLDialogElement>(null);
+  const [controlTarget, setControlTarget] = useState<{ publication: Publication; operation: string } | null>(null);
+  const [controlReason, setControlReason] = useState("");
+  async function controlPublication() {
+    if (!controlTarget || busy) return;
+    setBusy(true); setError("");
+    try {
+      await api(`${base}/publications/${controlTarget.publication.id}/control`, "POST", {
+        expectedVersion: controlTarget.publication.controlVersion ?? 0,
+        operation: controlTarget.operation, reason: controlReason
+      });
+      controlDialog.current?.close(); setControlTarget(null); await load(); onChanged();
+      setSuccess("בקרת הפרסום עודכנה ותועדה.");
+    } catch (e) { setError(message(e)); }
+    finally { setBusy(false); }
+  }
+  function openControl(publication: Publication, operation: string) {
+    setControlReason(""); setControlTarget({ publication, operation }); controlDialog.current?.showModal();
+  }
   const [responses, setResponses] = useState<Record<string, string>>({});
   useEffect(() => {
     onEditableChange?.(review?.editingContractVersion === 1 && (review?.state === "DRAFT" || review?.state === "UNDER_CORRECTION" || review?.state === "FINAL_PUBLISHED"));
@@ -229,7 +249,18 @@ export default function ScheduleReviewPanel({
           response: responses[i.id] ?? i.response
         }, "PUT")}>{Object.entries(issueStates).map(([v, label]) => <option key={v} value={v}>{label}</option>)}</select></label>{i.response && <p>{i.response}</p>}</article>)}
     {review.state === "FINAL_PUBLISHED" && <p className="notice">בחירת פעולת עריכה בלוח תפתח טיוטת תיקון. העובדים ימשיכו לראות את הגרסה הסופית עד לפרסום סופי מעודכן.</p>}
-    <h3>היסטוריית גרסאות</h3>{history.map(h => <details key={h.id}><summary>גרסה {h.versionNumber} · {h.publicationType === "FINAL" ? "סופי" : h.publicationType === "PRELIMINARY" ? "ראשוני" : "היסטורי"} · {instant(h.publishedAt)}</summary><p>{h.notes}</p>{h.snapshot && <RosterGrid snapshot={h.snapshot} />}<p>{h.acknowledgedShortages ? "חוסרי האיוש אושרו במפורש. " : ""}{h.acknowledgedOpenIssues ? `אושר פרסום עם ${h.openIssueCount} דיווחים פתוחים.` : ""}</p><p>פורסם על ידי: <bdi>{h.publishedByName ?? h.publishedByUserId}</bdi></p></details>)}
-    <p className="muted">החלפות משמרות אינן זמינות בשלב זה.</p>
+    <h3>היסטוריית גרסאות</h3>{history.map(h => <details key={h.id}><summary>גרסה {h.versionNumber} · {h.publicationType === "FINAL" ? "סופי" : h.publicationType === "PRELIMINARY" ? "ראשוני" : "היסטורי"} · {instant(h.publishedAt)}</summary><p>מצב נראות: <strong>{h.deleted ? "נמחק — נשמר בארכיון בלבד" : h.hidden ? "מוסתר מהעובדים" : "גלוי לעובדים בכפוף למצב הגרסה האחרונה"}</strong></p>
+      {!h.deleted && <><button disabled={busy} onClick={() => openControl(h, h.hidden ? "RESTORE" : "HIDE")}>{h.hidden ? "החזרת נראות" : "הסתרת הפרסום"}</button><button disabled={busy} onClick={() => openControl(h, "DELETE")}>מחיקת הפרסום</button></>}
+      <p>{h.notes}</p>{h.snapshot && <RosterGrid snapshot={h.snapshot} />}<p>{h.acknowledgedShortages ? "חוסרי האיוש אושרו במפורש. " : ""}{h.acknowledgedOpenIssues ? `אושר פרסום עם ${h.openIssueCount} דיווחים פתוחים.` : ""}</p><p>פורסם על ידי: <bdi>{h.publishedByName ?? h.publishedByUserId}</bdi></p></details>)}
+    <dialog ref={controlDialog} aria-label="אישור שינוי פרסום" onCancel={() => setControlTarget(null)}>
+      {controlTarget && <form onSubmit={e => { e.preventDefault(); void controlPublication(); }}><h3>{controlTarget.operation === "DELETE" ? "אישור מחיקת פרסום" : controlTarget.operation === "HIDE" ? "אישור הסתרת פרסום" : "אישור החזרת נראות"}</h3>
+        <p>{monthLabel(year, month)} · גרסה {controlTarget.publication.versionNumber} · {controlTarget.publication.publicationType === "FINAL" ? "פרסום סופי" : "פרסום ראשוני"} · {instant(controlTarget.publication.publishedAt)}</p>
+        <p>מזהה פרסום: <bdi>{controlTarget.publication.id}</bdi></p>
+        <p>{controlTarget.operation === "DELETE" ? "הפרסום יוסר מגישת העובדים ויישמר בארכיון לצורכי תיעוד. לא ניתן לבטל מחיקה. אם זו הגרסה האחרונה, לא תוחזר גרסה קודמת באופן אוטומטי; ניתן לפרסם תיקון חדש." : controlTarget.operation === "HIDE" ? "הפרסום יוסתר מהעובדים. ניתן להחזיר את נראותו במפורש. שמירת טיוטה לא תחזיר נראות." : "הפרסום יחזור לנראות. גרסה קודמת אינה מחליפה את הגרסה האחרונה."}</p>
+        <Notice error={error} /><label className="field">סיבת הפעולה<textarea required maxLength={2000} value={controlReason} onChange={e => setControlReason(e.target.value)} /></label>
+        <button disabled={busy || !controlReason.trim()}>אישור הפעולה</button><button type="button" disabled={busy} onClick={() => { controlDialog.current?.close(); setControlTarget(null); }}>ביטול</button>
+      </form>}
+    </dialog>
+    <a href="/exchange-management">אישור החלפות משמרות</a>
   </section>;
 }

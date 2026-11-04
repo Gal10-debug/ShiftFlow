@@ -78,7 +78,7 @@ public sealed class DemoScenarioIntegrationTests
             await using var restarted = Factory();
             using var verifyScope = restarted.Services.CreateScope();
             var verify = verifyScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            Assert.Equal(60, await verify.Users.CountAsync());
+            Assert.Equal(61, await verify.Users.CountAsync());
             Assert.Equal(60, await verify.Set<TeamMembership>().CountAsync());
             var requests = await verify.Set<AbsenceRequest>().Include(r => r.Weekdays).ToArrayAsync();
             Assert.Equal("manual: preserve", requests.Single(r => r.Id == manualId).Explanation);

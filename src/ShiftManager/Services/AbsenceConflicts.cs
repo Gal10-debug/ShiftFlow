@@ -37,7 +37,8 @@ public sealed partial class AbsenceService
             var publications = (await db.Set<SchedulePublication>().AsNoTracking().Include(p => p.SchedulePeriod)
                 .Where(p => p.PublicationType == "PRELIMINARY" || p.PublicationType == "FINAL").ToArrayAsync())
                 .GroupBy(p => p.SchedulePeriodId).Select(g => g.MaxBy(p => p.VersionNumber)!);
-            foreach (var publication in publications)
+            var deleted = await db.Set<PublicationControl>().Where(c => c.DeletedAt != null).Select(c => c.PublicationId).ToArrayAsync();
+            foreach (var publication in publications.Where(p => !deleted.Contains(p.Id)))
             {
                 var snapshot = JsonSerializer.Deserialize<ScheduleSnapshot>(publication.Snapshot);
                 if (snapshot is null) continue;

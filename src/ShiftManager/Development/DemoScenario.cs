@@ -109,7 +109,7 @@ public static class DemoScenario
             throw new InvalidOperationException("סמן הבעלות של הדמו אינו תואם.");
         var users = await db.Users.AsNoTracking().ToArrayAsync();
         var expected = DemoPlan.Accounts(seed);
-        if (users.Length != 60 || expected.Any(a => !users.Any(u => u.Id == a.Id && u.UserName == a.Login)))
+        if (!(users.Length == 60 || users.Length == 61 && users.Any(u => u.Id == DemoPlan.Administrator(seed).Id && u.UserName == "demo.admin")) || expected.Any(a => !users.Any(u => u.Id == a.Id && u.UserName == a.Login)))
             throw new InvalidOperationException("נדרשים 60 חשבונות הדמו המקוריים; חשבונות אחרים נשמרו.");
         var teams = await db.Set<OrganizationalTeam>().AsNoTracking().ToArrayAsync();
         var members = await db.Set<TeamMembership>().AsNoTracking().ToArrayAsync();
@@ -117,7 +117,7 @@ public static class DemoScenario
         if (teams.Length != 4 || members.Length != 60 || teams.Count(t => t.LeaderUserId.HasValue) != 4 || teams.Count(t => t.DeputyUserId.HasValue) != 4)
             throw new InvalidOperationException("מבנה צוותי הדמו אינו תקין.");
         var eligible = expected.Where(a => users.Single(u => u.Id == a.Id) is { IsActive: true, MustChangePassword: false }
-            && !teams.Any(t => t.LeaderUserId == a.Id) && roles.Any(r => r.UserId == a.Id && r.Name == "EMPLOYEE"))
+            && !roles.Any(r => r.UserId == a.Id && r.Name == "ADMIN") && !teams.Any(t => t.LeaderUserId == a.Id) && roles.Any(r => r.UserId == a.Id && r.Name == "EMPLOYEE"))
             .Select(a => a with { Team = teams.Single(t => t.Id == members.Single(m => m.UserId == a.Id).TeamId).Slot,
                 Qualified = users.Single(u => u.Id == a.Id).IsShiftLeadQualified }).ToArray();
         var plan = Plan(month, seed, eligible);

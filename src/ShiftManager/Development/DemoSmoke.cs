@@ -23,14 +23,14 @@ public static class DemoSmoke
             var adminUser = await users.FindByNameAsync(credential.GetProperty("Login").GetString()!);
             if (adminUser is null || !await users.CheckPasswordAsync(adminUser, credential.GetProperty("Password").GetString()!))
                 throw new InvalidOperationException("Local demo credentials could not be verified.");
-            var admin = DemoCli.Principal(adminUser, "ADMIN", "EMPLOYEE");
+            var admin = DemoCli.Principal(adminUser, "ADMIN");
             var reviews = services.GetRequiredService<ScheduleReviewService>();
             var r = await reviews.Review(month.Year, month.Month, admin);
             if (r.State != "DRAFT" || r.Draft.Cells.Any(c => c.Employees.Length > 0)) throw new InvalidOperationException("Smoke test requires a fresh seeded draft.");
             var problem = await services.GetRequiredService<SchedulingInputs>().Read(month.Year, month.Month);
-            if (problem.Employees.Length != 56 || await db.Users.CountAsync() != 60 || await db.Set<OrganizationalTeam>().CountAsync() != 4)
+            if (problem.Employees.Length != 56 || await db.Users.CountAsync() != 61 || await db.Set<OrganizationalTeam>().CountAsync() != 4)
                 throw new InvalidOperationException("Demo population verification failed.");
-            steps.Add("60 accounts, four teams, 56 eligible employees and submitted availability verified");
+            steps.Add("61 accounts, separate administrator, four teams, 56 eligible employees and submitted availability verified");
             var result = services.GetRequiredService<IScheduleOptimizer>().Solve(problem, 30, CancellationToken.None);
             if (result.Status is not ("OPTIMAL" or "FEASIBLE")) throw new InvalidOperationException($"Solver returned {result.Status}");
             GeneratedDraftService.Validate(problem, result.Cells);

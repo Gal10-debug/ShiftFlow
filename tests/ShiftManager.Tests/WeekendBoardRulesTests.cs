@@ -15,7 +15,7 @@ public sealed class WeekendBoardRulesTests
         var id = Definition(slot);
         foreach (var date in new[] { new DateOnly(2026, 10, 2), new DateOnly(2026, 10, 3) })
         {
-            var allowed = slot is 2 or 3 or 4 or 5 or 16;
+            var allowed = slot is 2 or 3 or 4 or 5 or 16 || slot == 8 && date.DayOfWeek == DayOfWeek.Friday;
             Assert.Equal(allowed, SchedulingRules.Applicable(id, semantic, date));
             Assert.Equal(slot == 3 ? 1 : allowed ? 3 : 0, SchedulingRules.Required(semantic, date, 3, id));
         }
@@ -35,7 +35,7 @@ public sealed class WeekendBoardRulesTests
         var problem = new SchedulingProblem(2026, 10, "test", cells, [user], [], []);
         var result = new ScheduleOptimizer().Solve(problem, 5, CancellationToken.None);
         GeneratedDraftService.Validate(problem, result.Cells);
-        Assert.All(result.Cells.Where(c => !new[] { 2, 3, 4, 5, 16 }.Select(Definition).Contains(c.DefinitionId)), c => {
+        Assert.All(result.Cells.Where(c => !SchedulingRules.Applicable(c.DefinitionId, "ORDINARY", c.Date)), c => {
             Assert.Empty(c.Employees); Assert.Equal(0, c.RequiredEmployees); Assert.Equal(0, c.Shortage);
         });
     }
