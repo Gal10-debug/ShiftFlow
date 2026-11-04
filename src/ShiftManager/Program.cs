@@ -14,7 +14,7 @@ using ShiftManager.Security;
 using ShiftManager.Services;
 using ShiftManager.Services.AutomaticScheduling;
 
-var demo = args.FirstOrDefault() is "seed-demo" or "clean-demo" or "smoke-demo";
+var demo = args.FirstOrDefault() is "seed-demo" or "clean-demo" or "smoke-demo" or "preview-demo-scenario" or "apply-demo-scenario";
 var bootstrap = args.Contains("--bootstrap-admin");
 var builder = WebApplication.CreateBuilder(demo ? [] : args.Where(arg => arg != "--bootstrap-admin").ToArray());
 if (demo) builder.Configuration["ConnectionStrings:Database"] = Environment.GetEnvironmentVariable("SHIFTFLOW_DEMO_CONNECTION") ?? "";

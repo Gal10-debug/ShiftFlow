@@ -80,6 +80,24 @@ public sealed class DemoSmokeIntegrationTests
             Assert.NotEqual(target.AssignmentId, corrected.AssignmentId);
             Assert.Equal("הערת הדגמה — להגיע חצי שעה מוקדם", target.Note);
             Assert.Equal("הערה שפורסמה בגרסה הסופית", corrected.Note);
+
+            // Additive scenarios may record absence conflicts, but preserve both existing
+            // publication versions and all current draft/final working assignments.
+            var assignmentsBefore = JsonSerializer.Serialize(await db.Set<ShiftAssignment>().AsNoTracking()
+                .OrderBy(a => a.Id).Select(a => new { a.Id, a.UserId, a.ShiftId, a.SchedulingCellId, a.Note, a.CreatedAt }).ToArrayAsync());
+            var scenarioArgs = new[] { "preview-demo-scenario", "--month", "2026-12", "--demo-month", "2026-11", "--seed", seed.ToString() };
+            var preview = await DemoScenario.Run(factory.Services, "Testing", connection.ConnectionString, scenarioArgs);
+            Assert.Contains("ממתינה", preview.AssignmentConflict);
+            scenarioArgs[0] = "apply-demo-scenario";
+            await DemoScenario.Run(factory.Services, "Testing", connection.ConnectionString, scenarioArgs.Concat(new[] { "--approve", preview.Token }).ToArray());
+            scenarioArgs[0] = "preview-demo-scenario";
+            var repeated = await DemoScenario.Run(factory.Services, "Testing", connection.ConnectionString, scenarioArgs);
+            Assert.Equal(0, repeated.PlannedRequests);
+            Assert.Equal(preview.Items.Sum(i => i.PlannedConflictRecords), await db.Set<AbsenceConflict>().CountAsync());
+            db.ChangeTracker.Clear();
+            Assert.Equal(publications.Select(p => p.Snapshot), await db.Set<SchedulePublication>().AsNoTracking().OrderBy(p => p.VersionNumber).Select(p => p.Snapshot).ToArrayAsync());
+            Assert.Equal(assignmentsBefore, JsonSerializer.Serialize(await db.Set<ShiftAssignment>().AsNoTracking()
+                .OrderBy(a => a.Id).Select(a => new { a.Id, a.UserId, a.ShiftId, a.SchedulingCellId, a.Note, a.CreatedAt }).ToArrayAsync()));
         }
         finally
         {

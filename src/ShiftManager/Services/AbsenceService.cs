@@ -59,7 +59,7 @@ public sealed partial class AbsenceService(ApplicationDbContext db, AccountServi
     public async Task<AbsenceResponse[]> List(ClaimsPrincipal actor, bool manage = false, Guid? teamId = null, Guid? userId = null,
         string? status = null, DateOnly? from = null, DateOnly? through = null)
     {
-        await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead) : null;
         var id = await teams.Actor(actor);
         var query = db.Set<AbsenceRequest>().AsNoTracking().Include(r => r.Weekdays).AsQueryable();
         if (!manage) { await RequireEmployee(id); query = query.Where(r => r.UserId == id); }
@@ -82,7 +82,7 @@ public sealed partial class AbsenceService(ApplicationDbContext db, AccountServi
         var requests = await query.OrderByDescending(r => r.CreatedAt).ThenBy(r => r.Id).ToArrayAsync();
         var result = new List<AbsenceResponse>();
         foreach (var r in requests) result.Add(await Response(r));
-        await tx.CommitAsync(); return result.ToArray();
+        if (tx is not null) await tx.CommitAsync(); return result.ToArray();
     }
     private async Task<AbsenceResponse> Response(AbsenceRequest r)
     {
@@ -99,38 +99,40 @@ public sealed partial class AbsenceService(ApplicationDbContext db, AccountServi
         return new(r.Id, r.UserId, name, team?.Id, team?.Name, r.Kind, r.Status, Pattern(r), r.ReplacesId, r.Version,
             r.CreatedAt, r.UpdatedAt, decision, conflicts);
     }
+    // Join a caller-owned transaction for atomic development scenario batches.
+    // Ordinary HTTP calls still own and commit their individual transactions.
     public async Task<AbsenceResponse> Submit(AbsencePattern p, ClaimsPrincipal actor)
     {
         Validate(p);
-        await using var tx = await db.Database.BeginTransactionAsync(); var id = await Lock(actor); await RequireEmployee(id);
-        var r = Create(id, p); db.Add(r); await db.SaveChangesAsync(); var result = await Response(r); await tx.CommitAsync(); return result;
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync() : null; var id = await Lock(actor); await RequireEmployee(id);
+        var r = Create(id, p); db.Add(r); await db.SaveChangesAsync(); var result = await Response(r); if (tx is not null) await tx.CommitAsync(); return result;
     }
     public async Task<AbsenceResponse> Change(Guid requestId, AbsenceChange input, ClaimsPrincipal actor)
     {
         if (input.Kind is not ("MODIFY" or "CANCEL")) throw new ApiException("INVALID_ABSENCE");
-        await using var tx = await db.Database.BeginTransactionAsync(); var id = await Lock(actor); await RequireEmployee(id);
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync() : null; var id = await Lock(actor); await RequireEmployee(id);
         var parent = await Request(requestId);
         if (parent.UserId != id) throw new ApiException("FORBIDDEN", 403);
         if (parent.Status != "APPROVED" || parent.Kind == "CANCEL" || parent.Version != input.ExpectedVersion) throw new ApiException("CONFLICT", 409);
         var p = input.Kind == "CANCEL" ? Pattern(parent) : input.Pattern ?? throw new ApiException("INVALID_ABSENCE"); Validate(p);
         if (await db.Set<AbsenceRequest>().AnyAsync(r => r.ReplacesId == parent.Id && r.Status == "PENDING")) throw new ApiException("ABSENCE_CHANGE_PENDING", 409);
-        var r = Create(id, p, input.Kind, parent); db.Add(r); await db.SaveChangesAsync(); var result = await Response(r); await tx.CommitAsync(); return result;
+        var r = Create(id, p, input.Kind, parent); db.Add(r); await db.SaveChangesAsync(); var result = await Response(r); if (tx is not null) await tx.CommitAsync(); return result;
     }
     public async Task<AbsenceResponse> CancelPending(Guid requestId, AbsenceVersion input, ClaimsPrincipal actor)
     {
-        await using var tx = await db.Database.BeginTransactionAsync(); var id = await Lock(actor); await RequireEmployee(id);
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync() : null; var id = await Lock(actor); await RequireEmployee(id);
         var r = await Request(requestId);
         if (r.UserId != id) throw new ApiException("FORBIDDEN", 403);
         if (r.Status != "PENDING" || r.Version != input.ExpectedVersion) throw new ApiException("CONFLICT", 409);
         r.Status = "CANCELLED"; r.Version++; r.UpdatedAt = Now;
         db.Add(new AbsenceDecision { AbsenceRequestId = r.Id, ActorUserId = id, Decision = "CANCELLED", OccurredAt = Now });
-        await db.SaveChangesAsync(); var result = await Response(r); await tx.CommitAsync(); return result;
+        await db.SaveChangesAsync(); var result = await Response(r); if (tx is not null) await tx.CommitAsync(); return result;
     }
     public async Task<AbsenceResponse> Decide(Guid requestId, AbsenceDecisionRequest input, ClaimsPrincipal actor)
     {
         if (input.Decision is not ("APPROVED" or "REJECTED") || input.RejectionReason?.Length > 2000
             || input.Decision == "REJECTED" && string.IsNullOrWhiteSpace(input.RejectionReason)) throw new ApiException("INVALID_ABSENCE_DECISION");
-        await using var tx = await db.Database.BeginTransactionAsync(); var id = await Lock(actor);
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync() : null; var id = await Lock(actor);
         var r = await Request(requestId); await AuthorizeApprover(id, r.UserId);
         if (r.Status != "PENDING" || r.Version != input.ExpectedVersion) throw new ApiException("CONFLICT", 409);
         if (input.Decision == "APPROVED")
@@ -151,12 +153,12 @@ public sealed partial class AbsenceService(ApplicationDbContext db, AccountServi
         r.Status = input.Decision; r.Version++; r.UpdatedAt = Now;
         db.Add(new AbsenceDecision { AbsenceRequestId = r.Id, ActorUserId = id, Decision = input.Decision,
             RejectionReason = input.Decision == "REJECTED" ? input.RejectionReason!.Trim() : null, OccurredAt = Now });
-        await db.SaveChangesAsync(); var result = await Response(r); await tx.CommitAsync(); return result;
+        await db.SaveChangesAsync(); var result = await Response(r); if (tx is not null) await tx.CommitAsync(); return result;
     }
     public async Task<AbsenceConflictReport> Conflicts(Guid requestId, ClaimsPrincipal actor)
     {
-        await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead) : null;
         var id = await teams.Actor(actor); var r = await Request(requestId); await AuthorizeApprover(id, r.UserId);
-        var report = await FindConflicts(r); await tx.CommitAsync(); return report;
+        var report = await FindConflicts(r); if (tx is not null) await tx.CommitAsync(); return report;
     }
 }
