@@ -8,7 +8,7 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 MODE="${1:-start}"
 case "$MODE" in
-  seed-demo|clean-demo|smoke-demo) exec dotnet run --project "$ROOT/src/ShiftManager" --no-launch-profile -- "$@" ;;
+  seed-demo|clean-demo|smoke-demo|preview-demo-scenario|apply-demo-scenario) exec dotnet run --project "$ROOT/src/ShiftManager" --no-launch-profile -- "$@" ;;
 esac
 BACKEND_PID=""
 FRONTEND_PID=""
@@ -18,6 +18,7 @@ usage() {
   cat <<'HELP'
 Usage: ./scripts/dev.sh [start|setup|migrate]
        ./scripts/dev.sh seed-demo|smoke-demo|clean-demo --month YYYY-MM [--seed 42] [--confirm DATABASE]
+       ./scripts/dev.sh preview-demo-scenario|apply-demo-scenario --month YYYY-MM [--demo-month YYYY-MM] [--seed 42] [--approve TOKEN]
 Demo commands require an explicit isolated connection and Development/Testing.
 See docs/demo-testing.md.
   start    Start PostgreSQL, backend and frontend (default).

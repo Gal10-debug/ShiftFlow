@@ -30,6 +30,11 @@ public static class DemoCli
 
     public static async Task Run(IServiceProvider services, string environment, string connection, string[] args)
     {
+        if (args[0] is "preview-demo-scenario" or "apply-demo-scenario")
+        {
+            await DemoScenario.Run(services, environment, connection, args);
+            return;
+        }
         var options = new Dictionary<string, string>();
         for (var i = 1; i < args.Length; i += 2)
             if (i + 1 == args.Length || args[i] is not ("--month" or "--seed" or "--confirm") || !options.TryAdd(args[i], args[i + 1]))
@@ -132,7 +137,7 @@ public static class DemoCli
     private static async Task<object?> Scalar(NpgsqlConnection connection, string sql)
     { await using var command = new NpgsqlCommand(sql, connection); return await command.ExecuteScalarAsync(); }
 
-    internal static async Task<string> Fingerprint(NpgsqlConnection connection)
+    internal static async Task<string> Fingerprint(NpgsqlConnection connection, bool protectedOnly = false)
     {
         var tables = new List<(string Schema, string Name)>();
         await using (var command = new NpgsqlCommand("SELECT schemaname,tablename FROM pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema') AND tablename <> 'shiftflow_demo_owner' ORDER BY schemaname,tablename", connection))
@@ -140,6 +145,7 @@ public static class DemoCli
         using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         foreach (var table in tables)
         {
+            if (protectedOnly && table.Name is "AbsenceRequest" or "AbsenceWeekday" or "AbsenceDecision" or "AbsenceConflict") continue;
             string Quote(string s) => "\"" + s.Replace("\"", "\"\"") + "\"";
             digest.AppendData(Encoding.UTF8.GetBytes(table.Schema + "." + table.Name));
             await using var command = new NpgsqlCommand($"SELECT row_to_json(t)::text FROM {Quote(table.Schema)}.{Quote(table.Name)} t ORDER BY row_to_json(t)::text", connection);

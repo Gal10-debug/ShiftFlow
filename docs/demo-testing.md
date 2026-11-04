@@ -232,3 +232,113 @@ Verification for this correction:
 - Strict Release build: zero warnings/errors. EF model matches its migration.
 - Tests used a new disposable PostgreSQL server with per-test databases; existing
   development/demo databases and running demo processes were not accessed or changed.
+
+## Additive realistic absences (November–December 2026)
+
+Use the existing completed 60-account demo; **do not seed, clean or migrate it**.
+The new commands preserve passwords, roles, teams, availability, assignments,
+periods and immutable publications. They never generate or publish schedules.
+They use only `SHIFTFLOW_DEMO_CONNECTION`, never the normal development connection.
+Use the isolated connection setup above; keep credentials out of shell reports.
+
+```sh
+ASPNETCORE_ENVIRONMENT=Development ./scripts/dev.sh preview-demo-scenario \
+  --month 2026-12 --demo-month 2026-11 --seed 42
+```
+
+`--month` is the second month of the two-month scenario; `--demo-month` identifies
+its existing seed database (defaults to the preceding month). `--seed` must match
+that database's ownership marker. Production, remote hosts, wrong names, missing
+or incomplete markers, a mismatching service connection, and a different account
+population are refused. Existing manual edits do not invalidate additive ownership;
+the original seed fingerprint is deliberately not reset or adopted.
+
+Preview executes inside a PostgreSQL **READ ONLY** transaction. It inspects the
+current database, then writes only `.demo/<database>/scenario-preview.json` locally.
+The report includes every selected login, current team and qualification, exact
+pattern, intended workflow, action/skip reason, all 27 unaffected logins, planned
+request/decision counts, recurrence-weekday and publication-conflict row counts, conflict availability and the approval token. No password
+or connection string is included. Hebrew console output summarizes the mix:
+
+> מילואים: 4; חופשה: 5; לימודים: 8; מגבלות חוזרות: 6; מגבלות קצרות: 10; ללא תרחיש נוסף: 27.
+
+The 33 selected employees are active, scheduling-eligible EMPLOYEEs across all four
+teams; Team Leaders are excluded. SHA-256 ranking with the recorded seed and team
+round robin gives reproducible selection independent of database query order. Live
+team membership and qualifications are respected. Short restrictions use supported
+OTHER absence requests, not changes to existing weekly availability blocks; the
+three-block availability limit is never bypassed. Recurrences span both months.
+
+There are three pending and three rejected cases, with rejection reasons, plus
+approved cases, one approved modification and one approved cancellation. The
+modification narrows hours. Approvals use current team leaders/deputies and the
+normal `AbsenceService` authorization, conflict token and decision validation.
+Only approved non-cancellation requests become hard scheduling constraints;
+pending requests remain warnings. The cancellation and superseded parent are not
+hard constraints. When existing work permits it, a pending case targets an
+assignment's weekday (swapping selected employees to keep all categories distinct).
+No assignment is created to manufacture this conflict. The report explicitly says
+when a safe assignment-conflict case is unavailable.
+
+**Stop at preview and obtain explicit approval of that report before application.**
+After the user approves, supply the exact token from the approved preview:
+
+```sh
+ASPNETCORE_ENVIRONMENT=Development ./scripts/dev.sh apply-demo-scenario \
+  --month 2026-12 --demo-month 2026-11 --seed 42 --approve TOKEN_FROM_APPROVED_PREVIEW
+```
+
+Application refuses missing/stale tokens. The token binds the plan, generator
+version, seed and full database contents, so logins or concurrent edits can require
+a fresh preview and approval. A Hebrew `scenario-preview.md` account summary is saved alongside the JSON.
+Preview and apply acquire the existing scheduling,
+period and account locks in service order. All service calls join one transaction;
+a failure rolls back the entire scenario. No draft-removal confirmation is ever
+granted. Cases overlapping existing user absences or draft assignments are skipped
+conservatively rather than overwriting data. A conflict limited to an immutable
+publication may be recorded by the real approval workflow without changing that
+publication. Skipped cases reduce actual inserted counts; nominal category counts
+are a target, not a claim that skipped data exists.
+
+Stable explanation markers (`[realistic-absences-v1/YYYY-MM/SEED/demo.NN]`) identify
+scenario-owned requests. Existing marked cases are reported as EXISTS and preserved,
+including subsequent manual changes; they are never repaired or overwritten.
+Repeating with a **fresh preview token** inserts no duplicates. Do not manually
+copy these reserved markers into user-created requests.
+
+Before commit, application verifies a full fingerprint of all non-absence tables
+(including credentials, roles, memberships, periods, drafts and publications), and
+checks every preexisting absence request/weekday is unchanged. New request,
+decision and conflict rows are the only allowed additions. Failure rolls back.
+`scenario-application.json` records the applied plan after successful commit; it
+contains planned counts, not a scheduling coverage or publication success claim.
+A new host/context in the regression test verifies persisted records after restart.
+
+Run the new focused checks with:
+
+```sh
+dotnet test ShiftManager.slnx --filter FullyQualifiedName~DemoScenario
+RUN_POSTGRES_TESTS=1 dotnet test ShiftManager.slnx --filter FullyQualifiedName~DemoScenario
+```
+
+Integration tests create and drop only their own disposable databases. They exercise
+real submissions, authorized approvals, rejection, modification, cancellation,
+stale/missing consent, preserved manual absences, repeat application and restarted
+host reads. The existing Phase 6 suites cover scheduler enforcement, publication
+conflicts, recurrence boundaries and transactional approval races. Never use the
+existing demo database as a regression-test target.
+
+Validation of this implementation: full backend/PostgreSQL suite 286 passed,
+zero failed/skipped; final Release scenario/publication subset four passed.
+Release build with warnings as errors: zero warnings/errors. Frontend: 118 tests
+passed and production build passed. Development-script suite: seven passed.
+All PostgreSQL test mutations used disposable Testcontainers databases.
+
+The existing `shiftflow_demo_202611_42` was inspected only with READ ONLY previews
+for seed 42, November–December 2026. Its current reviewed plan proposes 28 requests
+and 25 decisions for 26 users, skipping seven assignment-conflicting cases. This
+includes two of four reserve cases, four of five vacations, five of eight study
+cases, five of six other recurring cases, and all ten short cases. Approved
+modification/cancellation and a pending assignment conflict are included. Existing
+records may change these counts; regenerate and approve the current preview.
+**No scenario application was performed against the existing demo.**
