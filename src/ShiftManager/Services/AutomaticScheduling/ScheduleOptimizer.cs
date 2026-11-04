@@ -11,12 +11,15 @@ public interface IScheduleOptimizer
 }
 public sealed class ScheduleOptimizer : IScheduleOptimizer
 {
+    public static bool Priority(Guid id) => Enumerable.Range(1, 7).Any(slot => id == Guid.Parse($"40000000-0000-0000-0000-{slot:000000000000}"));
     public OptimizationResult Solve(SchedulingProblem p, double seconds, CancellationToken ct)
     {
         var watch = Stopwatch.StartNew();
         var model = new CpModel();
         var choices = new Dictionary<(int Cell, int Employee), BoolVar>();
         var fixedWork = p.Work.Where(w => !w.Replaceable).ToArray();
+        if (fixedWork.Any(w => w.Date.Year == p.Year && w.Date.Month == p.Month && p.Absent(w.UserId, w.Start, w.End)))
+            throw new ApiException("APPROVED_ABSENCE", 409);
         var fixedViolations = SchedulingRules.Violations(fixedWork, p.Year, p.Month, pairing: false);
         if (fixedViolations.Length > 0) throw new ApiException(fixedViolations[0].Code, 409);
         if (fixedWork.Any(w => w.Semantic == SchedulingRules.OnCall && !SchedulingRules.Weekend(w.Date) && w.Date.Year == p.Year && w.Date.Month == p.Month))
@@ -45,7 +48,7 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
             ct.ThrowIfCancellationRequested();
             var c = p.Cells[ci];
             for (var ei = 0; ei < p.Employees.Length; ei++)
-                if (SchedulingRules.Applicable(c.DefinitionId, c.Semantic, c.Date) && p.Eligible(p.Employees[ei], c)) choices[(ci, ei)] = model.NewBoolVar($"x{ci}_{ei}");
+                if (c.AssignmentMode == Domain.AssignmentMode.Automatic && SchedulingRules.Applicable(c.DefinitionId, c.Semantic, c.Date) && p.Eligible(p.Employees[ei], c)) choices[(ci, ei)] = model.NewBoolVar($"x{ci}_{ei}");
             var capacity = c.Required - fixedWork.Count(w => w.DefinitionId == c.DefinitionId && w.Date == c.Date);
             model.Add(LinearExpr.Sum(choices.Where(x => x.Key.Cell == ci).Select(x => x.Value)) <= capacity);
         }
@@ -123,7 +126,11 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
         var preference = LinearExpr.Sum(choices.Where(x => p.Preferred(p.Employees[x.Key.Employee], p.Cells[x.Key.Cell])).Select(x => x.Value));
         var stability = LinearExpr.Sum(choices.Where(x => p.Work.Any(w => w.Replaceable && w.UserId == p.Employees[x.Key.Employee].Id
             && w.DefinitionId == p.Cells[x.Key.Cell].DefinitionId && w.Date == p.Cells[x.Key.Cell].Date)).Select(x => x.Value));
-        var stages = new[] { expertFilled, filled, -LinearExpr.Sum(fairness), preference, stability };
+        // Each optimum is pinned before the next solve: lower priorities can never
+        // buy away expert coverage or coverage of the seven immutable priority rows.
+        var expertPriority = LinearExpr.Sum(choices.Where(x => p.Cells[x.Key.Cell].RequiresShiftLeadQualification && Priority(p.Cells[x.Key.Cell].DefinitionId)).Select(x => x.Value));
+        var priority = LinearExpr.Sum(choices.Where(x => !p.Cells[x.Key.Cell].RequiresShiftLeadQualification && Priority(p.Cells[x.Key.Cell].DefinitionId)).Select(x => x.Value));
+        var stages = new[] { expertFilled, expertPriority, priority, filled, -LinearExpr.Sum(fairness), preference, stability };
         var proven = 0; var status = "TIMEOUT";
         Dictionary<(int Cell, int Employee), bool>? best = null;
         foreach (var objective in stages)

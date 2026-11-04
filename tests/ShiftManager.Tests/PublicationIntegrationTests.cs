@@ -84,7 +84,7 @@ public sealed partial class SchedulingTests
             var published = await Review(admin);
             Assert.Equal(HttpStatusCode.Conflict,(await Send(admin,ReviewPath+"/assignments",new ManualAssignmentRequest(published.Token,"ASSIGN",null,ids["employee"],definition,new(2026,10,3)),"POST")).StatusCode);
             await Publish(admin,published,"FINAL");
-            Assert.Equal(HttpStatusCode.Conflict,(await Send(admin,ReviewPath+"/correction",new ReviewTokenRequest((await Review(admin)).Token),"POST")).StatusCode);
+            Assert.Equal(HttpStatusCode.OK,(await Send(admin,ReviewPath+"/correction",new ReviewTokenRequest((await Review(admin)).Token),"POST")).StatusCode);
         }
     }
     [PostgresFact]

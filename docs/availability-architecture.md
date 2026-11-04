@@ -202,3 +202,12 @@ Explicit organizational leaders and deputies can submit for active EMPLOYEE memb
 ## Phase 5 publication interaction
 
 Audited delegated edits are supported during preliminary publication and correction as well as DRAFT; they stale the reviewed input hash and can surface retained draft conflicts. Published snapshots never change. Final periods reject availability writes. Ordinary personal submission remains restricted to DRAFT and an open availability window. See [publication lifecycle and locking](publication-architecture.md).
+
+## Phase 6: separate approved absences
+
+[Absence requests](phase-6.md) are independent of monthly availability submissions.
+Pending proposals only warn; approved one-time/weekly rules block actual overlapping
+intervals in automatic/manual scheduling and publication. Changes/cancellations need
+new approval. Team leaders/deputies approve within their live team scope without
+receiving scheduling-administrator permissions. Existing monthly blocks, submissions,
+quotas and delegated-availability audits are preserved.

@@ -1,8 +1,11 @@
 namespace ShiftManager.Domain;
 
 // A configurable board row with a local time range, not an employee slot.
+public enum AssignmentMode { Automatic, ManualOnly }
+
 public sealed class ShiftTypeDefinition
 {
+    public AssignmentMode AssignmentMode { get; set; }
     public string Semantic { get; set; } = "ORDINARY";
     public Guid Id { get; set; }
     public int Slot { get; set; }

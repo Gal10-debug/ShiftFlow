@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { he, message } from "../he";
 import { instant } from "../availability";
-import { lifecycle, issueStates, compareVersions, type Candidate, type Issue, type Publication, type Review } from "../publication";
+import { lifecycle, issueStates, type Candidate, type Issue, type Publication, type Review } from "../publication";
 import { Notice } from "./forms";
 export interface SelectedCell {
   definitionId: string;
@@ -47,11 +47,9 @@ export default function ScheduleReviewPanel({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
-  const [compareA, setCompareA] = useState("");
-  const [compareB, setCompareB] = useState("");
   const [responses, setResponses] = useState<Record<string, string>>({});
   useEffect(() => {
-    onEditableChange?.(review?.editingContractVersion === 1 && (review?.state === "DRAFT" || review?.state === "UNDER_CORRECTION"));
+    onEditableChange?.(review?.editingContractVersion === 1 && (review?.state === "DRAFT" || review?.state === "UNDER_CORRECTION" || review?.state === "FINAL_PUBLISHED"));
   }, [review?.state, review?.editingContractVersion, onEditableChange]);
   useEffect(() => {
     if (operation === "NOTE") setAssignmentNote(review?.draft.cells.flatMap(c => c.employees).find(e => e.assignmentId === oldAssignment)?.note ?? "");
@@ -136,7 +134,7 @@ export default function ScheduleReviewPanel({
     }
   }
   async function publish(type: "PRELIMINARY" | "FINAL") {
-    if (!review || !window.confirm(type === "FINAL" ? "לפרסם סידור עבודה סופי? לאחר הפרסום לא ניתן לערוך אותו." : "לפרסם סידור עבודה ראשוני לעובדים?")) return;
+    if (!review || !window.confirm(type === "FINAL" ? "לפרסם סידור עבודה סופי? תיקונים נוספים יישמרו בטיוטה וידרשו פרסום גרסה סופית חדשה." : "לפרסם סידור עבודה ראשוני לעובדים?")) return;
     await action(`publications/${type}`, {
       expectedToken: review.token,
       acknowledgeShortages: shortages,
@@ -154,6 +152,7 @@ export default function ScheduleReviewPanel({
   }, [!!cell, selected?.definitionId, selected?.date, review?.state, review?.editingContractVersion]);
   if (!review?.draft) return <div className="panel"><h2>בדיקה ופרסום הסידור</h2><Notice error={error} /></div>;
   const editable = review.editingContractVersion === 1 && (review.state === "DRAFT" || review.state === "UNDER_CORRECTION");
+  const canEditCell = review.editingContractVersion === 1 && (editable || review.state === "FINAL_PUBLISHED");
   const definitions = [...new Map(review.draft.cells.map(c => [c.definitionId, c])).values()];
   const assignments = [...review.draft.cells.flatMap(c => c.employees.map(e => ({
     ...e,
@@ -162,9 +161,6 @@ export default function ScheduleReviewPanel({
     ...a,
     label: `${a.date} · ${a.name} · שיבוץ קודם`
   }))];
-  const leftVersion = history.find(h => h.id === compareA)?.snapshot;
-  const rightVersion = history.find(h => h.id === compareB)?.snapshot;
-  const legacyChanged = JSON.stringify(leftVersion?.legacyAssignments) !== JSON.stringify(rightVersion?.legacyAssignments);
   function issueContext(issue: Issue) {
     const pub = history.find(h => h.id === issue.publicationId);
     const cell = pub?.snapshot?.cells.find(c => c.employees.some(e => e.assignmentId === issue.assignmentId));
@@ -172,11 +168,12 @@ export default function ScheduleReviewPanel({
     const legacy = pub?.snapshot?.legacyAssignments.find(a => a.assignmentId === issue.assignmentId);
     return `גרסה ${pub?.versionNumber ?? "—"} · ${employee?.name ?? legacy?.name ?? issue.reporterUserId} · ${cell?.date ?? legacy?.date ?? ""} · ${cell?.name ?? "שיבוץ קודם"}`;
   }
-  const differences = compareVersions(history.find(h => h.id === compareA)?.snapshot ?? null, history.find(h => h.id === compareB)?.snapshot ?? null);
-  return <section className="panel" dir="rtl" aria-label="בדיקה ופרסום הסידור"><h2>בדיקה ופרסום הסידור</h2><Notice error={cell && editable ? "" : error} success={cell && editable ? "" : success} />
+  return <section className="panel" dir="rtl" aria-label="בדיקה ופרסום הסידור"><h2>בדיקה ופרסום הסידור</h2><Notice error={cell && canEditCell ? "" : error} success={cell && canEditCell ? "" : success} />
     {review.editingContractVersion !== 1 && <p role="alert" className="notice error">{he.errors.SCHEDULING_SERVER_OUTDATED}</p>}
     <p><strong>{lifecycle[review.state]}</strong> · דיווחים פתוחים: {review.openIssues}</p>
     <p>{review.publicationReady ? "הטיוטה תקינה לפרסום בכפוף לאישור חוסרים ודיווחים." : "נדרשת בדיקת הטיוטה לפני פרסום."}</p>
+    {!!review.pendingAbsenceWarnings?.length && <aside className="notice" aria-label="בקשות היעדרות ממתינות"><p>השיבוצים הבאים חופפים לבקשות היעדרות שטרם אושרו. זו אזהרה בלבד ואינה מונעת שיבוץ או פרסום.</p><ul>{review.pendingAbsenceWarnings.map(w => <li key={w.assignmentId}>{w.date} · {assignments.find(a => a.assignmentId === w.assignmentId)?.label}</li>)}</ul></aside>}
+    {review.conflicts.some(c => c.code === "APPROVED_ABSENCE") && <p role="alert" className="notice error">קיימים שיבוצים החופפים להיעדרות מאושרת. יש להסיר או לתקן אותם בלוח ולאשר בדיקה לפני הפרסום. פרסום קודם נשאר ללא שינוי.</p>}
     {review.needsReview && <p className="notice">הזמינות או נתוני השיבוץ דורשים בדיקה מחודשת. יש לפתור סתירות ולאשר בדיקה לפני הפרסום.</p>}
     <fieldset disabled={busy}>
       {editable && <button disabled={!!review.conflicts.length} onClick={() => action("review", {
@@ -188,10 +185,10 @@ export default function ScheduleReviewPanel({
       {(editable || review.state === "PRELIMINARY_PUBLISHED") && review.shortage > 0 && <label className="check"><input type="checkbox" checked={shortages} onChange={e => setShortages(e.target.checked)} />אני מאשר פרסום עם {review.shortage} מקומות לא מאוישים</label>}
       <label className="check"><input type="checkbox" checked={openIssues} onChange={e => setOpenIssues(e.target.checked)} />אני מאשר פרסום סופי עם {review.openIssues} דיווחים שטרם טופלו</label>
       <label className="field">הערות לפרסום<textarea maxLength={2000} value={notes} onChange={e => setNotes(e.target.value)} /></label>
-      {editable && <button disabled={!review.publicationReady || review.shortage > 0 && !shortages} onClick={() => publish("PRELIMINARY")}>{review.state === "UNDER_CORRECTION" ? "פרסום ראשוני מעודכן" : "פרסום ראשוני"}</button>}
+      {editable && !review.finalRevision && <button disabled={!review.publicationReady || review.shortage > 0 && !shortages} onClick={() => publish("PRELIMINARY")}>{review.state === "UNDER_CORRECTION" ? "פרסום ראשוני מעודכן" : "פרסום ראשוני"}</button>}
       {(review.state === "PRELIMINARY_PUBLISHED" || review.state === "UNDER_CORRECTION") && <button disabled={!review.publicationReady || review.shortage > 0 && !shortages || review.openIssues > 0 && !openIssues} onClick={() => publish("FINAL")}>פרסום סופי</button>}
     </fieldset>
-    {editable && cell && <dialog ref={editor} className="cell-editor" aria-label="עריכת שיבוץ" onCancel={e => { e.preventDefault(); onClose?.(); }}><button type="button" onClick={onClose} disabled={busy}>סגירה</button><form onSubmit={e => {
+    {canEditCell && cell && <dialog ref={editor} className="cell-editor" aria-label="עריכת שיבוץ" onCancel={e => { e.preventDefault(); onClose?.(); }}><button type="button" onClick={onClose} disabled={busy}>סגירה</button><form onSubmit={e => {
       e.preventDefault();
       action("assignments", {
         expectedToken: review.token,
@@ -231,8 +228,8 @@ export default function ScheduleReviewPanel({
           status: e.target.value,
           response: responses[i.id] ?? i.response
         }, "PUT")}>{Object.entries(issueStates).map(([v, label]) => <option key={v} value={v}>{label}</option>)}</select></label>{i.response && <p>{i.response}</p>}</article>)}
-    <h3>היסטוריית גרסאות והשוואה</h3>{history.map(h => <details key={h.id}><summary>גרסה {h.versionNumber} · {h.publicationType === "FINAL" ? "סופי" : h.publicationType === "PRELIMINARY" ? "ראשוני" : "היסטורי"} · {instant(h.publishedAt)}</summary><p>{h.notes}</p>{h.snapshot && <RosterGrid snapshot={h.snapshot} />}<p>{h.acknowledgedShortages ? "חוסרי האיוש אושרו במפורש. " : ""}{h.acknowledgedOpenIssues ? `אושר פרסום עם ${h.openIssueCount} דיווחים פתוחים.` : ""}</p><p>מזהה המנהל המפרסם: <bdi>{h.publishedByUserId}</bdi></p></details>)}
-    {history.length > 1 && <><label className="field">גרסה להשוואה א׳<select value={compareA} onChange={e => setCompareA(e.target.value)}><option value="">בחרו גרסה</option>{history.map(h => <option key={h.id} value={h.id}>{h.versionNumber}</option>)}</select></label><label className="field">גרסה להשוואה ב׳<select value={compareB} onChange={e => setCompareB(e.target.value)}><option value="">בחרו גרסה</option>{history.map(h => <option key={h.id} value={h.id}>{h.versionNumber}</option>)}</select></label>{compareA && compareB && <div aria-label="הבדלים בין גרסאות"><p>{differences.length} תאים השתנו</p>{legacyChanged && <div><p>שיבוצים קודמים ללא תא השתנו:</p><p>לפני: {leftVersion?.legacyAssignments.map(a => `${a.date} ${a.name} ${instant(a.startsAt)}`).join("; ") || "ללא"}</p><p>אחרי: {rightVersion?.legacyAssignments.map(a => `${a.date} ${a.name} ${instant(a.startsAt)}`).join("; ") || "ללא"}</p></div>}<ul>{differences.map(d => <li key={d.key}>{d.after?.date ?? d.before?.date}: {d.before?.name} ← {d.after?.name} · לפני: {d.before?.employees.map(e => e.name).join(", ") || "ללא שיבוץ"} · אחרי: {d.after?.employees.map(e => e.name).join(", ") || "ללא שיבוץ"} · נדרשים: {d.before?.requiredEmployees} ← {d.after?.requiredEmployees} · זמנים: {instant(d.before?.startsAt ?? null)}–{instant(d.before?.endsAt ?? null)} ← {instant(d.after?.startsAt ?? null)}–{instant(d.after?.endsAt ?? null)} · כשירות אחמ״ש: {d.before?.requiresShiftLeadQualification ? "נדרשת" : "לא נדרשת"} ← {d.after?.requiresShiftLeadQualification ? "נדרשת" : "לא נדרשת"}</li>)}</ul></div>}</>}
+    {review.state === "FINAL_PUBLISHED" && <p className="notice">בחירת פעולת עריכה בלוח תפתח טיוטת תיקון. העובדים ימשיכו לראות את הגרסה הסופית עד לפרסום סופי מעודכן.</p>}
+    <h3>היסטוריית גרסאות</h3>{history.map(h => <details key={h.id}><summary>גרסה {h.versionNumber} · {h.publicationType === "FINAL" ? "סופי" : h.publicationType === "PRELIMINARY" ? "ראשוני" : "היסטורי"} · {instant(h.publishedAt)}</summary><p>{h.notes}</p>{h.snapshot && <RosterGrid snapshot={h.snapshot} />}<p>{h.acknowledgedShortages ? "חוסרי האיוש אושרו במפורש. " : ""}{h.acknowledgedOpenIssues ? `אושר פרסום עם ${h.openIssueCount} דיווחים פתוחים.` : ""}</p><p>פורסם על ידי: <bdi>{h.publishedByName ?? h.publishedByUserId}</bdi></p></details>)}
     <p className="muted">החלפות משמרות אינן זמינות בשלב זה.</p>
   </section>;
 }

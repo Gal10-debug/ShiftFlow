@@ -13,6 +13,7 @@ export function rangePeriod(range: ShiftTimeRange): "DAY" | "NIGHT" {
   return range === "NIGHT" || range === "H23_07" ? "NIGHT" : "DAY";
 }
 export interface ShiftTypeDefinition {
+  assignmentMode?: "Automatic" | "ManualOnly";
   semantic?: "ORDINARY" | "SIX_NINE" | "WEEKEND_ON_CALL";
   id: string;
   slot: number;

@@ -31,7 +31,10 @@ export default function MySchedule() {
     }[]>("/my-schedule/periods").then(p => {
       if (alive) {
         setPeriods(p);
-        if (p.length) setSelected(`${p[0].year}/${p[0].month}`);
+        const period = new URLSearchParams(window.location.search).get("period");
+        const requested = p.find(x => `${x.year}-${String(x.month).padStart(2, "0")}` === period);
+        if (requested) setSelected(`${requested.year}/${requested.month}`);
+        else if (p.length) setSelected(`${p[0].year}/${p[0].month}`);
       }
     }).catch(e => {
       if (alive) setError(message(e));

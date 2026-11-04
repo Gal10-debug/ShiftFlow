@@ -1037,3 +1037,20 @@ textarea { font: inherit; min-height: 5rem; max-width: 100%; resize: vertical; }
 .schedule-disabled { background: repeating-linear-gradient(135deg, #e9ecefcc 0 5px, #dfe3e6cc 5px 6px); color: #454f55; }
 .cell-editor { position: fixed; inset: 0; z-index: 40; margin: auto; max-height: 85dvh; overflow: auto; width: min(40rem, 92vw); border: 2px solid #285c65; border-radius: .7rem; padding: 1.2rem; box-shadow: 0 0 0 100vmax #132c4566; background: white; }
 .cell-editor::backdrop { background: #132c4566; }
+
+/* Absence workflows share the existing RTL panels and form controls. */
+.absences-page { max-width: 1100px; margin-inline: auto; }
+.absence-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+.absence-weekdays, .absence-card-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+.absence-card-heading { justify-content: space-between; }
+.absence-card-heading h3 { margin-block: .25rem; }
+.absence-history { display: grid; gap: 1rem; }
+.absence-explanation { white-space: pre-wrap; overflow-wrap: anywhere; }
+.absence-conflicts { padding-inline-start: 1.5rem; }
+.absence-conflicts li { margin-block: .75rem; overflow-wrap: anywhere; }
+.absence-pending { background: #fff2d5; color: #704400; }
+.absence-approved { background: #e0f3e9; color: #17553a; }
+.absence-rejected { background: #fde7e9; color: #8a2030; }
+.absence-cancelled { background: #edf0f4; color: #485263; }
+.absence-review { border-inline-start: 4px solid #3865a4; }
+@media (max-width: 600px) { .absence-fields { grid-template-columns: 1fr; } }

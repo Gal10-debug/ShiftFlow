@@ -4,7 +4,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import ScheduleReviewPanel from "./components/ScheduleReviewPanel";
 import MySchedule from "./pages/MySchedule";
 import { api } from "./api";
-import { compareVersions, type Review, type Publication } from "./publication";
+import { type Review, type Publication } from "./publication";
 vi.mock("./auth", () => ({ useAuth: () => ({ user: { id: "employee" } }) }));
 vi.mock("./api", () => ({
   api: vi.fn()
@@ -169,20 +169,10 @@ it("final publication requires visible unresolved report acknowledgment", async 
     acknowledgeOpenIssues: true
   }));
 });
-it("compares immutable version snapshots including staffing and historical names", () => {
-  const a = publication.snapshot!;
-  const b = {
-    ...a,
-    cells: a.cells.map(c => ({
-      ...c,
-      name: "שם חדש",
-      requiredEmployees: 3
-    }))
-  };
-  const diff = compareVersions(a, b);
-  expect(diff).toHaveLength(1);
-  expect(diff[0].before?.name).toBe("בוקר");
-  expect(diff[0].after?.requiredEmployees).toBe(3);
+it("keeps version history without comparison controls", async () => {
+  panel();
+  await screen.findByText("היסטוריית גרסאות");
+  expect(screen.queryByLabelText(/גרסה להשוואה/)).not.toBeInTheDocument();
 });
 it("employees see their preliminary schedule and explicitly submit an assignment issue", async () => {
   const user = userEvent.setup();
@@ -274,4 +264,23 @@ it("removes the entire review conflict list regardless of error type while retai
   expect(screen.queryByLabelText("סתירות בסידור")).not.toBeInTheDocument();
   expect(container.querySelector("ul.notice.error")).toBeNull();
   for(const conflict of review.conflicts) expect(screen.queryByText(new RegExp(conflict.date))).not.toBeInTheDocument();
+});
+
+it("administrator history retains multiple read-only versions and identifies their publisher", async () => {
+  const original = mocked.getMockImplementation()!;
+  mocked.mockImplementation(async (path, method, body) => path.endsWith("/publications")
+    ? [publication, {...publication, id: "second", versionNumber: 2, publishedByName: "רונית לוי"}]
+    : original(path, method, body));
+  render(<ScheduleReviewPanel year={2026} month={10} reload={0} selected={null} onChanged={vi.fn()} />);
+  await screen.findByText("היסטוריית גרסאות");
+  expect(screen.getByText(/גרסה 1/)).toBeInTheDocument();
+  expect(screen.getByText(/גרסה 2/)).toBeInTheDocument();
+  expect(screen.getByText("רונית לוי")).toBeInTheDocument();
+  expect(screen.queryByLabelText(/גרסה להשוואה/)).not.toBeInTheDocument();
+});
+it("final correction offers updated final publication without restarting preliminary publication", async () => {
+  review.state = "UNDER_CORRECTION"; review.finalRevision = true;
+  panel();
+  expect(await screen.findByRole("button", {name: "פרסום סופי"})).toBeInTheDocument();
+  expect(screen.queryByRole("button", {name: /פרסום ראשוני/})).not.toBeInTheDocument();
 });

@@ -24,7 +24,7 @@ export default function SchedulingBoard() {
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Jerusalem" }).format(new Date());
   const [generation, setGeneration] = useState<Generation | null>(null);
-  const [requestedDate, setRequestedDate] = useState<string | null>(null);
+  const [requestedDate, setRequestedDate] = useState<string | null>(() => { const period = new URLSearchParams(window.location.search).get("period"); return period && /^\d{4}-(0[1-9]|1[0-2])$/.test(period) ? period + "-01" : null; });
   const reviewDate = requestedDate ?? today;
   const reviewYear = Number(reviewDate.slice(0, 4));
   const reviewMonth = Number(reviewDate.slice(5, 7));
@@ -161,7 +161,7 @@ export default function SchedulingBoard() {
     <section dir="rtl" className="scheduling-page">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">{s.unpublished}</span>
+          <span className="eyebrow">ניהול סידור העבודה</span>
           <h1>{s.title}</h1>
           <p className="muted">{s.intro}</p>
         </div>
@@ -241,7 +241,7 @@ export default function SchedulingBoard() {
             <RosterGrid snapshot={{ year: reviewYear, month: reviewMonth, legacyAssignments: [], cells: board.rows.flatMap(row => row.cells.map(saved => {
               const proposed = preview ? generation.cells.find(c => c.definitionId === row.definition.id && c.date === saved.date) : undefined;
               const cell = proposed ? { ...saved, ...proposed } : saved;
-              return { state: proposed ? "PREVIEW" : saved.state, includeInAutomaticScheduling: row.definition.includeInAutomaticScheduling, configuredRequiredEmployees: row.definition.requiredEmployees, weekendRequiredEmployees: row.definition.weekendRequiredEmployees, definitionId: row.definition.id, date: cell.date, name: row.definition.name, displayOrder: row.definition.displayOrder,
+              return { state: proposed ? "PREVIEW" : saved.state, assignmentMode: row.definition.assignmentMode, includeInAutomaticScheduling: row.definition.includeInAutomaticScheduling, configuredRequiredEmployees: row.definition.requiredEmployees, weekendRequiredEmployees: row.definition.weekendRequiredEmployees, definitionId: row.definition.id, date: cell.date, name: row.definition.name, displayOrder: row.definition.displayOrder,
                 period: row.definition.period, timeRange: row.definition.timeRange ?? row.definition.period, startsAt: cell.startsAt, endsAt: cell.endsAt,
                 requiredEmployees: cell.requiredEmployees, requiresShiftLeadQualification: row.definition.requiresShiftLeadQualification ?? false,
                 semantic: row.definition.semantic, employees: (cell.employees ?? []).map(e => ({ ...e, assignmentId: e.assignmentId ?? "", isShiftLead: e.isShiftLead ?? false })) };
@@ -361,6 +361,7 @@ export default function SchedulingBoard() {
                         )}
                       </td>
                       <td>
+                        {row.assignmentMode === "ManualOnly" && <small>שיבוץ ידני בלבד</small>}
                         <label className="check"><input type="checkbox"
                           aria-label={`שורת אחראי משמרת ${row.slot}`}
                           checked={row.requiresShiftLeadQualification ?? false}
@@ -370,8 +371,8 @@ export default function SchedulingBoard() {
                         <input
                           aria-label={`${s.automatic} ${row.slot}`}
                           type="checkbox"
-                          checked={row.includeInAutomaticScheduling}
-                          disabled={busy || loading}
+                          checked={row.assignmentMode !== "ManualOnly" && row.includeInAutomaticScheduling}
+                          disabled={busy || loading || row.assignmentMode === "ManualOnly"}
                           onChange={(e) =>
                             change(row.id, {
                               includeInAutomaticScheduling: e.target.checked,

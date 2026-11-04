@@ -19,9 +19,12 @@ public sealed class RosterValidationService(ApplicationDbContext db)
         var users = assignments.Select(a => a.UserId).Distinct().ToArray();
         var blocks = await db.Set<ShiftPreference>().AsNoTracking().Where(p => users.Contains(p.UserId) && p.PreferenceType == PreferenceType.BLOCKED)
             .Select(p => new { p.UserId, p.ShiftId, p.Shift.StartsAt, p.Shift.EndsAt }).ToArrayAsync();
+        var absences = (await db.Set<AbsenceRequest>().AsNoTracking().Include(r => r.Weekdays)
+            .Where(r => r.Status == "APPROVED" && r.Kind != "CANCEL").ToArrayAsync()).Select(AbsenceRule.From).ToArray();
         return assignments.SelectMany(a => {
             var result = new List<RosterConflict>();
             if (!AutomaticScheduling.SchedulingRules.Applicable(a.DefinitionId, a.DefinitionId.HasValue ? definitions.GetValueOrDefault(a.DefinitionId.Value, "ORDINARY") : "ORDINARY", a.ShiftDate)) result.Add(new(a.Id, a.UserId, a.SchedulePeriodId, a.ShiftDate, "WEEKEND_SHIFT_PROHIBITED"));
+            if (absences.Any(r => r.UserId == a.UserId && AbsenceRules.Overlaps(r, a.Start, a.End))) result.Add(new(a.Id, a.UserId, a.SchedulePeriodId, a.ShiftDate, "APPROVED_ABSENCE"));
             if (leaders.Contains(a.UserId)) result.Add(new(a.Id, a.UserId, a.SchedulePeriodId, a.ShiftDate, "TEAM_LEADER_ASSIGNED"));
             if (blocks.Any(b => b.UserId == a.UserId && b.StartsAt < a.End && b.EndsAt > a.Start)) result.Add(new(a.Id, a.UserId, a.SchedulePeriodId, a.ShiftDate, "HARD_BLOCK_CONFLICT"));
             return result;

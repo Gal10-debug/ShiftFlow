@@ -311,3 +311,12 @@ publication-history regression tests); standalone backend tests passed 136 with
 script tests passed 7. Frontend production and backend Release builds succeeded,
 with zero backend warnings/errors. No application schema migration, live demo
 restart, existing-database operation or remote Git write was performed in this task.
+
+## Phase 6 superseding behavior
+
+See [Phase 6](phase-6.md) for stable priority rows, manual-only slots 12/13/14,
+post-final board corrections, approved-absence eligibility and version history.
+Final publication snapshots remain immutable; final working periods can now open
+administrator corrections and publish replacement final versions. Version comparison
+controls are removed. Existing per-cell demand and absence warnings remain visible;
+aggregate staffing-shortage lists remain absent.

@@ -161,7 +161,7 @@ public sealed class ScheduleOptimizerTests
         var p = Problem([expert, Cell(2), Cell(3, 1)], 1);
         p = p with { Employees = [p.Employees[0] with { IsShiftLeadQualified = true }] };
         var result = Solve(p);
-        Assert.Equal(5, result.ProvenObjectives);
+        Assert.Equal(7, result.ProvenObjectives);
         Assert.Single(result.Cells[0].Employees);
         Assert.Equal(1, result.Cells.Sum(c => c.Employees.Length));
         Assert.False(result.Cells[0].Employees[0].IsShiftLead);

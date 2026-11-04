@@ -14,6 +14,13 @@ public static class ApiErrors
 {
     public static ApiError Error(string code) => new(code, code switch
     {
+        "INVALID_ABSENCE" => "יש לבדוק את סיבת ההיעדרות, התאריכים, ימי השבוע וטווח השעות.",
+        "INVALID_ABSENCE_DECISION" => "יש לבחור החלטה ולמלא סיבת דחייה.",
+        "ABSENCE_CHANGE_PENDING" => "כבר קיימת בקשת שינוי או ביטול ממתינה להיעדרות זו.",
+        "STALE_ABSENCE_CONFLICTS" => "נתוני הבקשה או השיבוצים השתנו. יש לרענן את בדיקת ההתנגשויות לפני האישור.",
+        "ABSENCE_DRAFT_CONFIRMATION" => "יש לאשר במפורש את הסרת השיבוצים המוצגים מטיוטות הסידור.",
+        "ABSENCE_CONFLICT_REQUIRES_ADMIN" => "יש להסדיר משימות או זוג כוננות בחודש שפורסם לפני אישור ההיעדרות. יש לפנות למנהל הסידור.",
+        "APPROVED_ABSENCE" => "השיבוץ חופף להיעדרות מאושרת ואינו מותר.",
         "DEPUTY_REQUIRES_EMPLOYEE" => "למינוי סגן נדרש משתמש בעל תפקיד עובד.",
         "INVALID_TEAM_LEADERSHIP" => "ראש הצוות וסגנו חייבים להיות חברים פעילים בצוות ומשתמשים שונים.",
         "TEAM_LEADER_NOT_SCHEDULED" => "ראש צוות אינו משתתף בסידור ואינו נדרש להגיש זמינות.",

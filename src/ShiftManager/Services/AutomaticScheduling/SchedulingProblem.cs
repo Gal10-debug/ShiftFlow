@@ -9,11 +9,11 @@ namespace ShiftManager.Services.AutomaticScheduling;
 public sealed record Work(Guid AssignmentId, Guid UserId, Guid? DefinitionId, DateOnly Date,
     DateTime Start, DateTime End, Guid ShiftId, bool Replaceable, bool Lead, ShiftType AnchorType, string Semantic = "ORDINARY", string? Note = null);
 public sealed record CandidateCell(Guid DefinitionId, DateOnly Date, DateTime Start, DateTime End,
-    int Required, long Version, ShiftType AnchorType, bool RequiresShiftLeadQualification = false, string Semantic = "ORDINARY");
+    int Required, long Version, ShiftType AnchorType, bool RequiresShiftLeadQualification = false, string Semantic = "ORDINARY", AssignmentMode AssignmentMode = AssignmentMode.Automatic);
 public sealed record Employee(Guid Id, string Name, bool IsShiftLeadQualified = false, bool IsTeamLeader = false);
 public sealed record Preference(Guid UserId, DateOnly Date, ShiftType Type, PreferenceType State);
 public sealed record SchedulingProblem(int Year, int Month, string Fingerprint, CandidateCell[] Cells,
-    Employee[] Employees, Work[] Work, Preference[] Preferences, CandidateCell[]? StaffingCells = null)
+    Employee[] Employees, Work[] Work, Preference[] Preferences, CandidateCell[]? StaffingCells = null, AbsenceRule[]? ApprovedAbsences = null, AbsenceRule[]? PendingAbsences = null)
 {
     // Planning rows may exclude disabled/zero-demand definitions, but retained work in
     // every visible board cell must still fit that cell's effective displayed demand.
@@ -22,9 +22,11 @@ public sealed record SchedulingProblem(int Year, int Month, string Fingerprint, 
         var counts = source.Where(w => w.DefinitionId.HasValue).GroupBy(w => (w.DefinitionId, w.Date)).ToDictionary(g => g.Key, g => g.Count());
         return (StaffingCells ?? Cells).Any(c => counts.GetValueOrDefault((c.DefinitionId, c.Date)) > c.Required);
     }
+    public bool Absent(Guid user, DateTime start, DateTime end) => (ApprovedAbsences ?? []).Any(r => r.UserId == user && AbsenceRules.Overlaps(r, start, end));
     public static bool Conflicts(DateTime start, DateTime end, DateTime otherStart, DateTime otherEnd) => start <= otherEnd && otherStart <= end;
     public bool Eligible(Employee employee, CandidateCell cell) =>
         cell.Required > 0 && SchedulingRules.Applicable(cell.DefinitionId, cell.Semantic, cell.Date) && !employee.IsTeamLeader && (!cell.RequiresShiftLeadQualification || employee.IsShiftLeadQualified)
+        && !Absent(employee.Id, cell.Start, cell.End)
         && !Preferences.Any(p => p.UserId == employee.Id && p.State == PreferenceType.BLOCKED && OverlapsAnchor(cell, p))
         && !Work.Any(w => !w.Replaceable && w.UserId == employee.Id &&
             (Conflicts(cell.Start, cell.End, w.Start, w.End) || (w.Date == cell.Date && w.AnchorType == cell.AnchorType)));
@@ -73,7 +75,7 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
             var cell = cells.SingleOrDefault(c => c.Id == a.SchedulingCellId);
             var definition = definitions.SingleOrDefault(d => d.Id == cell?.ShiftTypeDefinitionId);
             var replaceable = a.GeneratedByRunId.HasValue && !a.IsLocked && !a.IsShiftLead && !a.HasTasks && a.Note == null && cell is not null
-                && cell.Date >= first && cell.Date < end && definition is { IncludeInAutomaticScheduling: true } && SchedulingRules.HasDemand(definition.Id, definition.Semantic, definition.RequiredEmployees);
+                && cell.Date >= first && cell.Date < end && definition is { IncludeInAutomaticScheduling: true, AssignmentMode: AssignmentMode.Automatic } && SchedulingRules.HasDemand(definition.Id, definition.Semantic, definition.RequiredEmployees);
             return new Work(a.Id, a.UserId, cell?.ShiftTypeDefinitionId, cell?.Date ?? shift.ShiftDate,
                 cell?.StartsAt ?? shift.StartsAt, cell?.EndsAt ?? shift.EndsAt, shift.Id, replaceable, a.IsShiftLead, shift.ShiftType, definition?.Semantic ?? "ORDINARY", a.Note);
         }).ToArray();
@@ -81,14 +83,18 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
         var staffing = definitions
             .SelectMany(d => Enumerable.Range(0, end.DayNumber - first.DayNumber).Select(i => {
                 var date = first.AddDays(i); var times = ShiftTimeRanges.Boundaries(date, ShiftTimeRanges.Effective(d));
-                return new CandidateCell(d.Id, date, times.StartsAt, times.EndsAt, SchedulingRules.Required(d.Semantic, date, d.RequiredEmployees, d.Id), d.Version, d.Period, d.RequiresShiftLeadQualification, d.Semantic);
+                return new CandidateCell(d.Id, date, times.StartsAt, times.EndsAt, SchedulingRules.Required(d.Semantic, date, d.RequiredEmployees, d.Id), d.Version, d.Period, d.RequiresShiftLeadQualification, d.Semantic, d.AssignmentMode);
             })).ToArray();
-        var included = definitions.Where(d => d.IncludeInAutomaticScheduling && SchedulingRules.HasDemand(d.Id, d.Semantic, d.RequiredEmployees)).Select(d => d.Id).ToHashSet();
+        var included = definitions.Where(d => d.AssignmentMode == AssignmentMode.Automatic && d.IncludeInAutomaticScheduling && SchedulingRules.HasDemand(d.Id, d.Semantic, d.RequiredEmployees)).Select(d => d.Id).ToHashSet();
         var proposed = staffing.Where(c => included.Contains(c.DefinitionId)).ToArray();
-        // Snapshot includes fixed work, configuration, role/account state and submitted versions.
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(new { definitions, teams, periods = periods.Select(p => new { p.Id, p.Year, p.Month, p.Status, p.UpdatedAt, p.Revision }), users, roles,
+        var absenceRequests = await db.Set<AbsenceRequest>().AsNoTracking().Include(r => r.Weekdays)
+            .Where(r => (r.Status == "APPROVED" || r.Status == "PENDING") && r.Kind != "CANCEL").OrderBy(r => r.Id).ToArrayAsync(ct);
+        var approved = absenceRequests.Where(r => r.Status == "APPROVED").Select(r => new { Rule = AbsenceRule.From(r), r.Version }).ToArray();
+        var pending = absenceRequests.Where(r => r.Status == "PENDING").Select(AbsenceRule.From).ToArray();
+        // Snapshot includes fixed work, approved absences, configuration, role/account state and submitted versions.
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new { definitions, teams, approved, periods = periods.Select(p => new { p.Id, p.Year, p.Month, p.Status, p.UpdatedAt, p.Revision }), users, roles,
             shifts = shifts.Select(s => new { s.Id, s.SchedulePeriodId, s.ShiftDate, s.ShiftType, s.StartsAt, s.EndsAt, s.CoordinatorUserId }),
             cells = cells.Select(c => new { c.Id, c.ShiftTypeDefinitionId, c.Date, c.StartsAt, c.EndsAt, c.RequiredEmployees, c.ConfigurationVersion, c.SchedulingRunId }), assignments, submissions = submissions.Select(s => new { s.Id, s.UserId, s.SchedulePeriodId, s.Version, s.LastSubmittedAt }), preferences });
-        return new(year, month, Convert.ToHexString(SHA256.HashData(bytes)), proposed, employees, work, prefs, staffing);
+        return new(year, month, Convert.ToHexString(SHA256.HashData(bytes)), proposed, employees, work, prefs, staffing, approved.Select(a => a.Rule).ToArray(), pending);
     }
 }

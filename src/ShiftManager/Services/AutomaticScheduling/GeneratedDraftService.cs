@@ -99,12 +99,13 @@ public sealed class GeneratedDraftService(ApplicationDbContext db, GenerationQue
                         || p.Work.Any(w => !w.Replaceable && w.UserId == e.UserId && w.AssignmentId != original.AssignmentId
                             && SchedulingProblem.Conflicts(c.Start, c.End, w.Start, w.End))) throw new ApiException("STALE_PREVIEW", 409);
                 }
-                else if (!p.Eligible(employee, c) || e.IsShiftLead) throw new ApiException("STALE_PREVIEW", 409);
+                else if (c.AssignmentMode == AssignmentMode.ManualOnly || !p.Eligible(employee, c) || e.IsShiftLead) throw new ApiException("STALE_PREVIEW", 409);
                 proposed.Add((e.UserId, c));
             }
         }
         var complete = p.Work.Where(w => !w.Replaceable).Concat(proposed.Where(x => !p.Work.Any(w => !w.Replaceable && w.UserId == x.User && w.DefinitionId == x.Cell.DefinitionId && w.Date == x.Cell.Date))
             .Select(x => SchedulingRules.Proposed(x.User, x.Cell))).ToArray();
+        if (complete.Any(w => w.Date.Year == p.Year && w.Date.Month == p.Month && p.Absent(w.UserId, w.Start, w.End))) throw new ApiException("APPROVED_ABSENCE", 409);
         if (p.ExceedsCapacity(complete)) throw new ApiException("STAFFING_EXCEEDED", 409);
         var violations = SchedulingRules.Violations(complete, p.Year, p.Month);
         if (violations.Length > 0) throw new ApiException(violations[0].Code, 409);

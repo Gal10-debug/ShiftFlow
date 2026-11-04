@@ -78,10 +78,10 @@ it("all 51 definitions disable only prohibited weekend cells without edit contro
   expect(screen.getAllByRole("button")).toHaveLength(5);
   expect(screen.queryByText(/חסר עובד/)).not.toBeInTheDocument();
 });
-it("immutable published state has no manual editor", async () => {
+it("finalized working roster offers a correction editor", async () => {
   review.state="FINAL_PUBLISHED";panel("assigned");
   await screen.findByText("סידור עבודה סופי");
-  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
 });
 it("rejects a stale backend contract before submitting edits and explains restarting the server", async () => {
   delete review.editingContractVersion;

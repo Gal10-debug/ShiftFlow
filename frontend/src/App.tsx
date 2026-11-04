@@ -13,6 +13,7 @@ import MySchedule from "./pages/MySchedule";
 import SchedulingBoard from "./pages/SchedulingBoard";
 import Teams from "./pages/Teams";
 import TeamAvailability from "./pages/TeamAvailability";
+import Absences from "./pages/Absences";
 import InfoPage from "./pages/InfoPage";
 function PersonalAvailability() {
   const { user } = useAuth();
@@ -39,9 +40,11 @@ export function AppRoutes() {
       <Route element={<Protected />}>
         <Route element={<Shell />}>
           <Route path="/team-availability" element={<TeamAvailability />} />
+          <Route path="/team-absences" element={<Absences manage />} />
           <Route path="/profile" element={<Profile />} />
           <Route element={<Protected role="ADMIN" />}>
             <Route path="/teams" element={<Teams />} />
+            <Route path="/absence-management" element={<Absences manage />} />
             <Route path="/users" element={<Users />} />
             <Route path="/scheduling" element={<SchedulingBoard />} />
             <Route path="/availability-admin" element={<AvailabilityAdmin />} />
@@ -54,6 +57,7 @@ export function AppRoutes() {
           </Route>
           <Route element={<Protected role="EMPLOYEE" />}>
             <Route path="/my-schedule" element={<MySchedule />} />
+            <Route path="/absences" element={<Absences />} />
             <Route path="/employee" element={<PersonalAvailability />} />
             <Route path="/availability" element={<PersonalAvailability />} />
           </Route>
