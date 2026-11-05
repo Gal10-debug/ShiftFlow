@@ -22,7 +22,7 @@ beforeEach(() => {
   mock.mockReset();
   mock.mockImplementation(async (path, method = "GET") => {
     if (denied) throw new Error("FORBIDDEN");
-    if (path.startsWith("/users?")) return { items: [{ id: "employee", firstName: "דנה", lastName: "כהן" }], totalCount: 1 };
+    if (path.startsWith("/users?")) return { items: [{ id: "employee", firstName: "דנה", lastName: "כהן", roles: ["EMPLOYEE"] }], totalCount: 1 };
     if (path.includes("/audit")) return [{ id: "a", actorUserId: "lead", targetUserId: "employee", teamId: "t0", schedulePeriodId: "p", year: 2026, month: 10, occurredAt: "2026-10-27T10:00:00Z", initialSubmission: true, previousValues: "[]", newValues: '[{"Date":"2026-10-01","ShiftType":"DAY","State":"BLOCKED"}]' }];
     if (path.endsWith("/conflicts")) return [{ assignmentId: "assignment", userId: "employee", date: "2026-10-01", code: "HARD_BLOCK_CONFLICT" }];
     if (path === "/admin/teams") return teams;

@@ -342,3 +342,14 @@ cases, five of six other recurring cases, and all ten short cases. Approved
 modification/cancellation and a pending assignment conflict are included. Existing
 records may change these counts; regenerate and approve the current preview.
 **No scenario application was performed against the existing demo.**
+
+## Phase 6.1 seed separation
+
+Fresh isolated seeds now add `demo.admin` as a separate ADMIN-only account outside
+the four teams. The original 60 employee identities and 56 scheduling participants
+remain; `demo.01` leads Team 1 without administrative permissions. Total accounts:
+61; memberships: 60. Existing 60-account demos are never reseeded or repaired
+automatically. See [Phase 6.1](phase-6-1.md) for the current-demo correction proposal,
+required explicit approval, additive migration and scenario ownership limitations.
+The Friday rule for stable rehabilitation-morning slot 8 supersedes its previous
+weekend exclusion; Saturday remains prohibited. Existing snapshots are preserved.

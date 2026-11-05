@@ -160,7 +160,8 @@ public static class DemoCli
         var db = services.GetRequiredService<ApplicationDbContext>();
         var users = services.GetRequiredService<UserManager<ApplicationUser>>();
         var teams = services.GetRequiredService<TeamService>();
-        var accounts = DemoPlan.Accounts(seed);
+        var administrator = DemoPlan.Administrator(seed);
+        var accounts = new[] { administrator }.Concat(DemoPlan.Accounts(seed)).ToArray();
         var directory = new List<object>();
         // Secrets are random, never derived from the repeatable public seed.
         foreach (var a in accounts)
@@ -169,15 +170,15 @@ public static class DemoCli
             var user = new ApplicationUser { Id = a.Id, UserName = a.Login, FirstName = "Demo", LastName = $"Synthetic {a.Index + 1:00}",
                 IsShiftLeadQualified = a.Qualified, LockoutEnabled = true };
             ApiErrors.Ensure(await users.CreateAsync(user, password));
-            ApiErrors.Ensure(await users.AddToRolesAsync(user, a.Index == 0 ? ["ADMIN", "EMPLOYEE"] : ["EMPLOYEE"]));
-            directory.Add(new { a.Login, Password = password, user.FirstName, user.LastName, a.Team, a.Position, a.Qualified, Roles = a.Index == 0 ? "ADMIN,EMPLOYEE" : "EMPLOYEE" });
+            ApiErrors.Ensure(await users.AddToRolesAsync(user, a.Position == "administrator" ? ["ADMIN"] : ["EMPLOYEE"]));
+            directory.Add(new { a.Login, Password = password, user.FirstName, user.LastName, a.Team, a.Position, a.Qualified, Roles = a.Position == "administrator" ? "ADMIN" : "EMPLOYEE" });
         }
         var path = Path.Combine(output, "accounts.json");
         var fileOptions = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write };
         if (!OperatingSystem.IsWindows()) fileOptions.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
         await using (var stream = new FileStream(path, fileOptions))
             await JsonSerializer.SerializeAsync(stream, directory, new JsonSerializerOptions { WriteIndented = true });
-        var admin = Principal((await users.FindByIdAsync(accounts[0].Id.ToString()))!, "ADMIN", "EMPLOYEE");
+        var admin = Principal((await users.FindByIdAsync(administrator.Id.ToString()))!, "ADMIN");
         var existingTeams = await db.Set<OrganizationalTeam>().OrderBy(t => t.Slot).ToArrayAsync();
         if (existingTeams.Length != 4) throw new InvalidOperationException("Expected exactly the four migrated teams.");
         foreach (var t in existingTeams)
@@ -200,14 +201,14 @@ public static class DemoCli
         var availability = services.GetRequiredService<AvailabilityService>();
         await availability.Configure(month.Year, month.Month, new(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1)), admin);
         await availability.SetState(month.Year, month.Month, true, admin);
-        foreach (var a in accounts.Where(a => a.Position != "leader" && a.Index % 10 != 0))
+        foreach (var a in accounts.Where(a => a.Position is not ("leader" or "administrator") && a.Index % 10 != 0))
         {
             var user = (await users.FindByIdAsync(a.Id.ToString()))!;
             await availability.Submit(month.Year, month.Month, new(0, DemoPlan.Selections(month, seed, a.Index)), Principal(user, "EMPLOYEE"), false);
         }
         var summary = await availability.Summary(month.Year, month.Month);
-        await File.WriteAllTextAsync(Path.Combine(output, "seed-report.json"), JsonSerializer.Serialize(new { Accounts = 60, Leaders = 4, Deputies = 4,
-            OrdinaryEmployees = 52, Eligible = summary.EligibleCount, Submitted = summary.SubmittedCount, Teams = accounts.GroupBy(a => a.Team).Select(g => new { Team = g.Key, Members = g.Count() }),
+        await File.WriteAllTextAsync(Path.Combine(output, "seed-report.json"), JsonSerializer.Serialize(new { Accounts = 61, Administrators = 1, Leaders = 4, Deputies = 4,
+            OrdinaryEmployees = 52, Eligible = summary.EligibleCount, Submitted = summary.SubmittedCount, Teams = accounts.Where(a => a.Team != 0).GroupBy(a => a.Team).Select(g => new { Team = g.Key, Members = g.Count() }),
             Scheduling = "Not run", Publication = "Not run", TimeZone = SchedulingService.ZoneId }, new JsonSerializerOptions { WriteIndented = true }));
     }
 }

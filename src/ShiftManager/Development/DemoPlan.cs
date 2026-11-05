@@ -18,6 +18,11 @@ public static class DemoPlan
         $"demo.{i + 1:00}", i / 15 + 1, i % 15 == 0 ? "leader" : i % 15 == 1 ? "deputy" : "employee",
         i % 15 != 0 && i % 4 == 1)).ToArray();
 
+    // Kept outside the four 15-person teams. Existing employee IDs remain stable.
+    public static DemoAccount Administrator(int seed) => new(60,
+        new Guid(SHA256.HashData(Encoding.UTF8.GetBytes($"{Version}/{seed}/admin"))[..16]),
+        "demo.admin", 0, "administrator", false);
+
     // Absolute Sunday week keys make choices stable across adjacent monthly runs.
     // Each week blocks at most three anchors, including when the week spans months.
     public static SelectionRequest[] Selections(DateOnly month, int seed, int index)

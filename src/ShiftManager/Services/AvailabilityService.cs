@@ -145,6 +145,7 @@ public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider cl
         var actorId = target.HasValue ? await teams.Actor(actor) : await Actor(actor, "EMPLOYEE");
         var userId = target ?? actorId;
         Guid? teamId = target.HasValue ? await teams.AuthorizeTarget(actor, userId) : null;
+        if (await teams.IsAdministrator(userId)) throw new ApiException("EMPLOYEE_INELIGIBLE", 409);
         if (await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == userId)) throw new ApiException("TEAM_LEADER_NOT_SCHEDULED", 409);
         await LockEmployee(userId);
         if (period.Status != ScheduleStatus.DRAFT && !(target.HasValue && period.Status is ScheduleStatus.PRELIMINARY_PUBLISHED or ScheduleStatus.UNDER_CORRECTION)) throw new ApiException("PERIOD_PUBLISHED", 409);
@@ -270,7 +271,7 @@ public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider cl
         await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
         var period = await db.Set<SchedulePeriod>().AsNoTracking().Include(x => x.AvailabilityWindow).SingleOrDefaultAsync(x => x.Year == year && x.Month == month);
         var employees = await (from u in db.Users.AsNoTracking()
-            where u.IsActive && !db.Set<OrganizationalTeam>().Any(t => t.LeaderUserId == u.Id) && (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id
+            where u.IsActive && !(from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id where ur.UserId == u.Id && r.NormalizedName == "ADMIN" select ur).Any() && !db.Set<OrganizationalTeam>().Any(t => t.LeaderUserId == u.Id) && (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id
                 where ur.UserId == u.Id && r.NormalizedName == "EMPLOYEE" select ur).Any()
             orderby u.LastName, u.FirstName, u.Id
             select new { u.Id, u.FirstName, u.LastName }).ToArrayAsync();

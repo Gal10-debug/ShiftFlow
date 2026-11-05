@@ -9,6 +9,7 @@ import Users from "./pages/Users";
 import AccessPage from "./pages/AccessPage";
 import Availability from "./pages/Availability";
 import AvailabilityAdmin from "./pages/AvailabilityAdmin";
+import ShiftExchanges from "./pages/ShiftExchanges";
 import MySchedule from "./pages/MySchedule";
 import SchedulingBoard from "./pages/SchedulingBoard";
 import Teams from "./pages/Teams";
@@ -17,6 +18,7 @@ import Absences from "./pages/Absences";
 import InfoPage from "./pages/InfoPage";
 function PersonalAvailability() {
   const { user } = useAuth();
+  if (user?.roles.includes("ADMIN")) return <section dir="rtl"><h1>הזמינות שלי</h1><p>מנהל המערכת אינו משתתף בסידור העבודה ואינו נדרש להגיש זמינות אישית.</p></section>;
   return user?.isTeamLeader
     ? <section dir="rtl"><h1>הזמינות שלי</h1><p>ראש צוות אינו משתתף בסידור האוטומטי ואינו נדרש להגיש זמינות אישית.</p></section>
     : <Availability />;
@@ -43,6 +45,7 @@ export function AppRoutes() {
           <Route path="/team-absences" element={<Absences manage />} />
           <Route path="/profile" element={<Profile />} />
           <Route element={<Protected role="ADMIN" />}>
+            <Route path="/exchange-management" element={<ShiftExchanges admin />} />
             <Route path="/teams" element={<Teams />} />
             <Route path="/absence-management" element={<Absences manage />} />
             <Route path="/users" element={<Users />} />
@@ -56,6 +59,7 @@ export function AppRoutes() {
             />
           </Route>
           <Route element={<Protected role="EMPLOYEE" />}>
+            <Route path="/shift-exchanges" element={<ShiftExchanges />} />
             <Route path="/my-schedule" element={<MySchedule />} />
             <Route path="/absences" element={<Absences />} />
             <Route path="/employee" element={<PersonalAvailability />} />

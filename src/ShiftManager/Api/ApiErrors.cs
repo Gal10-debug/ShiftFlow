@@ -14,6 +14,11 @@ public static class ApiErrors
 {
     public static ApiError Error(string code) => new(code, code switch
     {
+        "ADMIN_NOT_TEAM_MEMBER" => "מנהל המערכת אינו חבר צוות או ראש צוות. יש לבחור חשבון נפרד.",
+        "EXCHANGE_UNAVAILABLE" => "השיבוץ אינו זמין להחלפה. יש לרענן ולבדוק את הסידור והבקשה.",
+        "EXCHANGE_PAIR_PUBLICATION" => "זוג כוננות בחודשים סמוכים מחייב פרסום משותף ממסך אישור ההחלפות. יש לבדוק ולאשר את שני החודשים לפני הפרסום.",
+        "EXCHANGE_PENDING" => "כבר קיימת בקשת החלפה פעילה לשיבוץ זה.",
+        "PUBLICATION_UNAVAILABLE" => "הפרסום מוסתר או נמחק ואינו זמין לעובדים.",
         "INVALID_ABSENCE" => "יש לבדוק את סיבת ההיעדרות, התאריכים, ימי השבוע וטווח השעות.",
         "INVALID_ABSENCE_DECISION" => "יש לבחור החלטה ולמלא סיבת דחייה.",
         "ABSENCE_CHANGE_PENDING" => "כבר קיימת בקשת שינוי או ביטול ממתינה להיעדרות זו.",

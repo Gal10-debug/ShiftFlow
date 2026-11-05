@@ -51,7 +51,7 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
         var users = await db.Users.AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.IsActive, x.IsShiftLeadQualified, x.FirstName, x.LastName, x.SecurityStamp }).ToArrayAsync(ct);
         var roles = await (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id orderby ur.UserId, r.Name select new { ur.UserId, r.Name }).ToArrayAsync(ct);
         var teams = await db.Set<OrganizationalTeam>().AsNoTracking().OrderBy(t => t.Id).ToArrayAsync(ct);
-        var employees = users.Where(u => u.IsActive && !teams.Any(t => t.LeaderUserId == u.Id) && roles.Any(r => r.UserId == u.Id && r.Name == "EMPLOYEE"))
+        var employees = users.Where(u => u.IsActive && !roles.Any(r => r.UserId == u.Id && r.Name == "ADMIN") && !teams.Any(t => t.LeaderUserId == u.Id) && roles.Any(r => r.UserId == u.Id && r.Name == "EMPLOYEE"))
             .Select(u => new Employee(u.Id, $"{u.FirstName} {u.LastName}", u.IsShiftLeadQualified)).ToArray();
         var shifts = await db.Set<Shift>().AsNoTracking().Where(s => s.ShiftDate >= from && s.ShiftDate <= through).OrderBy(x => x.Id).ToArrayAsync(ct);
         foreach (var s in shifts)

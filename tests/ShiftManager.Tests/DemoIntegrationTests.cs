@@ -38,13 +38,18 @@ public sealed class DemoIntegrationTests
                 }));
             var args = new[] {"seed-demo","--month","2026-11","--seed",seed.ToString()};
             await DemoCli.Run(factory.Services,"Testing",cs.ConnectionString,args);
+            using (var seedReport = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(output,"seed-report.json"))))
+            {
+                Assert.Equal(61,seedReport.RootElement.GetProperty("Accounts").GetInt32());
+                Assert.Equal(4,seedReport.RootElement.GetProperty("Teams").GetArrayLength());
+            }
             var credentials = await File.ReadAllTextAsync(Path.Combine(output,"accounts.json"));
             await DemoCli.Run(factory.Services,"Testing",cs.ConnectionString,args);
             Assert.Equal(credentials,await File.ReadAllTextAsync(Path.Combine(output,"accounts.json")));
             using (var scope = factory.Services.CreateScope())
             {
                 var db=scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                Assert.Equal(60,await db.Users.CountAsync());
+                Assert.Equal(61,await db.Users.CountAsync());
                 Assert.Equal(4,await db.Set<OrganizationalTeam>().CountAsync());
                 Assert.Equal(60,await db.Set<TeamMembership>().CountAsync());
                 Assert.Equal(51,await db.Set<ShiftTypeDefinition>().CountAsync());
@@ -52,6 +57,15 @@ public sealed class DemoIntegrationTests
                 var p=await scope.ServiceProvider.GetRequiredService<SchedulingInputs>().Read(2026,11);
                 var teams=await db.Set<OrganizationalTeam>().ToArrayAsync();
                 Assert.Equal(56,p.Employees.Length);
+                var administrator=await db.Users.SingleAsync(u=>u.UserName=="demo.admin");
+                Assert.DoesNotContain(p.Employees,e=>e.Id==administrator.Id);
+                Assert.False(await db.Set<TeamMembership>().AnyAsync(m=>m.UserId==administrator.Id));
+                Assert.DoesNotContain(teams,t=>t.LeaderUserId==administrator.Id||t.DeputyUserId==administrator.Id);
+                var manager=scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>>();
+                Assert.Equal(new[]{"ADMIN"},await manager.GetRolesAsync(administrator));
+                var firstLeader=await db.Users.SingleAsync(u=>u.UserName=="demo.01");
+                Assert.Equal(firstLeader.Id,teams.Single(t=>t.Slot==1).LeaderUserId);
+                Assert.False(await manager.IsInRoleAsync(firstLeader,"ADMIN"));
                 Assert.All(teams,t=>{Assert.DoesNotContain(p.Employees,e=>e.Id==t.LeaderUserId);Assert.Contains(p.Employees,e=>e.Id==t.DeputyUserId);});
                 Assert.Equal(52,await db.Set<AvailabilitySubmission>().CountAsync());
             }

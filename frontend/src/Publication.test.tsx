@@ -77,6 +77,7 @@ beforeEach(() => {
     }];
     if (path.endsWith("/publications")) return [publication];
     if (path.endsWith("/issues")) return method === "GET" ? [] : {};
+    if (path.endsWith("/versions")) return [1];
     if (path.startsWith("/my-schedule/")) return publication;
     if (method !== "GET") return review;
     return review;
@@ -283,4 +284,35 @@ it("final correction offers updated final publication without restarting prelimi
   panel();
   expect(await screen.findByRole("button", {name: "פרסום סופי"})).toBeInTheDocument();
   expect(screen.queryByRole("button", {name: /פרסום ראשוני/})).not.toBeInTheDocument();
+});
+
+it("identifies month, version and publication in an explicit delete dialog and requires a reason", async () => {
+  publication.publicationType = "FINAL";
+  publication.controlVersion = 3;
+  panel();
+  await userEvent.click(await screen.findByText(/גרסה 1 · סופי/));
+  await userEvent.click(screen.getByRole("button", {name: "מחיקת הפרסום"}));
+  const dialog = screen.getByRole("dialog", {name: "אישור שינוי פרסום"});
+  expect(dialog).toHaveTextContent("גרסה 1");
+  expect(dialog).toHaveTextContent("פרסום סופי");
+  expect(dialog).toHaveTextContent("מזהה פרסום: pub");
+  expect(screen.getByRole("button", {name: "אישור הפעולה"})).toBeDisabled();
+  expect(mocked.mock.calls.some(([,method]) => method === "POST")).toBe(false);
+  await userEvent.type(screen.getByLabelText("סיבת הפעולה"), "פרסום שגוי");
+  await userEvent.click(screen.getByRole("button", {name: "אישור הפעולה"}));
+  await waitFor(() => expect(mocked).toHaveBeenCalledWith("/admin/scheduling/periods/2026/10/publications/pub/control", "POST", {
+    expectedVersion: 3, operation: "DELETE", reason: "פרסום שגוי"
+  }));
+});
+
+it("clears a stale employee snapshot when visibility revalidation denies access", async () => {
+  render(<MySchedule />);
+  await screen.findByRole("heading", {name: "סידור עבודה ראשוני"});
+  mocked.mockImplementation(async path => {
+    if (path.includes("/my-schedule/2026/10")) throw new Error("NOT_FOUND");
+    return [];
+  });
+  window.dispatchEvent(new Event("focus"));
+  await waitFor(() => expect(screen.queryByRole("heading", {name: "סידור עבודה ראשוני"})).not.toBeInTheDocument());
+  expect(screen.queryByText("דנה כהן")).not.toBeInTheDocument();
 });

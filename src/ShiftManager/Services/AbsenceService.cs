@@ -81,10 +81,10 @@ public sealed partial class AbsenceService(ApplicationDbContext db, AccountServi
         if (from > through) throw new ApiException("VALIDATION_ERROR");
         var requests = await query.OrderByDescending(r => r.CreatedAt).ThenBy(r => r.Id).ToArrayAsync();
         var result = new List<AbsenceResponse>();
-        foreach (var r in requests) result.Add(await Response(r));
+        foreach (var r in requests) result.Add(await Response(r, await HasRole(id, "ADMIN")));
         if (tx is not null) await tx.CommitAsync(); return result.ToArray();
     }
-    private async Task<AbsenceResponse> Response(AbsenceRequest r)
+    private async Task<AbsenceResponse> Response(AbsenceRequest r, bool admin = false)
     {
         var name = await db.Users.Where(u => u.Id == r.UserId).Select(u => u.FirstName + " " + u.LastName).SingleAsync();
         var team = await (from m in db.Set<TeamMembership>() join t in db.Set<OrganizationalTeam>() on m.TeamId equals t.Id
@@ -93,7 +93,7 @@ public sealed partial class AbsenceService(ApplicationDbContext db, AccountServi
             where d.AbsenceRequestId == r.Id select new AbsenceDecisionResponse(d.ActorUserId, u.FirstName + " " + u.LastName, d.Decision, d.OccurredAt, d.RejectionReason)).SingleOrDefaultAsync();
         var conflicts = await (from c in db.Set<AbsenceConflict>() join p in db.Set<SchedulePeriod>() on c.SchedulePeriodId equals p.Id
             join pub in db.Set<SchedulePublication>() on c.PublicationId equals pub.Id
-            where c.AbsenceRequestId == r.Id && c.ResolvedAt == null orderby c.Date, c.Id
+            where c.AbsenceRequestId == r.Id && c.ResolvedAt == null && (admin || PublicationAccess.Visible(db).Any(p => p.Id == c.PublicationId)) orderby c.Date, c.Id
             select new AbsenceConflictItem(c.AssignmentId, p.Id, p.Year, p.Month, c.Date, c.StartsAt, c.EndsAt, c.ShiftName,
                 "PUBLISHED_CONFLICT", c.PublicationId, pub.VersionNumber, false, null)).ToArrayAsync();
         return new(r.Id, r.UserId, name, team?.Id, team?.Name, r.Kind, r.Status, Pattern(r), r.ReplacesId, r.Version,
@@ -105,7 +105,7 @@ public sealed partial class AbsenceService(ApplicationDbContext db, AccountServi
     {
         Validate(p);
         await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync() : null; var id = await Lock(actor); await RequireEmployee(id);
-        var r = Create(id, p); db.Add(r); await db.SaveChangesAsync(); var result = await Response(r); if (tx is not null) await tx.CommitAsync(); return result;
+        var r = Create(id, p); db.Add(r); await db.SaveChangesAsync(); var result = await Response(r, await HasRole(id, "ADMIN")); if (tx is not null) await tx.CommitAsync(); return result;
     }
     public async Task<AbsenceResponse> Change(Guid requestId, AbsenceChange input, ClaimsPrincipal actor)
     {
@@ -116,7 +116,7 @@ public sealed partial class AbsenceService(ApplicationDbContext db, AccountServi
         if (parent.Status != "APPROVED" || parent.Kind == "CANCEL" || parent.Version != input.ExpectedVersion) throw new ApiException("CONFLICT", 409);
         var p = input.Kind == "CANCEL" ? Pattern(parent) : input.Pattern ?? throw new ApiException("INVALID_ABSENCE"); Validate(p);
         if (await db.Set<AbsenceRequest>().AnyAsync(r => r.ReplacesId == parent.Id && r.Status == "PENDING")) throw new ApiException("ABSENCE_CHANGE_PENDING", 409);
-        var r = Create(id, p, input.Kind, parent); db.Add(r); await db.SaveChangesAsync(); var result = await Response(r); if (tx is not null) await tx.CommitAsync(); return result;
+        var r = Create(id, p, input.Kind, parent); db.Add(r); await db.SaveChangesAsync(); var result = await Response(r, await HasRole(id, "ADMIN")); if (tx is not null) await tx.CommitAsync(); return result;
     }
     public async Task<AbsenceResponse> CancelPending(Guid requestId, AbsenceVersion input, ClaimsPrincipal actor)
     {
@@ -126,7 +126,7 @@ public sealed partial class AbsenceService(ApplicationDbContext db, AccountServi
         if (r.Status != "PENDING" || r.Version != input.ExpectedVersion) throw new ApiException("CONFLICT", 409);
         r.Status = "CANCELLED"; r.Version++; r.UpdatedAt = Now;
         db.Add(new AbsenceDecision { AbsenceRequestId = r.Id, ActorUserId = id, Decision = "CANCELLED", OccurredAt = Now });
-        await db.SaveChangesAsync(); var result = await Response(r); if (tx is not null) await tx.CommitAsync(); return result;
+        await db.SaveChangesAsync(); var result = await Response(r, await HasRole(id, "ADMIN")); if (tx is not null) await tx.CommitAsync(); return result;
     }
     public async Task<AbsenceResponse> Decide(Guid requestId, AbsenceDecisionRequest input, ClaimsPrincipal actor)
     {
@@ -138,6 +138,7 @@ public sealed partial class AbsenceService(ApplicationDbContext db, AccountServi
         if (input.Decision == "APPROVED")
         {
             var report = await FindConflicts(r);
+            await RequireVisibleConflicts(report, id);
             if (input.ConflictToken != report.Token) throw new ApiException("STALE_ABSENCE_CONFLICTS", 409);
             if (report.Items.Any(c => c.RemovalBlock is not null)) throw new ApiException("ABSENCE_CONFLICT_REQUIRES_ADMIN", 409);
             if (report.Items.Any(c => c.Removable) && !input.ConfirmDraftRemovals) throw new ApiException("ABSENCE_DRAFT_CONFIRMATION", 409);
@@ -153,12 +154,19 @@ public sealed partial class AbsenceService(ApplicationDbContext db, AccountServi
         r.Status = input.Decision; r.Version++; r.UpdatedAt = Now;
         db.Add(new AbsenceDecision { AbsenceRequestId = r.Id, ActorUserId = id, Decision = input.Decision,
             RejectionReason = input.Decision == "REJECTED" ? input.RejectionReason!.Trim() : null, OccurredAt = Now });
-        await db.SaveChangesAsync(); var result = await Response(r); if (tx is not null) await tx.CommitAsync(); return result;
+        await db.SaveChangesAsync(); var result = await Response(r, await HasRole(id, "ADMIN")); if (tx is not null) await tx.CommitAsync(); return result;
+    }
+    private async Task RequireVisibleConflicts(AbsenceConflictReport report, Guid actor)
+    {
+        if (await HasRole(actor, "ADMIN")) return;
+        var ids = report.Items.Where(c => c.PublicationId.HasValue).Select(c => c.PublicationId!.Value).Distinct().ToArray();
+        if (ids.Length != await PublicationAccess.Visible(db).CountAsync(p => ids.Contains(p.Id)))
+            throw new ApiException("ABSENCE_CONFLICT_REQUIRES_ADMIN", 409);
     }
     public async Task<AbsenceConflictReport> Conflicts(Guid requestId, ClaimsPrincipal actor)
     {
         await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead) : null;
         var id = await teams.Actor(actor); var r = await Request(requestId); await AuthorizeApprover(id, r.UserId);
-        var report = await FindConflicts(r); if (tx is not null) await tx.CommitAsync(); return report;
+        var report = await FindConflicts(r); await RequireVisibleConflicts(report, id); if (tx is not null) await tx.CommitAsync(); return report;
     }
 }

@@ -11,8 +11,8 @@ public sealed class AccountService(ApplicationDbContext db, UserManager<Applicat
 {
     public async Task<UserResponse> Response(ApplicationUser user) => new(user.Id, user.FirstName, user.LastName,
         user.UserName!, user.IsActive, user.MustChangePassword, user.CreatedAt, (await users.GetRolesAsync(user)).Order().ToArray(), user.IsShiftLeadQualified,
-        await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == user.Id || t.DeputyUserId == user.Id),
-        await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == user.Id));
+        !await users.IsInRoleAsync(user, "ADMIN") && await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == user.Id || t.DeputyUserId == user.Id),
+        !await users.IsInRoleAsync(user, "ADMIN") && await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == user.Id));
 
     public async Task<ApplicationUser> Find(Guid id) => await users.FindByIdAsync(id.ToString()) ?? throw new ApiException("USER_NOT_FOUND", 404);
 
@@ -72,6 +72,8 @@ public sealed class AccountService(ApplicationDbContext db, UserManager<Applicat
         var user = await Find(id);
         var oldRoles = await users.GetRolesAsync(user);
         var newRoles = roles ?? oldRoles.ToArray();
+        if (roles is not null && newRoles.Contains("ADMIN") && await db.Set<TeamMembership>().AnyAsync(m => m.UserId == id))
+            throw new ApiException("ADMIN_NOT_TEAM_MEMBER");
         if (!newRoles.Contains("EMPLOYEE") && await db.Set<OrganizationalTeam>().AnyAsync(t => t.DeputyUserId == id))
             throw new ApiException("DEPUTY_REQUIRES_EMPLOYEE");
         if (user.IsActive && oldRoles.Contains("ADMIN") && (!(active ?? user.IsActive) || !newRoles.Contains("ADMIN")))

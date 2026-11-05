@@ -20,14 +20,20 @@ public sealed partial class SchedulingTests
         using (var scope = factory.Services.CreateScope())
         {
             var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            if (!ids.ContainsKey("leader"))
+            {
+                var leader = new ApplicationUser { UserName = "leader", FirstName = "ראש", LastName = "צוות", IsActive = true };
+                Assert.True((await manager.CreateAsync(leader, Password)).Succeeded);
+                Assert.True((await manager.AddToRoleAsync(leader, "EMPLOYEE")).Succeeded); ids["leader"] = leader.Id;
+            }
             var deputy = (await manager.FindByIdAsync(ids["coordinator"].ToString()))!;
             if (!await manager.IsInRoleAsync(deputy, "EMPLOYEE")) Assert.True((await manager.AddToRoleAsync(deputy, "EMPLOYEE")).Succeeded);
         }
         var team = (await Teams(admin))[0];
-        foreach (var name in new[] { "admin", "coordinator", "employee" })
+        foreach (var name in new[] { "leader", "coordinator", "employee" })
             Assert.Equal(HttpStatusCode.OK, (await Send(admin, $"{TeamsPath}/members/{ids[name]}", new MembershipRequest(team.Id))).StatusCode);
         team = (await Teams(admin))[0];
-        Assert.Equal(HttpStatusCode.OK, (await Send(admin, $"{TeamsPath}/{team.Id}", new UpdateTeamRequest(team.Name, ids["admin"], ids["coordinator"], team.Version))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Send(admin, $"{TeamsPath}/{team.Id}", new UpdateTeamRequest(team.Name, ids["leader"], ids["coordinator"], team.Version))).StatusCode);
         return (await Teams(admin))[0];
     }
     private async Task ConfigureWindow(HttpClient admin, int month = 10, bool open = false)
@@ -55,7 +61,7 @@ public sealed partial class SchedulingTests
         teams = await Teams(admin); Assert.Null(teams[0].DeputyUserId);
         Assert.Contains(teams[1].Members, m => m.Id == ids["coordinator"]);
         Assert.DoesNotContain(teams[0].Members, m => m.Id == ids["coordinator"]);
-        Assert.Equal(HttpStatusCode.OK, (await Send(admin, $"{TeamsPath}/members/{ids["admin"]}", new MembershipRequest(null))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Send(admin, $"{TeamsPath}/members/{ids["leader"]}", new MembershipRequest(null))).StatusCode);
         Assert.Null((await Teams(admin))[0].LeaderUserId);
     }
     [PostgresFact]
@@ -64,7 +70,7 @@ public sealed partial class SchedulingTests
         using var admin = await Login(); var t = (await Teams(admin))[0];
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(admin, $"{TeamsPath}/{t.Id}", new UpdateTeamRequest(t.Name, ids["employee"], null, t.Version))).StatusCode);
         t = await SetupTeam(admin);
-        Assert.Equal(HttpStatusCode.BadRequest, (await Send(admin, $"{TeamsPath}/{t.Id}", new UpdateTeamRequest(t.Name, ids["admin"], ids["admin"], t.Version))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Send(admin, $"{TeamsPath}/{t.Id}", new UpdateTeamRequest(t.Name, ids["leader"], ids["leader"], t.Version))).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await Send(admin, $"{TeamsPath}/{t.Id}", new UpdateTeamRequest(t.Name, null, null, 1))).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(admin, $"{TeamsPath}/{t.Id}", new UpdateTeamRequest(" ", null, null, t.Version))).StatusCode);
     }
@@ -73,9 +79,9 @@ public sealed partial class SchedulingTests
     {
         using var admin = await Login(); var t = await SetupTeam(admin); var other = (await Teams(admin))[1];
         using var scope = factory.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var distinct = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE \"OrganizationalTeam\" SET \"DeputyUserId\" = {ids["admin"]} WHERE \"Id\" = {t.Id}"));
+        var distinct = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE \"OrganizationalTeam\" SET \"DeputyUserId\" = {ids["leader"]} WHERE \"Id\" = {t.Id}"));
         Assert.Equal("23514", distinct.SqlState);
-        var member = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE \"OrganizationalTeam\" SET \"LeaderUserId\" = {ids["admin"]} WHERE \"Id\" = {other.Id}"));
+        var member = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE \"OrganizationalTeam\" SET \"LeaderUserId\" = {ids["leader"]} WHERE \"Id\" = {other.Id}"));
         Assert.Equal("23503", member.SqlState);
         var duplicate = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO \"TeamMembership\" (\"UserId\", \"TeamId\") VALUES ({ids["employee"]}, {other.Id})"));
         Assert.Equal("23505", duplicate.SqlState);
@@ -199,16 +205,16 @@ public sealed partial class SchedulingTests
         using (var scope = factory.Services.CreateScope())
         {
             var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            foreach (var name in new[] { "admin", "coordinator" }) { var u = (await manager.FindByIdAsync(ids[name].ToString()))!; await manager.AddToRoleAsync(u, "EMPLOYEE"); }
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(); (await db.Users.SingleAsync(u => u.Id == ids["admin"])).IsShiftLeadQualified = true; await db.SaveChangesAsync();
+            foreach (var name in new[] { "leader", "coordinator" }) { var u = (await manager.FindByIdAsync(ids[name].ToString()))!; await manager.AddToRoleAsync(u, "EMPLOYEE"); }
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(); (await db.Users.SingleAsync(u => u.Id == ids["leader"])).IsShiftLeadQualified = true; await db.SaveChangesAsync();
         }
-        using var leader = await Login(); using var deputy = await Login("coordinator");
+        using var leader = await Login("leader"); using var deputy = await Login("coordinator");
         Assert.Equal(HttpStatusCode.Conflict, (await Send(leader, "/api/availability/2026/10", Choices(), "POST")).StatusCode);
         Assert.Equal(HttpStatusCode.Created, (await Send(deputy, "/api/availability/2026/10", Choices(0, 1), "POST")).StatusCode);
         using var readScope = factory.Services.CreateScope(); var p = await readScope.ServiceProvider.GetRequiredService<SchedulingInputs>().Read(2026, 10);
-        Assert.DoesNotContain(p.Employees, e => e.Id == ids["admin"]); Assert.Contains(p.Employees, e => e.Id == ids["coordinator"] && !e.IsShiftLeadQualified);
-        var run = await Generate(leader); Assert.Equal("READY", run.State);
-        Assert.DoesNotContain(run.Cells.SelectMany(c => c.Employees), e => e.UserId == ids["admin"]);
+        Assert.DoesNotContain(p.Employees, e => e.Id == ids["leader"]); Assert.Contains(p.Employees, e => e.Id == ids["coordinator"] && !e.IsShiftLeadQualified);
+        var run = await Generate(admin); Assert.Equal("READY", run.State);
+        Assert.DoesNotContain(run.Cells.SelectMany(c => c.Employees), e => e.UserId == ids["leader"]);
         Assert.DoesNotContain(run.Cells.Where(c => c.Date == new DateOnly(2026, 10, 1)).SelectMany(c => c.Employees), e => e.UserId == ids["coordinator"]);
         Assert.Contains(run.Cells.SelectMany(c => c.Employees), e => e.UserId == ids["coordinator"]);
     }

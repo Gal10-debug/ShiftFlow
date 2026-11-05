@@ -11,6 +11,7 @@ public sealed class RosterValidationService(ApplicationDbContext db)
     public async Task<RosterConflict[]> Conflicts(Guid? periodId = null)
     {
         var leaders = await db.Set<OrganizationalTeam>().Where(t => t.LeaderUserId != null).Select(t => t.LeaderUserId!.Value).ToArrayAsync();
+        var administrators = await (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id where r.NormalizedName == "ADMIN" select ur.UserId).ToArrayAsync();
         var assignments = await db.Set<ShiftAssignment>().AsNoTracking().Where(a => periodId == null || a.Shift.SchedulePeriodId == periodId)
             .Select(a => new { a.Id, a.UserId, a.ShiftId, a.Shift.SchedulePeriodId, a.Shift.ShiftDate, DefinitionId = a.Cell == null ? (Guid?)null : a.Cell.ShiftTypeDefinitionId,
                 Start = a.SchedulingCellId == null ? a.Shift.StartsAt : a.Cell!.StartsAt,
@@ -25,6 +26,7 @@ public sealed class RosterValidationService(ApplicationDbContext db)
             var result = new List<RosterConflict>();
             if (!AutomaticScheduling.SchedulingRules.Applicable(a.DefinitionId, a.DefinitionId.HasValue ? definitions.GetValueOrDefault(a.DefinitionId.Value, "ORDINARY") : "ORDINARY", a.ShiftDate)) result.Add(new(a.Id, a.UserId, a.SchedulePeriodId, a.ShiftDate, "WEEKEND_SHIFT_PROHIBITED"));
             if (absences.Any(r => r.UserId == a.UserId && AbsenceRules.Overlaps(r, a.Start, a.End))) result.Add(new(a.Id, a.UserId, a.SchedulePeriodId, a.ShiftDate, "APPROVED_ABSENCE"));
+            if (administrators.Contains(a.UserId)) result.Add(new(a.Id, a.UserId, a.SchedulePeriodId, a.ShiftDate, "EMPLOYEE_INELIGIBLE"));
             if (leaders.Contains(a.UserId)) result.Add(new(a.Id, a.UserId, a.SchedulePeriodId, a.ShiftDate, "TEAM_LEADER_ASSIGNED"));
             if (blocks.Any(b => b.UserId == a.UserId && b.StartsAt < a.End && b.EndsAt > a.Start)) result.Add(new(a.Id, a.UserId, a.SchedulePeriodId, a.ShiftDate, "HARD_BLOCK_CONFLICT"));
             return result;

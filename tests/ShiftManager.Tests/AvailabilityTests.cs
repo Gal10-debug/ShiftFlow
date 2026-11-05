@@ -283,7 +283,7 @@ public sealed class AvailabilityTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task Administrator_with_employee_role_has_no_weekly_limit_override()
+    public async Task Administrator_with_legacy_employee_role_cannot_submit_personal_availability()
     {
         using (var scope = factory.Services.CreateScope())
         {
@@ -291,7 +291,7 @@ public sealed class AvailabilityTests : IAsyncLifetime
             Assert.True((await users.AddToRoleAsync((await users.FindByIdAsync(ids["admin"].ToString()))!, "EMPLOYEE")).Succeeded);
         }
         await Open(); using var admin = await Login("admin");
-        await Error(await Send(admin, "/api/availability/2026/10", Input(0, Enumerable.Range(25, 4).Select(d => Pick($"2026-10-{d}")).ToArray()), "POST"), "WEEKLY_BLOCK_LIMIT");
+        await Error(await Send(admin, "/api/availability/2026/10", Input(0, Enumerable.Range(25, 4).Select(d => Pick($"2026-10-{d}")).ToArray()), "POST"), "EMPLOYEE_INELIGIBLE", HttpStatusCode.Conflict);
         Assert.False((await admin.GetFromJsonAsync<AvailabilityResponse>("/api/availability/2026/10"))!.Submitted);
     }
 

@@ -15,10 +15,24 @@ public sealed record ManualAssignmentRequest([Required, StringLength(64, Minimum
 public sealed record PublishScheduleRequest([Required, StringLength(64, MinimumLength = 64)] string ExpectedToken,
     bool AcknowledgeShortages, bool AcknowledgeOpenIssues, [StringLength(2000)] string? Notes);
 public sealed record PublicationResponse(Guid Id, int VersionNumber, string PublicationType, Guid PublishedByUserId,
-    DateTime PublishedAt, string? Notes, ScheduleSnapshot? Snapshot, bool AcknowledgedShortages = false, bool AcknowledgedOpenIssues = false, int OpenIssueCount = 0, string? PublishedByName = null);
+    DateTime PublishedAt, string? Notes, ScheduleSnapshot? Snapshot, bool AcknowledgedShortages = false, bool AcknowledgedOpenIssues = false, int OpenIssueCount = 0, string? PublishedByName = null, bool Hidden = false, bool Deleted = false, long ControlVersion = 0);
 public sealed record CreateIssueRequest(Guid PublicationId, Guid AssignmentId,
     [Required, StringLength(2000), RegularExpression(@"[\s\S]*\S[\s\S]*")] string Explanation);
 public sealed record UpdateIssueRequest([Range(1, long.MaxValue)] long ExpectedVersion, string Status, [StringLength(2000)] string? Response);
 
 public sealed record OnCallPairRequest([Required, StringLength(64, MinimumLength = 64)] string ExpectedToken,
     string Operation, DateOnly Friday, Guid? UserId, Guid? AssignmentId, bool AcknowledgeAdjacentPeriod, [StringLength(1000)] string? Note = null);
+
+public sealed record PublicationControlRequest(long ExpectedVersion, string Operation,
+    [Required, StringLength(2000), RegularExpression(@"[\s\S]*\S[\s\S]*")] string Reason);
+public sealed record ExchangeCreateRequest(Guid PublicationId, Guid AssignmentId, Guid ReplacementUserId);
+public sealed record ExchangeDecisionRequest(long ExpectedVersion, string Decision, [StringLength(2000)] string? Reason = null);
+public sealed record ExchangeAssignmentResponse(Guid AssignmentId, Guid PublicationId, Guid DefinitionId, DateOnly Date,
+    DateTime StartsAt, DateTime EndsAt, bool IsShiftLead, string Name);
+public sealed record ExchangeResponse(Guid Id, Guid RequesterUserId, string RequesterName, Guid ReplacementUserId,
+    string ReplacementName, string Status, long Version, string? Reason, DateTime CreatedAt,
+    ExchangeAssignmentResponse[] Assignments);
+
+public sealed record ExchangePeriodToken(int Year, int Month, string ExpectedToken);
+public sealed record ExchangePublicationRequest(ExchangePeriodToken[] Periods, bool AcknowledgeShortages,
+    bool AcknowledgeOpenIssues, [StringLength(2000)] string? Notes);
