@@ -24,6 +24,7 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
       ASPNETCORE_ENVIRONMENT: CI
       RUN_POSTGRES_TESTS: '1'
+      SCHEDULING_VALIDATION_REPORT_DIRECTORY: ${{ runner.temp }}/scheduling-validation
       # Disposable service credentials only; never use repository secrets here.
       TEST_POSTGRES_CONNECTION_STRING: Host=127.0.0.1;Port=5432;Database=shiftflow_ci;Username=shiftflow_ci;Password=ci-only-disposable
       ConnectionStrings__Database: Host=127.0.0.1;Port=5432;Database=shiftflow_ci;Username=shiftflow_ci;Password=ci-only-disposable
@@ -60,6 +61,38 @@ jobs:
         run: dotnet ef migrations has-pending-model-changes --project src/ShiftManager --configuration Release --no-build
       - name: Run all backend tests against isolated service databases
         run: dotnet test ShiftManager.slnx -c Release --no-build --no-restore --logger "trx;LogFileName=backend.trx"
+      - name: Summarize scheduling benchmark quality and proof status
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          report = Path(os.environ["SCHEDULING_VALIDATION_REPORT_DIRECTORY"]) / "priority-benchmarks.json"
+          lines = ["## Scheduling benchmark results", "",
+                   "A passing test run does not establish pilot acceptance for unproven or missed quality targets.", ""]
+          if not report.is_file():
+              lines.append("No benchmark report was produced; the test/build may have stopped before benchmarking.")
+          else:
+              trials = json.loads(report.read_text())
+              lines += ["| Scenario | Budget (s) | Status | Proven stages | Critical value / bound | Fairness status | Fairness value / bound | Quality target | Max cohort spread |",
+                        "| --- | ---: | --- | ---: | --- | --- | --- | --- | ---: |"]
+              for trial in trials:
+                  stages = {s["Objective"]: s for s in trial.get("Stages") or []}
+                  critical = stages.get("CRITICAL_COVERAGE", {})
+                  stage = stages.get("FAIRNESS", {})
+                  fairness = trial.get("Fairness") or {}
+                  spread = max((c["Maximum"] - c["Minimum"] for c in fairness.get("Cohorts", [])), default="N/A")
+                  outcome = fairness.get("Outcome", "N/A")
+                  lines.append(f"| {trial['Scenario']} | {trial['BudgetSeconds']} | {trial['Status']} | {trial['ProvenObjectives']} | "
+                               f"{critical.get('Value')} / {critical.get('Bound')} | {stage.get('Status', 'NOT_RUN')} | "
+                               f"{stage.get('Value')} / {stage.get('Bound')} | {outcome} | {spread} |")
+                  if outcome in ("UNPROVEN_TARGET_NOT_MET", "PROVEN_TARGET_VIOLATION"):
+                      print(f"::warning::Scheduling benchmark {trial['Scenario']} at {trial['BudgetSeconds']} seconds: {outcome}; cohort spread {spread}. Review before pilot acceptance.")
+          summary = "\n".join(lines) + "\n"
+          print(summary)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as stream:
+              stream.write(summary)
+          PY
 
   frontend:
     name: Frontend
