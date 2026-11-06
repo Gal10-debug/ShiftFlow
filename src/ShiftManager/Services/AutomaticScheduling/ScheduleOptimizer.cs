@@ -2,19 +2,22 @@ using System.Diagnostics;
 using System.Globalization;
 using Google.OrTools.Sat;
 using ShiftManager.Api;
+using ShiftManager.Domain;
 namespace ShiftManager.Services.AutomaticScheduling;
 
-public sealed record OptimizationResult(string Status, int ProvenObjectives, GeneratedCell[] Cells);
+public sealed record OptimizationResult(string Status, int ProvenObjectives, GeneratedCell[] Cells, OptimizationStageResult[]? Stages = null);
 public interface IScheduleOptimizer
 {
     OptimizationResult Solve(SchedulingProblem problem, double seconds, CancellationToken ct);
 }
 public sealed class ScheduleOptimizer : IScheduleOptimizer
 {
-    public static bool Priority(Guid id) => Enumerable.Range(1, 7).Any(slot => id == Guid.Parse($"40000000-0000-0000-0000-{slot:000000000000}"));
+    public const int CoverageObjectiveCount = 3;
+    public const int ObjectiveCount = 6;
     public OptimizationResult Solve(SchedulingProblem p, double seconds, CancellationToken ct)
     {
         var watch = Stopwatch.StartNew();
+        if (p.Cells.Any(c => !Enum.IsDefined(c.SchedulingPriority))) throw new ApiException("INVALID_SHIFT_TYPE_SETTINGS", 409);
         var model = new CpModel();
         var choices = new Dictionary<(int Cell, int Employee), BoolVar>();
         var fixedWork = p.Work.Where(w => !w.Replaceable).ToArray();
@@ -115,33 +118,45 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
             var load = model.NewIntVar(existing, existing + capacity, $"load{ei}");
             model.Add(load == LinearExpr.Sum(options.Select(x => x.Value)) + existing);
             var maxLoad = existing + capacity;
-            var square = model.NewIntVar(0, (long)maxLoad * maxLoad, $"square{ei}");
-            model.AddMultiplicationEquality(square, load, load);
-            var cost = model.NewIntVar(0, (long)maxLoad * maxLoad * 1000, $"fairness{ei}");
-            model.AddDivisionEquality(cost, square * 1000, Math.Max(1, maxLoad));
+            // Exact finite-domain encoding of the existing policy. Removing nonlinear
+            // multiplication/division avoids spending the fairness budget on arithmetic.
+            var costs = Enumerable.Range(0, maxLoad + 1).Select(l => (long)l * l * 1000 / Math.Max(1, maxLoad)).ToArray();
+            var cost = model.NewIntVar(costs[existing], costs[maxLoad], $"fairness{ei}");
+            model.AddElement(load, costs, cost);
             fairness.Add(cost);
         }
-        var expertFilled = LinearExpr.Sum(choices.Where(x => p.Cells[x.Key.Cell].RequiresShiftLeadQualification).Select(x => x.Value));
-        var filled = LinearExpr.Sum(choices.Where(x => !p.Cells[x.Key.Cell].RequiresShiftLeadQualification).Select(x => x.Value));
+        LinearExpr Coverage(SchedulingPriority priority) => LinearExpr.Sum(choices.Where(x => p.Cells[x.Key.Cell].SchedulingPriority == priority).Select(x => x.Value))
+            + fixedWork.Count(w => p.Cells.Any(c => c.DefinitionId == w.DefinitionId && c.Date == w.Date && c.SchedulingPriority == priority));
         var preference = LinearExpr.Sum(choices.Where(x => p.Preferred(p.Employees[x.Key.Employee], p.Cells[x.Key.Cell])).Select(x => x.Value));
         var stability = LinearExpr.Sum(choices.Where(x => p.Work.Any(w => w.Replaceable && w.UserId == p.Employees[x.Key.Employee].Id
             && w.DefinitionId == p.Cells[x.Key.Cell].DefinitionId && w.Date == p.Cells[x.Key.Cell].Date)).Select(x => x.Value));
-        // Each optimum is pinned before the next solve: lower priorities can never
-        // buy away expert coverage or coverage of the seven immutable priority rows.
-        var expertPriority = LinearExpr.Sum(choices.Where(x => p.Cells[x.Key.Cell].RequiresShiftLeadQualification && Priority(p.Cells[x.Key.Cell].DefinitionId)).Select(x => x.Value));
-        var priority = LinearExpr.Sum(choices.Where(x => !p.Cells[x.Key.Cell].RequiresShiftLeadQualification && Priority(p.Cells[x.Key.Cell].DefinitionId)).Select(x => x.Value));
-        var stages = new[] { expertFilled, expertPriority, priority, filled, -LinearExpr.Sum(fairness), preference, stability };
+        // No display positions, UUID allowlist, or hidden qualification sub-ranking.
+        // Only proven optima are pinned. Stop on an unproven incumbent, preserving
+        // it and its native bound; no later objective can lower established coverage.
+        var stages = new (string Name, LinearExpr Expression)[] {
+            ("CRITICAL_COVERAGE", Coverage(SchedulingPriority.Critical)),
+            ("HIGH_COVERAGE", Coverage(SchedulingPriority.High)),
+            ("NORMAL_COVERAGE", Coverage(SchedulingPriority.Normal)),
+            ("FAIRNESS", -LinearExpr.Sum(fairness)), ("PREFERENCES", preference), ("STABILITY", stability) };
+        var diagnostics = stages.Select(s => new OptimizationStageResult(s.Name, "NOT_RUN", null, null, 0, false)).ToArray();
         var proven = 0; var status = "TIMEOUT";
         Dictionary<(int Cell, int Employee), bool>? best = null;
-        foreach (var objective in stages)
+        for (var stage = 0; stage < stages.Length; stage++)
         {
+            var objective = stages[stage].Expression;
             ct.ThrowIfCancellationRequested();
             var remaining = seconds - watch.Elapsed.TotalSeconds;
             if (remaining <= 0) break;
             model.Maximize(objective);
             var solver = new CpSolver { StringParameters = $"max_time_in_seconds:{remaining.ToString(CultureInfo.InvariantCulture)} num_search_workers:1 random_seed:42" };
             using var registration = ct.Register(solver.StopSearch);
+            var stageWatch = Stopwatch.StartNew();
             var result = solver.Solve(model);
+            stageWatch.Stop();
+            diagnostics[stage] = new(stages[stage].Name, result.ToString().ToUpperInvariant(),
+                result is CpSolverStatus.Optimal or CpSolverStatus.Feasible ? solver.ObjectiveValue : null,
+                double.IsFinite(solver.BestObjectiveBound) ? solver.BestObjectiveBound : null,
+                stageWatch.Elapsed.TotalSeconds, result == CpSolverStatus.Optimal, solver.WallTime());
             ct.ThrowIfCancellationRequested();
             if (result is CpSolverStatus.Optimal or CpSolverStatus.Feasible)
             {
@@ -160,7 +175,7 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
                 break;
             }
         }
-        if (best is null) return new(status, proven, []);
+        if (best is null) return new(status, proven, [], diagnostics);
         if (proven == stages.Length) status = "OPTIMAL";
         var cells = p.Cells.Select((c, ci) => new GeneratedCell(c.DefinitionId, c.Date, c.Start, c.End, c.Required,
             fixedWork.Where(w => w.DefinitionId == c.DefinitionId && w.Date == c.Date).Select(w => new ScheduledEmployee(w.UserId, p.Employees.Single(e => e.Id == w.UserId).Name, true, w.Lead, w.AssignmentId, w.Note))
@@ -171,6 +186,6 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
         if (p.ExceedsCapacity(completed)) throw new ApiException("STAFFING_EXCEEDED", 409);
         var finalViolations = SchedulingRules.Violations(completed, p.Year, p.Month);
         if (finalViolations.Length > 0) throw new ApiException(finalViolations[0].Code, 409);
-        return new(status, proven, cells);
+        return new(status, proven, cells, diagnostics);
     }
 }

@@ -68,6 +68,13 @@ export default function AutomaticGeneration({ definitions, value, onChange, onSa
     {value?.state === "FAILED" && <p role="alert">ההרצה נכשלה. {message(new Error(value.errorCode ?? "INTERNAL_ERROR"))}</p>}
     {value?.state === "CANCELED" && <p role="status">ההרצה בוטלה ללא שמירה</p>}
     {value?.solverStatus === "FEASIBLE" && <p>נמצא פתרון חוקי במסגרת מגבלת הזמן. לא הוכח שכל יעדי האופטימיזציה מיטביים.</p>}
+    {value?.stages && value.stages.length > 0 && <div className="help" aria-label="תוצאות יעדי השיבוץ" dir="rtl">
+      {value.stages.map(stage => <p key={stage.objective}>
+        {({ CRITICAL_COVERAGE: "כיסוי משמרות קריטיות", HIGH_COVERAGE: "כיסוי משמרות בעדיפות גבוהה", NORMAL_COVERAGE: "כיסוי משמרות רגילות", FAIRNESS: "איזון עומס השיבוצים", PREFERENCES: "העדפות עובדים", STABILITY: "שמירת שיבוצים קודמים" } as Record<string, string>)[stage.objective] ?? "יעד שיבוץ"}: {stage.provenOptimal ? "הוכח כמיטבי" : stage.status === "NOT_RUN" ? "טרם נבדק" : "טרם הוכח כמיטבי"}
+        {stage.value != null && <> · ערך: {stage.value}</>}{stage.bound != null && <> · חסם: {stage.bound}</>}
+        {stage.status !== "NOT_RUN" && <> · זמן חישוב: {stage.elapsedSeconds.toFixed(2)} שניות</>}
+      </p>)}
+    </div>}
 
     {value?.state === "READY" && <button className="primary" disabled={busy} onClick={() => void save()}>אישור ושמירת טיוטה</button>}
     {value && value.state !== "SAVED" && <button disabled={busy} onClick={() => void cancel()}>ביטול תצוגה מקדימה</button>}

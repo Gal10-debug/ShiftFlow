@@ -9,6 +9,8 @@ import { Notice } from "../components/forms";
 import {
   scheduling as s,
   timeRanges,
+  schedulingPriorities,
+  type SchedulingPriority,
   rangePeriod,
   type ShiftTimeRange,
   displayBoardDate,
@@ -129,6 +131,7 @@ export default function SchedulingBoard() {
             expectedVersion: row.version,
             name: row.name,
             displayOrder: row.displayOrder,
+            schedulingPriority: row.schedulingPriority ?? "Normal",
             period: row.period,
             timeRange: row.timeRange ?? row.period,
             requiredEmployees: row.requiredEmployees,
@@ -269,6 +272,7 @@ export default function SchedulingBoard() {
                   <tr>
                     <th>{s.name}</th>
                     <th>{s.order}</th>
+                    <th>{s.priority}</th>
                     <th>{s.period}</th>
                     <th>{s.staffing}</th>
                     <th>{s.automatic}</th>
@@ -311,6 +315,13 @@ export default function SchedulingBoard() {
                             })
                           }
                         />
+                      </td>
+                      <td>
+                        <select aria-label={`${s.priority} ${row.slot}`} dir="rtl"
+                          value={row.schedulingPriority ?? "Normal"} disabled={busy || loading}
+                          onChange={e => change(row.id, { schedulingPriority: e.target.value as SchedulingPriority })}>
+                          {Object.entries(schedulingPriorities).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                        </select>
                       </td>
                       <td>
                         <select

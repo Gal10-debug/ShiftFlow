@@ -99,3 +99,17 @@ it("manual-only definitions do not enable automatic generation even when their i
   render(<AutomaticGeneration definitions={[{...definition, assignmentMode: "ManualOnly"}]} value={null} onChange={vi.fn()} onSaved={vi.fn()} disabled={false} />);
   expect(screen.getByRole("button", {name: "צור סידור אוטומטי"})).toBeDisabled();
 });
+
+it("distinguishes proven, feasible and unattempted priority stages in Hebrew RTL", () => {
+  render(<Harness initial={{ ...ready, stages: [
+    { objective: "CRITICAL_COVERAGE", status: "OPTIMAL", value: 10, bound: 10, elapsedSeconds: 0.5, provenOptimal: true },
+    { objective: "HIGH_COVERAGE", status: "FEASIBLE", value: 4, bound: 7, elapsedSeconds: 29, provenOptimal: false },
+    { objective: "NORMAL_COVERAGE", status: "NOT_RUN", value: null, bound: null, elapsedSeconds: 0, provenOptimal: false },
+  ] }} />);
+  const details = screen.getByLabelText("תוצאות יעדי השיבוץ");
+  expect(details).toHaveAttribute("dir", "rtl");
+  expect(details).toHaveTextContent("כיסוי משמרות קריטיות: הוכח כמיטבי");
+  expect(details).toHaveTextContent("כיסוי משמרות בעדיפות גבוהה: טרם הוכח כמיטבי");
+  expect(details).toHaveTextContent("חסם: 7");
+  expect(details).toHaveTextContent("כיסוי משמרות רגילות: טרם נבדק");
+});

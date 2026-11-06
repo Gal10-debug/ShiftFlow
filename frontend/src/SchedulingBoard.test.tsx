@@ -419,3 +419,24 @@ it("saves multiple expert classifications in RTL settings", async () => {
   expect(writes[0].body.shiftTypes[0].requiresShiftLeadQualification).toBe(true);
   expect(writes[0].body.shiftTypes[1].requiresShiftLeadQualification).toBe(true);
 });
+
+it("edits all three priority levels independently of display order in RTL", async () => {
+  const user = userEvent.setup();
+  definitions[0].schedulingPriority = "Critical";
+  page(); await grid();
+  await user.click(screen.getByRole("button", { name: s.configure }));
+  const first = screen.getByLabelText(`${s.priority} 1`);
+  expect(first).toHaveAttribute("dir", "rtl");
+  expect(first).toHaveValue("Critical");
+  await user.selectOptions(screen.getByLabelText(`${s.priority} 26`), "High");
+  await user.clear(screen.getByLabelText(`${s.order} 1`));
+  await user.type(screen.getByLabelText(`${s.order} 1`), "26");
+  await user.clear(screen.getByLabelText(`${s.order} 26`));
+  await user.type(screen.getByLabelText(`${s.order} 26`), "1");
+  await user.click(screen.getByRole("button", { name: s.save }));
+  await waitFor(() => expect(writes).toHaveLength(1));
+  const rows = writes[0].body.shiftTypes;
+  expect(rows.find(r => r.id === "type-1")?.schedulingPriority).toBe("Critical");
+  expect(rows.find(r => r.id === "type-26")?.schedulingPriority).toBe("High");
+  expect(rows.find(r => r.id === "type-2")?.schedulingPriority).toBe("Normal");
+});

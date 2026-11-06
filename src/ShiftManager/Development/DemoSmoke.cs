@@ -38,7 +38,7 @@ public static class DemoSmoke
             var started = queue.Start(month.Year, month.Month);
             var job = queue.Get(started.Id);
             job.Problem = problem;
-            job.Response = job.Response with { State = "READY", SolverStatus = result.Status, ProvenObjectives = result.ProvenObjectives,
+            job.Response = job.Response with { State = "READY", SolverStatus = result.Status, ProvenObjectives = result.ProvenObjectives, Stages = result.Stages,
                 Cells = result.Cells, Summary = StaffingSummary.From(result.Cells) };
             await services.GetRequiredService<GeneratedDraftService>().Save(job.Id, admin, CancellationToken.None);
             steps.Add("Automatic generation and validated draft save");

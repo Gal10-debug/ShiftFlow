@@ -155,13 +155,13 @@ public sealed class ScheduleOptimizerTests
     }
 
     [Fact]
-    public void Expert_coverage_strictly_precedes_two_ordinary_positions()
+    public void Critical_qualified_coverage_strictly_precedes_two_normal_positions()
     {
-        var expert = Cell(1, range: ShiftTimeRange.NIGHT) with { RequiresShiftLeadQualification = true };
+        var expert = Cell(1, range: ShiftTimeRange.NIGHT) with { RequiresShiftLeadQualification = true, SchedulingPriority = SchedulingPriority.Critical };
         var p = Problem([expert, Cell(2), Cell(3, 1)], 1);
         p = p with { Employees = [p.Employees[0] with { IsShiftLeadQualified = true }] };
         var result = Solve(p);
-        Assert.Equal(7, result.ProvenObjectives);
+        Assert.Equal(ScheduleOptimizer.ObjectiveCount, result.ProvenObjectives);
         Assert.Single(result.Cells[0].Employees);
         Assert.Equal(1, result.Cells.Sum(c => c.Employees.Length));
         Assert.False(result.Cells[0].Employees[0].IsShiftLead);
