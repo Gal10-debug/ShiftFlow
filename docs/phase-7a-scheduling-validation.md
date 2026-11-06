@@ -557,3 +557,27 @@ both unproven target misses and genuine proven violations remain visible, includ
 a missing report and a partial set of completed trials. The disposable PostgreSQL server was cleaned up after
 tests; the demo and development databases were not used. No production scheduler,
 frontend, schema or timeout changes were made.
+
+### Workflow startup validation correction
+
+Commit `cc5ca4f` introduced an invalid job-level environment expression:
+`SCHEDULING_VALIDATION_REPORT_DIRECTORY: ${{ runner.temp }}/scheduling-validation`.
+GitHub does not permit the `runner` context in `jobs.<job_id>.env`, so this prevents
+the workflow from being scheduled. It is a workflow-definition error, not a
+cancelled test run. GitHub API inspection of [run 42292460172](https://github.com/Gal10-debug/ShiftFlow/actions/runs/42292460172) confirmed failure on `cc5ca4f` with zero jobs created. See GitHub's [context availability reference](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#context-availability).
+
+The report directory now uses
+`${{ github.workspace }}/TestResults/scheduling-validation`, which is valid at job
+scope and gives both the test process and summary step the same absolute path.
+Triggers, concurrency/cancellation settings, jobs and test commands are unchanged.
+
+Validation used the official, checksum-verified actionlint 1.7.12 binary. The old
+workflow reproduced the exact `context "runner" is not allowed here` error; the
+corrected complete workflow passes expression/workflow validation. Optional
+external shellcheck/pyflakes checks were disabled; the embedded Python summary
+was separately executed against all six real trial reports using the corrected
+workspace-relative directory layout. All six rows rendered successfully. No
+backend code, test logic, schema or database was changed, so the 392-case backend
+suite was not repeated for this workflow-path-only correction. Use actionlint
+when changing workflow expressions; compiling embedded Python alone does not
+validate GitHub's expression-context rules.
