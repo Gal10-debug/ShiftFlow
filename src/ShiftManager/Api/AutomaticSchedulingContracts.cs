@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 namespace ShiftManager.Api;
+public sealed record OptimizationStageResult(string Objective, string Status, double? Value, double? Bound, double ElapsedSeconds, bool ProvenOptimal, double? NativeWallSeconds = null);
 public sealed record GenerateScheduleRequest([Range(2, 9998)] int Year, [Range(1, 12)] int Month);
 public sealed record ScheduledEmployee(Guid UserId, string Name, bool Protected, bool IsShiftLead, Guid? AssignmentId = null, string? Note = null);
 public sealed record GeneratedCell(Guid DefinitionId, DateOnly Date, DateTime StartsAt, DateTime EndsAt,
@@ -14,4 +15,4 @@ public sealed record StaffingSummary(int Required, int Filled, int Missing, int 
 }
 public sealed record GenerationResponse(Guid Id, int Year, int Month, string State, string? SolverStatus,
     int ProvenObjectives, bool CoverageOptimal, bool PublicationReady, string? ErrorCode,
-    DateTime ExpiresAt, GeneratedCell[] Cells, StaffingSummary? Summary);
+    DateTime ExpiresAt, GeneratedCell[] Cells, StaffingSummary? Summary, OptimizationStageResult[]? Stages = null);

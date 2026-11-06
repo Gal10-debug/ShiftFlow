@@ -21,7 +21,7 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
     public DateOnly CurrentWeek() => WeekStart(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(), TimeZoneInfo.FindSystemTimeZoneById(ZoneId)).DateTime));
 
     private static ShiftTypeResponse Response(ShiftTypeDefinition row) => new(row.Id, row.Slot, row.Name,
-        row.DisplayOrder, row.Period.ToString(), row.RequiredEmployees, row.IncludeInAutomaticScheduling, row.Version, row.UpdatedAt, ShiftTimeRanges.Effective(row).ToString(), row.RequiresShiftLeadQualification, row.Semantic, AutomaticScheduling.SchedulingRules.WeekendRequired(row.Semantic, row.RequiredEmployees, row.Id), row.AssignmentMode.ToString());
+        row.DisplayOrder, row.Period.ToString(), row.RequiredEmployees, row.IncludeInAutomaticScheduling, row.Version, row.UpdatedAt, ShiftTimeRanges.Effective(row).ToString(), row.RequiresShiftLeadQualification, row.Semantic, AutomaticScheduling.SchedulingRules.WeekendRequired(row.Semantic, row.RequiredEmployees, row.Id), row.AssignmentMode.ToString(), row.SchedulingPriority.ToString());
 
     public async Task<ShiftTypeResponse[]> List() => (await db.Set<ShiftTypeDefinition>().AsNoTracking()
         .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Slot).ToArrayAsync()).Select(Response).ToArray();
@@ -32,6 +32,7 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
             || input.ShiftTypes.Any(x => x is null || string.IsNullOrWhiteSpace(x.Name) || x.Name.Length > 100
                 || x.DisplayOrder is null or < 1 or > 51 || x.RequiredEmployees is null or < 0 or > 1000
                 || (x.TimeRange is not null && !ShiftTimeRanges.TryParse(x.TimeRange, out _))
+                || (x.SchedulingPriority is not null && x.SchedulingPriority is not ("Critical" or "High" or "Normal"))
                 || x.ExpectedVersion is null or < 1 || x.IncludeInAutomaticScheduling is null || x.Period is not ("DAY" or "NIGHT"))
             || input.ShiftTypes.Select(x => x.Id).Distinct().Count() != 51
             || input.ShiftTypes.Select(x => x.DisplayOrder).Distinct().Count() != 51)
@@ -57,13 +58,15 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
             var next = proposed[row.Id];
             if (row.Version != next.ExpectedVersion) throw new ApiException("CONFLICT", 409);
             var name = next.Name.Trim();
+            // Omitted fields from older clients preserve saved priorities.
+            var priority = next.SchedulingPriority is null ? row.SchedulingPriority : Enum.Parse<SchedulingPriority>(next.SchedulingPriority);
             // Older clients omitting TimeRange retain a custom range unless they change Period.
             var range = next.TimeRange is not null ? Enum.Parse<ShiftTimeRange>(next.TimeRange)
                 : next.Period == row.Period.ToString() ? ShiftTimeRanges.Effective(row) : Enum.Parse<ShiftTimeRange>(next.Period);
             if (ShiftTimeRanges.Classification(range).ToString() != next.Period) throw new ApiException("INVALID_SHIFT_TYPE_SETTINGS");
             if (row.Name == name && row.DisplayOrder == next.DisplayOrder && row.Period.ToString() == next.Period
                 && ShiftTimeRanges.Effective(row) == range && row.RequiredEmployees == next.RequiredEmployees && row.IncludeInAutomaticScheduling == next.IncludeInAutomaticScheduling
-                && row.RequiresShiftLeadQualification == next.RequiresShiftLeadQualification) continue;
+                && row.RequiresShiftLeadQualification == next.RequiresShiftLeadQualification && row.SchedulingPriority == priority) continue;
             row.Name = name;
             row.DisplayOrder = next.DisplayOrder!.Value;
             row.Period = Enum.Parse<ShiftType>(next.Period);
@@ -71,6 +74,7 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
             row.RequiredEmployees = next.RequiredEmployees!.Value;
             row.IncludeInAutomaticScheduling = next.IncludeInAutomaticScheduling!.Value;
             row.RequiresShiftLeadQualification = next.RequiresShiftLeadQualification;
+            row.SchedulingPriority = priority;
             row.Version++;
             row.UpdatedAt = clock.GetUtcNow().UtcDateTime;
             // EF's unique-index command sorting rejects order-swap cycles before sending
@@ -81,6 +85,7 @@ public sealed class SchedulingService(ApplicationDbContext db, AccountService ac
                     "Period" = {next.Period}, "TimeRange" = {range.ToString()}, "RequiredEmployees" = {row.RequiredEmployees},
                     "IncludeInAutomaticScheduling" = {row.IncludeInAutomaticScheduling},
                     "RequiresShiftLeadQualification" = {row.RequiresShiftLeadQualification},
+                    "SchedulingPriority" = {priority.ToString()},
                     "Version" = {row.Version}, "UpdatedAt" = {row.UpdatedAt}
                 WHERE "Id" = {row.Id} AND "Version" = {next.ExpectedVersion.Value}
                 """);

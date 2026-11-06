@@ -92,8 +92,8 @@ public sealed partial class SchedulingTests
         Assert.NotEmpty(changedCells);
         Assert.All(changedCells, c => Assert.Equal(2, c.Required));
         Assert.DoesNotContain(after.Cells, c => new[] { 12, 13, 14 }.Any(slot => c.DefinitionId == BoardDefinition(slot)));
-        Assert.All(Enumerable.Range(1, 7), slot => Assert.True(ScheduleOptimizer.Priority(BoardDefinition(slot))));
-        Assert.False(ScheduleOptimizer.Priority(BoardDefinition(26)));
+        Assert.All(after.StaffingCells!.Where(c => Enumerable.Range(1, 7).Any(slot => c.DefinitionId == BoardDefinition(slot))), c => Assert.Equal(SchedulingPriority.Critical, c.SchedulingPriority));
+        Assert.All(after.StaffingCells!.Where(c => c.DefinitionId == BoardDefinition(26)), c => Assert.Equal(SchedulingPriority.Normal, c.SchedulingPriority));
         var result = new ScheduleOptimizer().Solve(after, 10, default);
         Assert.Empty(IndependentScheduleValidator.Check(after, result.Cells));
         Assert.All(result.Cells, c => Assert.True(c.Employees.Length <= c.RequiredEmployees));

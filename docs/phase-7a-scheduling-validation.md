@@ -1,5 +1,7 @@
 # Phase 7A: scheduling algorithm validation
 
+Historical Phase 7A baseline follows. The [Phase 7A.1 section](#phase-7a1-configurable-priorities-and-optimization) below documents the current priority model, improvements and remaining acceptance conditions.
+
 Validation date: 2026-11-06. Base: `c15868645ec27cc023b7c186247651d9d09d3c95`
 (merged Phase 6.1). Branch: `feature/phase-7a-scheduling-validation`.
 Phase 4C team/delegated-availability implementation and documentation are present.
@@ -346,3 +348,119 @@ time-limited schedules, exact maximum opportunity denominators, production
 concurrency throughput, multi-month joint optimization, or determinism across
 hardware/library versions. Existing CI has its own disposable service; this phase
 does not change CI service configuration or run external production operations.
+
+
+## Phase 7A.1: configurable priorities and optimization
+
+Implemented on the same `feature/phase-7a-scheduling-validation` branch after `8d0b989`. The preceding sections are the historical Phase 7A baseline; this section supersedes their runtime priority/objective description and pilot findings. Original measurements remain unchanged. Full new evidence is in [phase-7a1-validation-results.json](phase-7a1-validation-results.json).
+
+### Investigation and exact fairness fix
+
+The original normal fixture had no absences, protected work or availability restrictions. Its 42 unqualified employees had identical opportunities, yet received 0–27 assignments; the 14 qualified employees received 2–21. Differences in qualification, absence, availability, pairing or retained work cannot explain those within-cohort spreads. Mixed durations affect hours, but the approved objective balances counts. The original seven-stage run reached the fairness stage with coverage proven and returned an unproven incumbent at the shared deadline.
+
+The fairness formula itself remains unchanged: `floor(1000 * load² / maxLoad)`, with the same opportunity denominator and retained-work horizon. The fix replaces the CP-SAT multiplication/division equalities with an exact finite-domain `AddElement` lookup table for every permitted load. This both tightens the cost domain and removes nonlinear arithmetic from the search; it introduces no workload hard limit, new priority weight or new fairness preference.
+
+An encoding-only control retained the original seven-stage hierarchy and changed only that arithmetic representation. On the identical seed-731 normal fixture it reached all seven optima in 15.275 seconds, filled all 294 positions, and gave both qualification cohorts 5–6 assignments. Thus the normal-case imbalance was a search-convergence/time-limit problem in the original encoding, not an employee-eligibility difference or a need to sacrifice coverage. This control isolates the encoding improvement from the separately requested priority refactor.
+
+The user explicitly selected preservation of assignment-count fairness with hours reported separately. No duration, night or weekend balancing objective was added. `Hours` sums configured assignment intervals in UTC, including 11/13-hour DST nights and both days of on-call pairs. It measures scheduled interval hours, not payroll or actual hours worked. Paired on-call remains two assignments and one weekend allocation. The historical Phase 7A artifact did not capture employee hours; no before-hours values were invented.
+
+### Persistent priority configuration and migration
+
+- `SchedulingPriority` is a strongly typed domain enum: Normal, High, Critical. New definitions default to Normal. PostgreSQL stores the validated strings, with a NOT NULL/default/check constraint. The API rejects unknown, numeric and case-mismatched values.
+- `20261106074419_SchedulingPriority` adds only this column/check and initializes exactly the seven stable UUIDs ending 001–007 as Critical. Other definitions are Normal. IDs, order, names, staffing, eligibility, versions, assignments, users, teams and publication JSON are retained. It never assigns priority from current display order.
+- Normal EF migration-history guards and the generated idempotent SQL make reapplication a no-op, preserving later administrator changes. Disposable-database tests reverse display order before migration, preserve edited names/headcounts/versions, migrate twice, retain a later High setting and reject invalid database values. The strengthened test also preserves existing assignment IDs and exact publication snapshot bytes through migration.
+- The migration was applied **only to disposable test databases**, never to the demo or normal development database. No startup migration, generation or publication was added. Deploy backend/frontend together only after an operator separately approves applying the reviewed migration to an identified target. Downgrading drops the new priority configuration, so preserve it before any separately authorized rollback.
+- Administrators use a separate Hebrew RTL selector: קריטית / גבוהה / רגילה. Priority is independent of display order, headcount, qualification and automatic inclusion. Server policy and the service recheck authorization, with existing account locks, optimistic versions and UpdatedAt retained. There was no dedicated configuration-actor audit table to extend; existing version/timestamp tracking remains.
+- Older clients omitting priority retain its stored value. Explicit updates change future solver input and its fingerprint, invalidating stale previews; they never rewrite generated drafts or published snapshots. Restart persistence is tested.
+
+### Coverage hierarchy and truthful termination
+
+The previous implementation already identified its special group with stable IDs, so reordering was not a preexisting bug. This refactor removes that runtime ID rule and makes the priority administrator-configurable. Stable IDs are used for migration/seeding and independent weekend/rehabilitation business rules, not for solver coverage importance.
+
+1. Maximize Critical coverage.
+2. Pin the **proven** Critical optimum; maximize High coverage.
+3. Pin the **proven** High optimum; maximize Normal coverage.
+4. With all three coverage optima established, minimize the unchanged count-fairness cost.
+5. Maximize submitted preferences.
+6. Maximize retained replaceable assignments.
+
+Each assignment has equal coverage weight within its configured level. There is no hidden expert-first sub-ranking. This intentionally replaces the old global qualification-required coverage objective with the hierarchy requested for Phase 7A.1; qualification remains a hard eligibility rule. A Normal qualification-required position cannot displace a Critical position merely because it requires qualification. All other hard constraints and manual-only behavior remain unchanged, including rehabilitation Friday/Saturday rules and the ordinary behavior of definition 26.
+
+Only a native OPTIMAL result is pinned. On FEASIBLE, UNKNOWN, cancellation or budget exhaustion, no unproven optimum is locked and no lower-priority solve is attempted. The best valid incumbent is retained; later stages are NOT_RUN. OPTIMAL requires six proven stages and CoverageOptimal requires three. An unproven earlier stage can still have suboptimal coverage. Precondition conflicts/infeasibility remain domain errors with no silent deletion of protected work.
+
+The generation API and Hebrew result details expose each stage’s objective, native status, incumbent value, best bound, elapsed time and proof flag. The final timing refinement records managed elapsed time plus native wall time separately. NOT_RUN has null value/bound. Fairness is a maximization of negative cost, so its native value/bound are negative. Stage metadata is available with the bounded generation preview; historical saved-run objective counts and publication snapshots are not retroactively reinterpreted. The production timeout stays at 30 seconds.
+
+### Independent shortage validation
+
+Twelve fixed-seed small cases exhaustively enumerate all 243 possible five-cell/two-employee rosters each, using the independent hard-constraint validator and lexicographically comparing independently counted Critical/High/Normal vectors. All 2,916 candidates collectively cover competing qualifications, approved absences, consecutive conflicts, protected work and shortages. The optimizer matches every independently established optimum. Additional controlled cases prove Critical over High, High over Normal, no lower-coverage/preference/stability compensation, and equal coverage weight for expert/ordinary rows in the same level.
+
+All Phase 7A test coverage is retained. Existing priority/qualification coverage assertions and objective-count checks were adapted to the explicitly requested hierarchy; no hard-constraint expectation was relaxed. Migration, authorization, priority persistence/restart, reordered Critical/Normal definitions, future generation and immutable snapshot regressions were added.
+
+### 30 / 60 / 120 second experiments
+
+Experiments ran sequentially with one search worker and seed 42. Coverage vectors are Critical / High / Normal. High demand is zero in the migrated monthly fixture; all three levels compete in the exhaustive and controlled shortage tests. The severe case has six employees, including two qualified people, against 294 positions.
+
+| Scenario | Budget | Managed seconds | Native Critical seconds | Status | Proven / 6 | Coverage C / H / N | Critical incumbent / upper bound | Missing |
+| --- | ---: | ---: | ---: | --- | ---: | --- | --- | ---: |
+| normal | 30 | 16.372 | 0.760 | OPTIMAL | 6 | 238 / 0 / 56 | 238 / 238 | 0 |
+| normal | 60 | 16.094 | 0.753 | OPTIMAL | 6 | 238 / 0 / 56 | 238 / 238 | 0 |
+| normal | 120 | 16.111 | 0.761 | OPTIMAL | 6 | 238 / 0 / 56 | 238 / 238 | 0 |
+| severe-shortage | 30 | 30.002 | 29.999 | FEASIBLE | 0 | 176 / 0 / 0 | 176 / 198 | 118 |
+| severe-shortage | 60 | 60.002 | 59.998 | FEASIBLE | 0 | 176 / 0 / 0 | 176 / 198 | 118 |
+| severe-shortage | 120 | 120.021 | 119.987 | FEASIBLE | 0 | 176 / 0 / 0 | 176 / 198 | 118 |
+
+Longer budgets did not improve either measured incumbent or bound. Normal reached the same complete optimum at every budget: 238 Critical plus 56 Normal assignments and fairness cost 29,848. Severe shortage remained at 176 Critical against a native upper bound of 198, with all later stages unattempted. The original Phase 7A severe incumbent contained 166 future-Critical assignments plus one Normal assignment; the new strict hierarchy improves Critical coverage by ten but **does not prove it maximal**. These measurements do not justify raising the production timeout.
+
+Timing limitation: the first severe-120 sample recorded 76.359 managed seconds versus 568.301 native seconds. The cause of the clock discrepancy was not established. It is preserved in the raw evidence and excluded from the primary comparison. A separate repeat recorded 120.021 overall managed seconds, 119.993 managed stage seconds and 119.987 native seconds, with the same incumbent and bound. No claim of a 76-second equivalent-to-120 experiment is made.
+
+### Monthly regression measurements
+
+| Scenario | Seconds | Status | Proven / 6 | Filled | Missing |
+| --- | ---: | --- | ---: | ---: | ---: |
+| autumn-dst | 16.252 | OPTIMAL | 6 | 296 | 0 |
+| heavily-constrained | 6.319 | OPTIMAL | 6 | 294 | 0 |
+| insufficient-leads | 15.422 | OPTIMAL | 6 | 258 | 36 |
+| moderate-absences | 14.046 | OPTIMAL | 6 | 294 | 0 |
+| normal-repeat | 17.315 | OPTIMAL | 6 | 294 | 0 |
+| normal | 17.369 | OPTIMAL | 6 | 294 | 0 |
+| overlapping-restrictions | 11.001 | OPTIMAL | 6 | 294 | 0 |
+| protected-repeat | 14.781 | OPTIMAL | 6 | 294 | 0 |
+| protected | 14.962 | OPTIMAL | 6 | 294 | 0 |
+| reserve-duty | 30.009 | FEASIBLE | 4 | 294 | 0 |
+| severe-shortage | 30.004 | FEASIBLE | 0 | 176 | 118 |
+| spring-dst | 18.281 | OPTIMAL | 6 | 305 | 0 |
+| studies | 15.038 | OPTIMAL | 6 | 294 | 0 |
+| variable-headcount | 12.643 | OPTIMAL | 6 | 250 | 0 |
+| widespread-absences | 9.966 | OPTIMAL | 6 | 266 | 28 |
+| year-boundary | 16.180 | OPTIMAL | 6 | 296 | 0 |
+
+Fourteen monthly cases prove all six objectives. Reserve duty proves coverage and fairness (four stages), but not the remaining preference/stability stages. Severe shortage proves none of its coverage stages. Every generated scenario passes both independent hard-constraint validation and production draft validation, with zero violations. Approved full-month absences still produce zero assignments. Small controlled repeatability cases remain exact; optimality alone does not imply a unique schedule or cross-platform deterministic tie breaking.
+
+### Before/after fairness and hours
+
+| Normal cohort | Employees | Before assignments min / median / max | After assignments | After interval hours | After nights | After weekend allocations |
+| --- | ---: | --- | --- | --- | --- | --- |
+| Unqualified | 42 | 0 / 3 / 27 | 5 / 5 / 6 | 24 / 50 / 72 | 0 / 2 / 4 | 0 / 1 / 2 |
+| Qualified | 14 | 2 / 5 / 21 | 5 / 5 / 6 | 50 / 60 / 66 | 0 / 2 / 5 | 0 / 1 / 2 |
+
+The normal cohorts have identical opportunities within each qualification group: no blocks, absences or fixed work. No normal employee remains idle. The protected-month cohorts also improve to 5–6 assignments, compared with 0–21 unqualified and 0–26 qualified before. Full raw evidence includes all employee observations, opportunities, qualifications, count/hour/night/weekend/priority distributions and stage bounds.
+
+Availability/qualification groups with different restrictions are not treated as interchangeable. Eligible-cell counts are descriptive, not exact feasible workload capacities; paired/weekly/monthly constraints and retained work also matter. Fairness is still the approved approximate opportunity-normalized count objective, not an hours/night/weekend equality policy. The normal hours spread of 24–72 remains material for operational review even though count fairness is proven. No hard cap or hidden duration preference was introduced to hide that distinction.
+
+### Phase 7A.1 verification and pilot assessment
+
+- **388 distinct backend cases passed**, zero failures/skips, including all PostgreSQL tests, all retained Phase 7A scenarios and 20 added cases. The complete serial run passed 388 cases; after the timing-only metadata refinement, all 371 non-monthly/non-benchmark cases passed again in 4 minutes 13 seconds. The focused timing/migration/diagnostics repeat passed 21 cases including the 120-second trial. Reruns are not double-counted.
+- The complete initial run reported 33 minutes 13 seconds and includes the documented host clock anomaly; it is not used as a stable throughput benchmark.
+- **127 frontend tests passed**, including priority editing independent of order and Hebrew RTL proof/bound display; TypeScript and the production build passed.
+- **Seven script tests passed.** Release build with warnings as errors passed with zero warnings/errors. EF reports no pending model changes. npm audit reports zero vulnerabilities. Diff whitespace checks passed.
+- Only the single newly created, 512 MiB disposable PostgreSQL server on port 55433 received migration/test writes. Its per-test databases and the temporary server were removed after verification. Existing demo/development servers and their data were not changed. No remote Git branches were updated.
+
+The evidence retains the legacy per-employee field name `HighPriority`; in new Phase 7A.1 monthly/benchmark records it counts **Critical** assignments, not the newly configurable High level. Coverage vectors and stage names explicitly distinguish all three levels.
+
+**Engineering acceptance:** the configurable-priority architecture and exact fairness-encoding fix satisfy the implemented Phase 7A.1 requirements. The normal count imbalance is explained and materially corrected with preserved full coverage. Small shortages have independently proven priority optima; infeasible/protected and all previous hard-constraint regressions remain covered.
+
+**Pilot recommendation: withhold unconditional pilot-ready approval.** The severe monthly Critical optimum remains unproven (176–198), so treat its 118 missing positions as an incumbent shortage rather than a proven minimum. Normal/protected assignment counts are balanced, but configured hours and night/weekend distributions still require explicit review under the chosen count-based policy. Before a workplace pilot, review real staffing/qualifications/absences and all shortages, demand three proven coverage stages or an explicitly accepted reviewed exception, and inspect hours/night/weekend workloads separately. Further proof-performance work needs a separate scoped investigation; the benchmarks do not support simply increasing timeouts.
+
+Apply no migration, generation or publication to existing environments as part of acceptance of this branch. Existing demo/development databases remain unchanged. The user retains the decision to push/open a PR, approve any identified migration target, and authorize a controlled pilot.
+
+For reproduction, use the isolated PostgreSQL setup above and the same serial test flags. The full run includes the six sequential benchmark trials. Quick runs can exclude `Category=SchedulingBenchmark`; monthly routine budgets still default to eight seconds. Set `SCHEDULING_STRESS_SECONDS=30` for the measured monthly matrix. `SCHEDULING_BENCHMARK_SCENARIOS=severe-shortage` and `SCHEDULING_BENCHMARK_BUDGETS=120` reproduce only the timing repeat. New benchmark reports must be written to a new directory so historical evidence is not overwritten.

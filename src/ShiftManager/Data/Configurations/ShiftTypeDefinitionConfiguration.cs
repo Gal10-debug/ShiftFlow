@@ -8,6 +8,7 @@ public sealed class ShiftTypeDefinitionConfiguration : IEntityTypeConfiguration<
 {
     public void Configure(EntityTypeBuilder<ShiftTypeDefinition> b)
     {
+        b.Property(x => x.SchedulingPriority).HasConversion<string>().HasMaxLength(16).HasDefaultValue(SchedulingPriority.Normal);
         b.Property(x => x.AssignmentMode).HasConversion<string>().HasMaxLength(16).HasDefaultValue(AssignmentMode.Automatic);
         b.Property(x => x.Semantic).HasMaxLength(32).HasDefaultValue("ORDINARY");
         b.HasIndex(x => x.Semantic).IsUnique().HasFilter("\"Semantic\" <> 'ORDINARY'");
@@ -21,6 +22,7 @@ public sealed class ShiftTypeDefinitionConfiguration : IEntityTypeConfiguration<
         b.Property(x => x.Version).IsConcurrencyToken();
         b.ToTable(t =>
         {
+            t.HasCheckConstraint("CK_ShiftTypeDefinition_SchedulingPriority", "\"SchedulingPriority\" IN ('Critical','High','Normal')");
             t.HasCheckConstraint("CK_ShiftTypeDefinition_AssignmentMode", "\"AssignmentMode\" IN ('Automatic','ManualOnly')");
             t.HasCheckConstraint("CK_ShiftTypeDefinition_Semantic", "\"Semantic\" IN ('ORDINARY','SIX_NINE','WEEKEND_ON_CALL')");
             t.HasCheckConstraint("CK_ShiftTypeDefinition_Slot", "\"Slot\" BETWEEN 1 AND 51");
@@ -36,6 +38,7 @@ public sealed class ShiftTypeDefinitionConfiguration : IEntityTypeConfiguration<
             b.HasData(new ShiftTypeDefinition
             {
                 Id = Guid.Parse($"40000000-0000-0000-0000-{i:000000000000}"), Slot = i,
+                SchedulingPriority = i <= 7 ? SchedulingPriority.Critical : SchedulingPriority.Normal,
                 Semantic = i == 1 ? "SIX_NINE" : i == 16 ? "WEEKEND_ON_CALL" : "ORDINARY",
                 AssignmentMode = i is 12 or 13 or 14 ? AssignmentMode.ManualOnly : AssignmentMode.Automatic,
                 Name = $"משמרת {i}", DisplayOrder = i, Period = ShiftType.DAY,

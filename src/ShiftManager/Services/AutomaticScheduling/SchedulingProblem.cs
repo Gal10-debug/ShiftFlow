@@ -9,7 +9,7 @@ namespace ShiftManager.Services.AutomaticScheduling;
 public sealed record Work(Guid AssignmentId, Guid UserId, Guid? DefinitionId, DateOnly Date,
     DateTime Start, DateTime End, Guid ShiftId, bool Replaceable, bool Lead, ShiftType AnchorType, string Semantic = "ORDINARY", string? Note = null);
 public sealed record CandidateCell(Guid DefinitionId, DateOnly Date, DateTime Start, DateTime End,
-    int Required, long Version, ShiftType AnchorType, bool RequiresShiftLeadQualification = false, string Semantic = "ORDINARY", AssignmentMode AssignmentMode = AssignmentMode.Automatic);
+    int Required, long Version, ShiftType AnchorType, bool RequiresShiftLeadQualification = false, string Semantic = "ORDINARY", AssignmentMode AssignmentMode = AssignmentMode.Automatic, SchedulingPriority SchedulingPriority = SchedulingPriority.Normal);
 public sealed record Employee(Guid Id, string Name, bool IsShiftLeadQualified = false, bool IsTeamLeader = false);
 public sealed record Preference(Guid UserId, DateOnly Date, ShiftType Type, PreferenceType State);
 public sealed record SchedulingProblem(int Year, int Month, string Fingerprint, CandidateCell[] Cells,
@@ -83,7 +83,7 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
         var staffing = definitions
             .SelectMany(d => Enumerable.Range(0, end.DayNumber - first.DayNumber).Select(i => {
                 var date = first.AddDays(i); var times = ShiftTimeRanges.Boundaries(date, ShiftTimeRanges.Effective(d));
-                return new CandidateCell(d.Id, date, times.StartsAt, times.EndsAt, SchedulingRules.Required(d.Semantic, date, d.RequiredEmployees, d.Id), d.Version, d.Period, d.RequiresShiftLeadQualification, d.Semantic, d.AssignmentMode);
+                return new CandidateCell(d.Id, date, times.StartsAt, times.EndsAt, SchedulingRules.Required(d.Semantic, date, d.RequiredEmployees, d.Id), d.Version, d.Period, d.RequiresShiftLeadQualification, d.Semantic, d.AssignmentMode, d.SchedulingPriority);
             })).ToArray();
         var included = definitions.Where(d => d.AssignmentMode == AssignmentMode.Automatic && d.IncludeInAutomaticScheduling && SchedulingRules.HasDemand(d.Id, d.Semantic, d.RequiredEmployees)).Select(d => d.Id).ToHashSet();
         var proposed = staffing.Where(c => included.Contains(c.DefinitionId)).ToArray();

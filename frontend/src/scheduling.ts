@@ -12,7 +12,10 @@ export const timeRanges: Record<ShiftTimeRange, string> = {
 export function rangePeriod(range: ShiftTimeRange): "DAY" | "NIGHT" {
   return range === "NIGHT" || range === "H23_07" ? "NIGHT" : "DAY";
 }
+export const schedulingPriorities = { Critical: "קריטית", High: "גבוהה", Normal: "רגילה" } as const;
+export type SchedulingPriority = keyof typeof schedulingPriorities;
 export interface ShiftTypeDefinition {
+  schedulingPriority?: SchedulingPriority;
   assignmentMode?: "Automatic" | "ManualOnly";
   semantic?: "ORDINARY" | "SIX_NINE" | "WEEKEND_ON_CALL";
   id: string;
@@ -78,6 +81,7 @@ export const scheduling = {
   hide: "סגירת הגדרות",
   name: "שם סוג המשמרת",
   order: "סדר תצוגה",
+  priority: "עדיפות שיבוץ",
   period: "טווח שעות",
   staffing: "עובדים נדרשים",
   automatic: "השתתפות בשיבוץ אוטומטי עתידי",
@@ -116,6 +120,7 @@ export function validDefinitions(rows: ShiftTypeDefinition[]) {
     new Set(rows.map((row) => row.displayOrder)).size === 51 &&
     rows.every(
       (row) =>
+        (row.schedulingPriority === undefined || Object.hasOwn(schedulingPriorities, row.schedulingPriority)) &&
         row.name.trim().length > 0 &&
         row.name.length <= 100 &&
         Number.isInteger(row.displayOrder) &&
@@ -138,6 +143,7 @@ export interface GeneratedCell { definitionId: string; date: string; startsAt: s
 export interface Generation {
   id: string; year: number; month: number; state: string; solverStatus: string | null;
   provenObjectives: number; coverageOptimal: boolean; publicationReady: boolean; errorCode: string | null; expiresAt: string;
+  stages?: { objective: string; status: string; value: number | null; bound: number | null; elapsedSeconds: number; provenOptimal: boolean }[];
   cells: GeneratedCell[];
   summary: { required: number; filled: number; missing: number; understaffedCells: number; fullyStaffedCells: number } | null;
 }

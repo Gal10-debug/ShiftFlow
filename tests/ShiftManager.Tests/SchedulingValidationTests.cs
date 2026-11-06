@@ -183,14 +183,14 @@ public sealed class SchedulingValidationTests
     public void Priority_coverage_is_pinned_before_conflicting_preferences_and_regeneration_stability()
     {
         var e = Employee(1);
-        var priority = Cell(2, Sunday, ShiftTimeRange.H07_13);
+        var priority = Cell(2, Sunday, ShiftTimeRange.H07_13) with { SchedulingPriority = SchedulingPriority.Critical };
         var other = Cell(26, Sunday, ShiftTimeRange.H15_23);
         // Separate intervals still share one canonical DAY membership. Only the
         // lower-priority row overlaps the preferred NIGHT anchor and old choice.
         var p = Problem([other, priority], [e], [Work(other, e, replaceable: true)],
             [new(e.Id, Sunday, ShiftType.NIGHT, PreferenceType.PREFERRED)]);
         var result = new ScheduleOptimizer().Solve(p, 5, default);
-        Assert.Equal("OPTIMAL", result.Status); Assert.Equal(7, result.ProvenObjectives);
+        Assert.Equal("OPTIMAL", result.Status); Assert.Equal(ScheduleOptimizer.ObjectiveCount, result.ProvenObjectives);
         Assert.Empty(result.Cells[0].Employees); Assert.Single(result.Cells[1].Employees);
         Assert.Empty(IndependentScheduleValidator.Check(p, result.Cells));
     }

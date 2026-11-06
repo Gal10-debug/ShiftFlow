@@ -53,7 +53,7 @@ internal static class SchedulingValidationScenarios
             var date = first.AddDays(i);
             var required = SchedulingRules.Required(row.Item5, date, row.Item3, Id(row.Item1));
             return Cell(row.Item1, date, row.Item2, required, row.Item4, row.Item5,
-                row.Item1 is 12 or 13 or 14 ? AssignmentMode.ManualOnly : AssignmentMode.Automatic);
+                row.Item1 is 12 or 13 or 14 ? AssignmentMode.ManualOnly : AssignmentMode.Automatic) with { SchedulingPriority = row.Item1 <= 7 ? SchedulingPriority.Critical : SchedulingPriority.Normal };
         })).ToArray();
         var cells = staffing.Where(c => c.AssignmentMode == AssignmentMode.Automatic).ToArray();
         var preferences = new List<Preference>(); var absences = new List<AbsenceRule>();

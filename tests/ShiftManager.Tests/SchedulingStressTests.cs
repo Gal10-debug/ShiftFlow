@@ -39,14 +39,14 @@ public sealed class SchedulingStressTests(ITestOutputHelper output)
         var result = new ScheduleOptimizer().Solve(p, seconds, default);
         watch.Stop();
         Assert.True(result.Status is "OPTIMAL" or "FEASIBLE", $"{scenario}: {result.Status}, {watch.Elapsed}");
-        Assert.Equal(result.Status == "OPTIMAL", result.ProvenObjectives == 7);
+        Assert.Equal(result.Status == "OPTIMAL", result.ProvenObjectives == ScheduleOptimizer.ObjectiveCount);
         var violations = IndependentScheduleValidator.Check(p, result.Cells);
         var metrics = Metrics(p, result);
-        var report = new { Scenario = scenario, Year = year, Month = month, SchedulingValidationScenarios.Seed,
+        var report = new { Stages = result.Stages, Scenario = scenario, Year = year, Month = month, SchedulingValidationScenarios.Seed,
             Employees = p.Employees.Length, Cells = p.Cells.Length, Required = p.Cells.Sum(c => c.Required),
             ApprovedAbsences = p.ApprovedAbsences!.Length, Blocks = p.Preferences.Length, Protected = p.Work.Count(w => !w.Replaceable),
             BudgetSeconds = seconds, ElapsedSeconds = watch.Elapsed.TotalSeconds, result.Status, result.ProvenObjectives,
-            Termination = result.Status == "OPTIMAL" ? "All seven objectives proven" : "Shared budget: incumbent; later objectives unproven",
+            Termination = result.Status == "OPTIMAL" ? "All objectives proven" : "Shared budget: incumbent; later objectives unproven",
             Filled = result.Cells.Sum(c => c.Employees.Length), Missing = result.Cells.Sum(c => c.Shortage),
             Violations = violations, AssignmentHash = Hash(result), EmployeesMetrics = metrics };
         var json = JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true });
@@ -64,7 +64,7 @@ public sealed class SchedulingStressTests(ITestOutputHelper output)
         Assert.All(metrics, e => Assert.InRange(e.WeekendAllocations, 0, 2));
     }
 
-    internal sealed record EmployeeMetrics(Guid Id, bool Qualified, int Opportunities, int Total, int Nights, int WeekendAllocations, int HighPriority);
+    internal sealed record EmployeeMetrics(Guid Id, bool Qualified, int Opportunities, int Total, double Hours, int Nights, int WeekendAllocations, int HighPriority);
     internal static EmployeeMetrics[] Metrics(SchedulingProblem p, OptimizationResult result) => p.Employees.Select(e => {
         var work = result.Cells.SelectMany(c => c.Employees.Where(m => m.UserId == e.Id).Select(_ => {
             var input = p.Cells.Single(x => x.DefinitionId == c.DefinitionId && x.Date == c.Date);
@@ -75,8 +75,8 @@ public sealed class SchedulingStressTests(ITestOutputHelper output)
             && !p.Preferences.Any(b => b.UserId == e.Id && b.State == PreferenceType.BLOCKED &&
                 IndependentScheduleValidator.Utc(b.Date, b.Type == ShiftType.DAY ? 7 : 19) < c.End &&
                 IndependentScheduleValidator.Utc(b.Type == ShiftType.DAY ? b.Date : b.Date.AddDays(1), b.Type == ShiftType.DAY ? 19 : 7) > c.Start));
-        return new EmployeeMetrics(e.Id, e.IsShiftLeadQualified, opportunities, work.Length, work.Count(w => w.AnchorType == ShiftType.NIGHT),
-            IndependentScheduleValidator.WeekendAllocations(work), work.Count(w => Enumerable.Range(1, 7).Any(i => w.DefinitionId == SchedulingValidationScenarios.Id(i))));
+        return new EmployeeMetrics(e.Id, e.IsShiftLeadQualified, opportunities, work.Length, work.Sum(w => (w.End - w.Start).TotalHours), work.Count(w => w.AnchorType == ShiftType.NIGHT),
+            IndependentScheduleValidator.WeekendAllocations(work), work.Count(w => p.Cells.Any(c => c.DefinitionId == w.DefinitionId && c.Date == w.Date && c.SchedulingPriority == SchedulingPriority.Critical)));
     }).ToArray();
 
     internal static string Hash(OptimizationResult result) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n",
@@ -94,7 +94,7 @@ public sealed class SchedulingStressTests(ITestOutputHelper output)
             p = p with { Work = [SchedulingValidationScenarios.Work(cell, p.Employees.First(e => e.IsShiftLeadQualified), lead: true)] };
         }
         var results = Enumerable.Range(0, 3).Select(_ => new ScheduleOptimizer().Solve(p, 10, default)).ToArray();
-        Assert.All(results, r => { Assert.Equal("OPTIMAL", r.Status); Assert.Equal(7, r.ProvenObjectives); Assert.Empty(IndependentScheduleValidator.Check(p, r.Cells)); });
+        Assert.All(results, r => { Assert.Equal("OPTIMAL", r.Status); Assert.Equal(ScheduleOptimizer.ObjectiveCount, r.ProvenObjectives); Assert.Empty(IndependentScheduleValidator.Check(p, r.Cells)); });
         Assert.Single(results.Select(Hash).Distinct());
         output.WriteLine($"Three identical optimal solves, protected={protect}, assignment SHA256={Hash(results[0])}");
     }
