@@ -464,3 +464,41 @@ The evidence retains the legacy per-employee field name `HighPriority`; in new P
 Apply no migration, generation or publication to existing environments as part of acceptance of this branch. Existing demo/development databases remain unchanged. The user retains the decision to push/open a PR, approve any identified migration target, and authorize a controlled pilot.
 
 For reproduction, use the isolated PostgreSQL setup above and the same serial test flags. The full run includes the six sequential benchmark trials. Quick runs can exclude `Category=SchedulingBenchmark`; monthly routine budgets still default to eight seconds. Set `SCHEDULING_STRESS_SECONDS=30` for the measured monthly matrix. `SCHEDULING_BENCHMARK_SCENARIOS=severe-shortage` and `SCHEDULING_BENCHMARK_BUDGETS=120` reproduce only the timing repeat. New benchmark reports must be written to a new directory so historical evidence is not overwritten.
+
+### CI repeatability regression correction
+
+The first GitHub Actions run passed 386 of 388 backend cases. Both failures were
+in the controlled repeatability test: its three solves per case returned valid
+FEASIBLE incumbents after reaching the ten-second wall-clock limit, with only two
+or three objectives proven. The production solver reported that distinction
+correctly. The test incorrectly assumed that a shortage fixture with 40 cells and
+eight employees would always prove all six objectives within ten seconds on a CI
+runner. Earlier local verification used serial test collections; CI uses default
+parallelization, making this assumption especially fragile.
+
+The controlled fixture now uses six cells, three employees and four dates. It
+exercises Critical/High/Normal coverage, qualification, touching overnight work,
+preferences, regeneration stability, and optional protected shift-lead work. Its
+optima are known independently: coverage 2 / 1 / 3, two assignments per employee,
+fairness cost 3,999, preference value 4 (3 excluding the fixed preferred assignment
+when protected), and four retained replaceable memberships. Those memberships and
+equal loads determine one final roster, which is asserted explicitly.
+
+The test still requires OPTIMAL, all six proven stages with matching bounds,
+independent and production validation, protected identity/lead preservation, and
+identical assignment hashes across three solves. The ten-second budget is
+unchanged. Monthly stress inputs, benchmark budgets, production solver settings
+and the treatment of FEASIBLE results are unchanged.
+
+Validation: the full backend suite passed **388/388 cases**, zero failures/skips,
+using the reported Release/no-build/no-restore command with default test
+parallelization, `CI=true` and `DOTNET_PROCESSOR_COUNT=2`. It completed in about
+seven minutes against one disposable PostgreSQL server on port 55433. After the
+final exact-roster refinement, both cases also passed ten separate test-process
+runs: **20 passing cases, 60 solver executions**, with stable hashes across
+processes. Every solve retained the OPTIMAL and six-stage proof requirements.
+The final focused run completed both cases in 228 ms; this is an observation,
+not an asserted timing threshold. Release build with warnings as errors passed
+with zero warnings/errors, and diff checks passed. No production code, schema or
+CI parallelization setting was changed. The disposable server was removed after
+per-test database cleanup; demo and development data were not accessed for tests.

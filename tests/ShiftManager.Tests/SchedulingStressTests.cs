@@ -86,15 +86,60 @@ public sealed class SchedulingStressTests(ITestOutputHelper output)
     [InlineData(false)] [InlineData(true)]
     public void Controlled_single_worker_runs_repeat_exactly_with_and_without_protected_work(bool protect)
     {
-        var p = SchedulingValidationScenarios.Month("normal", 2026, 11);
-        p = p with { Cells = p.Cells.Where(c => c.Date.Day <= 4).ToArray(), StaffingCells = null, Employees = p.Employees.Take(8).ToArray() };
+        // Keep repeatability separate from the monthly performance experiments.
+        // The former 40-cell shortage fixture could exhaust ten seconds on CI
+        // before proving coverage/fairness, making an OPTIMAL assertion flaky.
+        var date = new DateOnly(2026, 11, 1);
+        var employees = new[] { SchedulingValidationScenarios.Employee(1), SchedulingValidationScenarios.Employee(2),
+            SchedulingValidationScenarios.Employee(3, false) };
+        var cells = new[] {
+            SchedulingValidationScenarios.Cell(2, date, qualified: true) with { SchedulingPriority = SchedulingPriority.Critical },
+            SchedulingValidationScenarios.Cell(26, date),
+            SchedulingValidationScenarios.Cell(6, date.AddDays(1)) with { SchedulingPriority = SchedulingPriority.High },
+            SchedulingValidationScenarios.Cell(8, date.AddDays(1)),
+            SchedulingValidationScenarios.Cell(5, date.AddDays(2), ShiftTimeRange.NIGHT, qualified: true) with { SchedulingPriority = SchedulingPriority.Critical },
+            SchedulingValidationScenarios.Cell(26, date.AddDays(3), ShiftTimeRange.H07_13) };
+        var preferences = new[] {
+            new Preference(employees[0].Id, date, ShiftType.DAY, PreferenceType.PREFERRED),
+            new Preference(employees[2].Id, date, ShiftType.DAY, PreferenceType.PREFERRED),
+            new Preference(employees[1].Id, date.AddDays(1), ShiftType.DAY, PreferenceType.PREFERRED),
+            new Preference(employees[0].Id, date.AddDays(2), ShiftType.NIGHT, PreferenceType.PREFERRED),
+            new Preference(employees[2].Id, date.AddDays(3), ShiftType.DAY, PreferenceType.PREFERRED) };
+        // Four legal previous memberships make the final optimum unique once
+        // coverage, equal loads and preferences have been pinned.
+        var previous = new[] {
+            SchedulingValidationScenarios.Work(cells[1], employees[2], id: 2, replaceable: true),
+            SchedulingValidationScenarios.Work(cells[2], employees[2], id: 3, replaceable: true),
+            SchedulingValidationScenarios.Work(cells[3], employees[1], id: 4, replaceable: true),
+            SchedulingValidationScenarios.Work(cells[4], employees[0], id: 5, replaceable: true) };
+        var p = SchedulingValidationScenarios.Problem(cells, employees, previous, preferences);
         if (protect)
-        {
-            var cell = p.Cells.First(c => c.DefinitionId == SchedulingValidationScenarios.Id(2));
-            p = p with { Work = [SchedulingValidationScenarios.Work(cell, p.Employees.First(e => e.IsShiftLeadQualified), lead: true)] };
-        }
+            p = p with { Work = [.. previous, SchedulingValidationScenarios.Work(cells[0], employees[0], lead: true)] };
         var results = Enumerable.Range(0, 3).Select(_ => new ScheduleOptimizer().Solve(p, 10, default)).ToArray();
-        Assert.All(results, r => { Assert.Equal("OPTIMAL", r.Status); Assert.Equal(ScheduleOptimizer.ObjectiveCount, r.ProvenObjectives); Assert.Empty(IndependentScheduleValidator.Check(p, r.Cells)); });
+        Assert.All(results, r => {
+            Assert.Equal("OPTIMAL", r.Status);
+            Assert.Equal(ScheduleOptimizer.ObjectiveCount, r.ProvenObjectives);
+            PriorityOptimizationTests.CheckDiagnostics(r);
+            Assert.Empty(IndependentScheduleValidator.Check(p, r.Cells));
+            GeneratedDraftService.Validate(p, r.Cells);
+            // All six positions can be filled: Critical=2, High=1, Normal=3.
+            Assert.Equal(new[] { 2, 1, 3 }, PriorityOptimizationTests.Coverage(p, r.Cells));
+            Assert.All(employees, e => Assert.Equal(2, r.Cells.Sum(c => c.Employees.Count(m => m.UserId == e.Id))));
+            // Each employee's opportunity denominator is three. Two assignments
+            // each minimize the cost: 3 * floor(1000 * 2^2 / 3) = 3999.
+            var stages = r.Stages!; // CheckDiagnostics has asserted non-null stage metadata.
+            Assert.Equal(-3999d, stages.Single(s => s.Objective == "FAIRNESS").Value);
+            Assert.Equal(protect ? 3d : 4d, stages.Single(s => s.Objective == "PREFERENCES").Value);
+            Assert.Equal(4d, stages.Single(s => s.Objective == "STABILITY").Value);
+            Assert.Equal(new[] { employees[0].Id, employees[2].Id, employees[2].Id, employees[1].Id, employees[0].Id, employees[1].Id },
+                r.Cells.Select(c => c.Employees.Single().UserId));
+            if (protect)
+            {
+                var retained = r.Cells[0].Employees.Single();
+                Assert.True(retained.Protected); Assert.True(retained.IsShiftLead);
+                Assert.Equal(employees[0].Id, retained.UserId);
+            }
+        });
         Assert.Single(results.Select(Hash).Distinct());
         output.WriteLine($"Three identical optimal solves, protected={protect}, assignment SHA256={Hash(results[0])}");
     }
