@@ -3,6 +3,7 @@
     <Project Path="src/ShiftManager/ShiftManager.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ShiftManager.E2EHost/ShiftManager.E2EHost.csproj" />
     <Project Path="tests/ShiftManager.Tests/ShiftManager.Tests.csproj" />
   </Folder>
 </Solution>
