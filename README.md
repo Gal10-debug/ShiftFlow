@@ -351,6 +351,24 @@ Automatic generation, manual editing, saved-preview validation and every publica
 
 Apply `20261027224058_AdditionalSchedulingConstraints` explicitly. Existing data and all 51 definitions are preserved. See [scheduling constraints, boundary policy and manual verification](docs/scheduling-architecture.md#phase-51--additional-mandatory-constraints).
 
+## Browser workflow tests (Phase 7B)
+
+The Playwright suite starts one owned PostgreSQL 17 container, a real Kestrel backend,
+and a dedicated Vite frontend on random loopback ports. It never accepts a development
+or demo connection string. Each test resets only its disposable database.
+
+```sh
+cd frontend
+npm ci
+npx playwright install chromium
+npm run test:e2e
+```
+
+Docker, .NET 10, Node.js 24+, and Python 3 are required. Sanitized reports are written to
+`frontend/e2e-report/`; only sanitized screenshots/traces are eligible for CI upload.
+See [Phase 7B validation](docs/phase-7b-e2e-validation.md) for coverage, safety guards,
+diagnostics, CI, and remaining limitations.
+
 ## Isolated development demo
 
 See [the demo testing guide](docs/demo-testing.md) for deterministic synthetic accounts,

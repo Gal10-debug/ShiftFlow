@@ -14,3 +14,7 @@ src/ShiftManager/wwwroot/
 
 # Local synthetic account credentials and verification artifacts
 .demo/
+# E2E raw captures contain disposable credentials and must never be published.
+.e2e-private/
+frontend/e2e-report/
+**/__pycache__/
