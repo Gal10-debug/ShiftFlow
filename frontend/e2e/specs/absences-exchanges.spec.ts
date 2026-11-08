@@ -99,6 +99,7 @@ test.describe("Published absence conflicts", () => {
     expect((await review(page)).conflicts.map(c => c.code)).toContain("APPROVED_ABSENCE");
     await logout(page); await login(page, 4); await page.goto("/my-schedule?period=2031-01");
     await expect(page.getByText("★ השיבוץ שלי", { exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "סיכום חודשי מתוכנן" })).toContainText("שעות עבודה מתוכננות12");
     await page.goto("/absences");
     await expect(page.getByRole("complementary", { name: "התנגשויות שטרם תוקנו", exact: true })).toBeVisible();
   });
@@ -142,8 +143,12 @@ test.describe("Exchange and personal schedule", () => {
     expect((await state(page)).publications[0]).toEqual(original);
     await logout(page); await login(page, 6); await page.goto("/my-schedule?period=2031-01");
     await expect(page.getByText("★ השיבוץ שלי", { exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "סיכום חודשי מתוכנן" })).toContainText("שעות עבודה מתוכננות12");
     await logout(page); await login(page, 4); await page.goto("/my-schedule?period=2031-01");
     await expect(page.getByText("★ השיבוץ שלי", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "סיכום חודשי מתוכנן" })).toContainText("שעות עבודה מתוכננות0");
+    await page.getByRole("combobox", { name: "גרסת פרסום", exact: true }).selectOption("1");
+    await expect(page.getByRole("region", { name: "סיכום חודשי מתוכנן" })).toContainText("שעות עבודה מתוכננות12");
   });
 
   for (const administrator of [false, true]) {

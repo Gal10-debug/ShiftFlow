@@ -15,7 +15,7 @@ public sealed record ManualAssignmentRequest([Required, StringLength(64, Minimum
 public sealed record PublishScheduleRequest([Required, StringLength(64, MinimumLength = 64)] string ExpectedToken,
     bool AcknowledgeShortages, bool AcknowledgeOpenIssues, [StringLength(2000)] string? Notes);
 public sealed record PublicationResponse(Guid Id, int VersionNumber, string PublicationType, Guid PublishedByUserId,
-    DateTime PublishedAt, string? Notes, ScheduleSnapshot? Snapshot, bool AcknowledgedShortages = false, bool AcknowledgedOpenIssues = false, int OpenIssueCount = 0, string? PublishedByName = null, bool Hidden = false, bool Deleted = false, long ControlVersion = 0);
+    DateTime PublishedAt, string? Notes, ScheduleSnapshot? Snapshot, bool AcknowledgedShortages = false, bool AcknowledgedOpenIssues = false, int OpenIssueCount = 0, string? PublishedByName = null, bool Hidden = false, bool Deleted = false, long ControlVersion = 0, PersonalScheduleResponse? PersonalSchedule = null);
 public sealed record CreateIssueRequest(Guid PublicationId, Guid AssignmentId,
     [Required, StringLength(2000), RegularExpression(@"[\s\S]*\S[\s\S]*")] string Explanation);
 public sealed record UpdateIssueRequest([Range(1, long.MaxValue)] long ExpectedVersion, string Status, [StringLength(2000)] string? Response);
