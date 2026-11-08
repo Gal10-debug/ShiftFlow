@@ -259,36 +259,26 @@ cancelled, and jobs have timeouts. No repository secrets or administrator bootst
 are needed. Service credentials in the workflow are temporary and public by design.
 
 View results in the repository's **Actions → CI** or the pull request's **Checks** tab.
-Local reproduction from the repository root (.NET 10, Node.js 24, npm and Docker required):
+Local reproduction from the repository root (.NET SDK 10.0.403+, Node.js 24, Python 3 and Docker required):
 
 ```sh
-docker run -d --name shiftflow-ci-local \
-  -e POSTGRES_DB=shiftflow_ci -e POSTGRES_USER=shiftflow_ci \
-  -e POSTGRES_PASSWORD=ci-only-disposable \
-  -p 127.0.0.1:55432:5432 \
-  --health-cmd 'pg_isready -U shiftflow_ci -d shiftflow_ci' \
-  --health-interval 5s --health-timeout 5s --health-retries 12 postgres:17-alpine
-# Wait for "healthy" before proceeding; stop if the container exits or remains unhealthy.
-docker inspect --format '{{.State.Health.Status}}' shiftflow-ci-local
-
-export CI=true RUN_POSTGRES_TESTS=1 ASPNETCORE_ENVIRONMENT=CI
-export TEST_POSTGRES_CONNECTION_STRING='Host=127.0.0.1;Port=55432;Database=shiftflow_ci;Username=shiftflow_ci;Password=ci-only-disposable'
-export ConnectionStrings__Database="$TEST_POSTGRES_CONNECTION_STRING"
-dotnet restore ShiftManager.slnx
-dotnet tool restore
-dotnet build ShiftManager.slnx -c Release --no-restore --warnaserror
-dotnet ef database update --project src/ShiftManager --configuration Release --no-build
-dotnet ef migrations has-pending-model-changes --project src/ShiftManager --configuration Release --no-build
-dotnet test ShiftManager.slnx -c Release --no-build --no-restore
+python3 scripts/test-security.py --all
 npm ci --prefix frontend
 npm test --prefix frontend
 npm run build --prefix frontend
 npm audit --prefix frontend --audit-level=high
-
-# Cleanup even when a check fails:
-docker rm -f -v shiftflow-ci-local
-unset CI RUN_POSTGRES_TESTS ASPNETCORE_ENVIRONMENT TEST_POSTGRES_CONNECTION_STRING ConnectionStrings__Database
 ```
+
+The runner owns a fresh container, generated credentials, tmpfs and random loopback port;
+it rejects development/demo ports and verifies its ownership label before cleanup.
+All database entry points use PostgreSQL **17.11 on Alpine 3.24**, pinned to the reviewed
+multi-architecture digest in the Compose files, CI, backend tests and browser runner.
+The Phase 7C.1 review fixes three OS-package findings; 26 bundled-helper findings
+remain documented in the [security report](docs/phase-7c-security-validation.md#phase-7c1--postgresql-container-security-remediation).
+Updating a Compose reference does not update a running database. **Do not run Compose
+up/recreate against an existing development/demo database to apply this change without
+explicit approval, a verified backup and a maintenance window.** No production Compose
+or deployment definition is provided by this repository.
 
 The service connection must use a loopback host and the disposable `shiftflow_ci` database.
 Tests create and drop a unique `shiftflow_test_*` database per test, preserving isolation

@@ -34,7 +34,7 @@ def main():
         # Credentials are environment variables, never command arguments or output.
         container_id = command(["docker", "run", "-d", "--name", name, "--label", "shiftflow.security.run=" + run,
             "--memory=512m", "--cpus=2", "--tmpfs", "/var/lib/postgresql/data:rw", "-p", "127.0.0.1::5432",
-            "-e", "POSTGRES_DB", "-e", "POSTGRES_USER", "-e", "POSTGRES_PASSWORD", "postgres:17-alpine"], True).strip()
+            "-e", "POSTGRES_DB", "-e", "POSTGRES_USER", "-e", "POSTGRES_PASSWORD", "postgres:17.11-alpine3.24@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac"], True).strip()
         binding = command(["docker", "port", container_id, "5432/tcp"], True).strip()
         if not re.fullmatch(r"127\.0\.0\.1:\d+", binding):
             raise RuntimeError("Unexpected disposable database binding")

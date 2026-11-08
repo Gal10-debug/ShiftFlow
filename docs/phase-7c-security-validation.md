@@ -212,7 +212,11 @@ remain pinned by commit SHA with `contents: read` and no persisted checkout cred
 Local macOS tool restore reported skipped NuGet package signature verification; no
 independent package-signature attestation is claimed from that restore.
 
-### PostgreSQL image review — deployment hardening remains open
+### PostgreSQL image review — initial Phase 7C baseline
+
+**Historical scan at `bcb2580`:** the Phase 7C.1 section below supersedes the image
+selection, residual assessment and validation results. Protected running databases
+remain on this original image until a separately approved maintenance operation.
 
 Trivy scanned local ARM64 `postgres:17-alpine`, digest
 `sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24`
@@ -277,7 +281,7 @@ Final read-only verification matched both baselines, including migration levels.
 Only the two original healthy persistent containers remained; no security/E2E-owned
 containers or private browser captures remained after cleanup.
 
-## CI and validation results
+## CI and validation results — Phase 7C baseline at `bcb2580`
 
 The Backend job automatically includes the new PostgreSQL security cases. The Frontend
 job retains all existing tests plus the UI regression. The existing E2E job includes
@@ -331,12 +335,337 @@ a new remote run cannot be claimed before the user authorizes a push.
 
 No confirmed critical/high application exploit was demonstrated by the completed
 assessment. That statement is bounded by this scope and is not a production
-security guarantee. Final Phase 7C acceptance remains **continue security stabilization**
-until CI and the image/deployment hardening requirements are satisfied. Local regression
-results pass. No MFA, SSO, email reset, external penetration test, production proxy/TLS
+security guarantee. The initial Phase 7C recommendation was **continue security stabilization**
+until CI and the image/deployment hardening requirements are satisfied. Its local regression
+results passed; the Phase 7C.1 recommendation and latest results follow below. No MFA, SSO, email reset, external penetration test, production proxy/TLS
 test or broad load/DoS exercise is claimed. Account-management audit expansion and
 centralized operational alerting are deployment/future work; existing immutable
 workflow audits are preserved and tested.
+
+## Phase 7C.1 — PostgreSQL container security remediation
+
+Assessment date: **2026-11-08**. Continues `bcb2580` on the same feature branch.
+PostgreSQL remains **17.11**; no PostgreSQL major-version change, schema change,
+production deployment or persistent-container upgrade is performed.
+
+### Image inventory and candidate comparison
+
+Before this change, `compose.yaml`, `compose.demo.yaml`, the Backend CI service,
+backend Testcontainers fallback, security runner and browser runner all used the
+floating `postgres:17-alpine` reference. The audit script scanned that same local tag.
+Both protected local databases actually resolve to the recorded ARM64 artifact
+`sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24`:
+PostgreSQL 17.11, Alpine 3.24.2, musl 1.2.6-r2 and zlib 1.3.2-r0.
+Historical GitHub Actions resolutions were not recorded, so the 29 findings are not
+assumed to describe every historical AMD64 CI run. No production image, Dockerfile
+or production deployment configuration exists in this repository.
+
+Official image metadata and actual package inventories were inspected. Trivy **0.76.2**,
+vulnerability database schema 2 updated **2026-11-07 18:32:58 UTC**, scanned each image
+with `--scanners vuln --severity HIGH,CRITICAL`. The same cached database was used for
+comparison; no ignore file, severity override, VEX suppression or `--ignore-unfixed`
+was applied. Both OS packages and the Go executable in the final runtime filesystem
+were included. Downloading images did not retag, restart or replace a protected container.
+
+| Image / native ARM64 scan | Runtime OS | High | Critical | Total | Assessment |
+| --- | --- | ---: | ---: | ---: | --- |
+| Original local `postgres:17-alpine` artifact above | Alpine 3.24.2 | 28 | 1 | 29 | Reproduced baseline; three fixable OS-package findings |
+| `postgres:17.11-alpine3.24` | Alpine 3.24.4 | 25 | 1 | 26 | Selected: same PostgreSQL minor, libc family, paths and UID; three OS findings fixed |
+| `postgres:17.11-alpine3.23` | Alpine 3.23.8 | 25 | 1 | 26 | No additional reduction; unnecessary older OS branch |
+| `postgres:17.11-trixie` | Debian 13.7 | 91 | 2 | 93 | Different libc, locale implementation and UID; more package findings, without fixing bundled Go metadata |
+
+Counts from different distribution advisory feeds are not a direct exploitability
+ranking. Trixie was not rejected solely because its count is higher: switching musl
+to glibc, postgres UID/GID 70 to 999, and the available locales would add migration
+and ownership risks without addressing the remaining helper findings. Alpine 3.24
+retains ICU support and the existing `/var/lib/postgresql/data` layout. No external
+PostgreSQL extension is required by the current migrations; built-in PL/pgSQL is used
+for triggers. Optional deployment extensions still require their own compatibility review.
+
+The alternative multi-architecture index digests were
+`bc2701f9a79f9248bcb18743bc9b2c732d9a1d16737ca44a8f577752fc43b61f` (Alpine 3.23)
+and `ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f` (Trixie).
+The official [image catalog](https://github.com/docker-library/official-images/blob/master/library/postgres)
+identifies PostgreSQL 17.11 variants supporting both ARM64 and AMD64.
+PostgreSQL lists [major 17 as supported through 2029-11-08](https://www.postgresql.org/support/versioning/).
+Alpine lists [3.24 main support through 2028-06-01](https://alpinelinux.org/releases/);
+community packages have the shorter next-stable-release support window. Recheck these
+policies and package provenance during maintenance; a digest pin does not extend support.
+
+### Selected remediation and exact references
+
+All existing executable image references now use:
+
+```text
+postgres:17.11-alpine3.24@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
+```
+
+This is the **multi-architecture index**, not an ARM-only digest. Its inspected raw
+manifest hashes to that exact digest and includes:
+
+| Platform | Image manifest digest | Selected scan |
+| --- | --- | --- |
+| Linux ARM64/v8, Apple Silicon Docker | `sha256:1108a8fe22dff4eab48870e081be046d549ddc1b6f5972e0a766eaf1e0b1003c` | 25 High / one Critical |
+| Linux AMD64, GitHub Actions | `sha256:4717f90960a225c2d1c5dac50508c401230f693ff626e06e84e6db0a68ded508` | 25 High / one Critical |
+
+The native ARM64 image was executed for compatibility tests. AMD64 was scanned from
+the registry and its manifest verified; local execution of AMD64 or a GitHub CI run
+is not claimed. Both selected-platform scans have the same remaining CVE/package set.
+The refreshed image contains musl/musl-utils **1.2.6-r3**, zlib **1.3.2-r1**,
+ICU **78.1-r0**, and tzdata **2026f-r0**. No custom image or package installation layer
+was introduced. The digest fixes the tested package set; it is an update baseline,
+not an automatic security-update mechanism.
+
+Updated consumers: `compose.yaml`, `compose.demo.yaml`, `.github/workflows/ci.yml`,
+`tests/ShiftManager.Tests/TestDatabase.cs`, `scripts/test-security.py`,
+`frontend/e2e/run.mjs`, and `scripts/security-audit.py`. The new storage probe uses the
+same pin. The README now uses the owned disposable runner instead of a manual
+fixed-port recipe that conflicted with the demo port. Changing these files has no
+runtime effect on existing containers. Running Compose up/recreate to apply the
+reference to existing data requires separate explicit approval.
+
+### Assessment of every original finding
+
+There were **29 package findings across 28 distinct CVEs**: the musl advisory was
+reported for two installed packages. The table below covers all three OS findings.
+Each package is present in the original final runtime filesystem; the replacement
+still contains the package with the patched version. The scanner source is **Alpine
+Secdb**, and vendor fixed versions were checked against the Alpine tracker.
+
+| CVE | Package | Original version | Verified fixed/selected version | Severity | Classification and exposure |
+| --- | --- | --- | --- | --- | --- |
+| [CVE-2026-107891](https://security.alpinelinux.org/vuln/CVE-2026-107891) | musl | 1.2.6-r2 | 1.2.6-r3 | High | Available fix applied; runtime libc regexp issue. An application-to-vulnerable-function path was not demonstrated; private networking alone is not a mitigation. |
+| [CVE-2026-107891](https://security.alpinelinux.org/vuln/CVE-2026-107891) | musl-utils | 1.2.6-r2 | 1.2.6-r3 | High | Same advisory, second package instance; available fix applied. |
+| [CVE-2026-85091](https://security.alpinelinux.org/vuln/CVE-2026-85091) | zlib | 1.3.2-r0 | 1.3.2-r1 | High | Available fix applied; specific nonblocking gzip-write/gzprintf path. No such application path demonstrated; client/backup functionality must also be considered. |
+
+The remaining **26** findings all identify `stdlib v1.24.6` through the installed
+`/usr/local/bin/gosu` **1.19** executable's Go build metadata. The Go runtime/executable
+is present in the final selected image; that does **not** establish that every
+standard-library function named below is linked or invoked. The scanner source for
+every row is the **Go Vulnerability Database**. Each linked canonical OSV record was
+retrieved and reviewed for affected ranges, fix versions, withdrawal and affected APIs.
+None of these records was withdrawn. The listed upstream fixes exist, but none of the
+compared official images bundles a Go runtime rebuild addressing this metadata set.
+
+| CVE | Canonical source | Severity | Upstream fixed Go versions reported by Trivy | Affected standard-library API/package | Deployment assessment |
+| --- | --- | --- | --- | --- | --- |
+| CVE-2025-68121 | [GO-2026-4337](https://pkg.go.dev/vuln/GO-2026-4337) | Critical | 1.24.13, 1.25.7, 1.26.0-rc.3 | `crypto/tls` | No reachable use demonstrated; residual review |
+| CVE-2025-61726 | [GO-2026-4341](https://pkg.go.dev/vuln/GO-2026-4341) | High | 1.24.12, 1.25.6 | `net/url` | No reachable use demonstrated; residual review |
+| CVE-2025-61729 | [GO-2025-4155](https://pkg.go.dev/vuln/GO-2025-4155) | High | 1.24.11, 1.25.5 | `crypto/x509` | No reachable use demonstrated; residual review |
+| CVE-2026-111943 | [GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809) | High | 1.26.10, 1.27.3 | `crypto/x509` | No reachable use demonstrated; residual review |
+| CVE-2026-25679 | [GO-2026-4601](https://pkg.go.dev/vuln/GO-2026-4601) | High | 1.25.8, 1.26.1 | `net/url` | No reachable use demonstrated; residual review |
+| CVE-2026-27145 | [GO-2026-5037](https://pkg.go.dev/vuln/GO-2026-5037) | High | 1.25.11, 1.26.4 | `crypto/x509` | No reachable use demonstrated; residual review |
+| CVE-2026-32280 | [GO-2026-4947](https://pkg.go.dev/vuln/GO-2026-4947) | High | 1.25.9, 1.26.2 | `crypto/x509` | No reachable use demonstrated; residual review |
+| CVE-2026-32281 | [GO-2026-4946](https://pkg.go.dev/vuln/GO-2026-4946) | High | 1.25.9, 1.26.2 | `crypto/x509` | No reachable use demonstrated; residual review |
+| CVE-2026-32283 | [GO-2026-4870](https://pkg.go.dev/vuln/GO-2026-4870) | High | 1.25.9, 1.26.2 | `crypto/tls` | No reachable use demonstrated; residual review |
+| CVE-2026-33811 | [GO-2026-4981](https://pkg.go.dev/vuln/GO-2026-4981) | High | 1.25.10, 1.26.3 | `net` | No reachable use demonstrated; residual review |
+| CVE-2026-33814 | [GO-2026-4918](https://pkg.go.dev/vuln/GO-2026-4918) | High | 1.25.10, 1.26.3 | `net/http` | No reachable use demonstrated; residual review |
+| CVE-2026-33818 | [GO-2026-5972](https://pkg.go.dev/vuln/GO-2026-5972) | High | 1.25.13, 1.26.6, 1.27.0-rc.3 | `encoding/asn1` | No reachable use demonstrated; residual review |
+| CVE-2026-39820 | [GO-2026-4986](https://pkg.go.dev/vuln/GO-2026-4986) | High | 1.25.10, 1.26.3 | `net/mail` | No reachable use demonstrated; residual review |
+| CVE-2026-39821 | [GO-2026-5026](https://pkg.go.dev/vuln/GO-2026-5026) | High | 1.25.13, 1.26.6, 1.27.0-rc.3 | `net/http`, `net/http/internal/http2` | No reachable use demonstrated; residual review |
+| CVE-2026-39822 | [GO-2026-4970](https://pkg.go.dev/vuln/GO-2026-4970) | High | 1.25.12, 1.26.5, 1.27.0-rc.2 | `os` | No reachable use demonstrated; residual review |
+| CVE-2026-39836 | [GO-2026-4971](https://pkg.go.dev/vuln/GO-2026-4971) | High | 1.25.10, 1.26.3 | `net` | Linux not affected (Windows-only) |
+| CVE-2026-42499 | [GO-2026-4977](https://pkg.go.dev/vuln/GO-2026-4977) | High | 1.25.10, 1.26.3 | `net/mail` | No reachable use demonstrated; residual review |
+| CVE-2026-42504 | [GO-2026-5038](https://pkg.go.dev/vuln/GO-2026-5038) | High | 1.25.11, 1.26.4 | `mime` | No reachable use demonstrated; residual review |
+| CVE-2026-56853 | [GO-2026-6089](https://pkg.go.dev/vuln/GO-2026-6089) | High | 1.25.13, 1.26.6, 1.27.0-rc.3 | `net/http` | No reachable use demonstrated; residual review |
+| CVE-2026-56858 | [GO-2026-6091](https://pkg.go.dev/vuln/GO-2026-6091) | High | 1.25.13, 1.26.6, 1.27.0-rc.3 | `html/template` | No reachable use demonstrated; residual review |
+| CVE-2026-56859 | [GO-2026-6088](https://pkg.go.dev/vuln/GO-2026-6088) | High | 1.25.13, 1.26.6, 1.27.0-rc.3 | `encoding/xml` | No reachable use demonstrated; residual review |
+| CVE-2026-56860 | [GO-2026-6218](https://pkg.go.dev/vuln/GO-2026-6218) | High | 1.25.13, 1.26.6, 1.27.0-rc.3 | `net/url` | No reachable use demonstrated; residual review |
+| CVE-2026-56862 | [GO-2026-6090](https://pkg.go.dev/vuln/GO-2026-6090) | High | 1.25.13, 1.26.6, 1.27.0-rc.3 | `crypto/tls` | No reachable use demonstrated; residual review |
+| CVE-2026-78667 | [GO-2026-6609](https://pkg.go.dev/vuln/GO-2026-6609) | High | 1.26.9, 1.27.2 | `net/http` | No reachable use demonstrated; residual review |
+| CVE-2026-78669 | [GO-2026-6611](https://pkg.go.dev/vuln/GO-2026-6611) | High | 1.26.9, 1.27.2 | `net/http`, `net/http/internal/http2` | No reachable use demonstrated; residual review |
+| CVE-2026-97031 | [GO-2026-6607](https://pkg.go.dev/vuln/GO-2026-6607) | High | 1.26.9, 1.27.2 | `crypto/tls` | No reachable use demonstrated; residual review |
+
+`gosu` switches UID/GID/groups and then `exec`s PostgreSQL; its inspected source has
+no HTTP/TLS listener, HTTP client, certificate processing, mail, template or XML input
+flow. Its user-setup path reads image-controlled passwd/group files. The deployed
+Linux platform also makes **CVE-2026-39836**'s Windows-only panic inapplicable. The
+`os.Root` advisory was considered separately from networking: the inspected gosu path
+does not call those Root methods. These are source/deployment assessments, not a
+binary-level call-graph proof. No symbol-level `govulncheck` result is claimed.
+
+The [gosu security policy](https://github.com/tianon/gosu/blob/1.19/SECURITY.md) explains
+why compiler-version scanners can report unused APIs; its advice does not itself
+prove a false positive for this exact binary. The newer [gosu 1.20 release](https://github.com/tianon/gosu/releases/tag/1.20)
+also reports Go 1.24.6, so replacing 1.19 with 1.20 would not resolve these compiler
+metadata findings. It addresses a separate user-parser advisory; image/vendor updates
+still need ongoing review. A custom helper replacement or distribution switch solely
+to change counts was not justified here.
+
+The resulting classification is explicit:
+
+- **Three OS-package findings fixed**, representing two CVEs; no new High/Critical
+  CVE/package pair introduced on the selected ARM64 scan.
+- **26 raw residual findings**: 25 High and one Critical, retained without suppression.
+- **One** residual High finding is platform-inapplicable on Linux (Windows-only).
+- **25** residual findings have no demonstrated reachable use in this deployment and
+  require recorded residual review; they are not counted as patched or conclusively
+  proven false positives. This includes the Critical TLS metadata finding.
+- **Zero confirmed reachable High/Critical application/container exploits** were
+  demonstrated. This bounded result is not a claim of zero relevant risk. The three
+  original potentially relevant OS-package findings were fixed; 25 residual metadata
+  matches still need deployment-owner review, and one is platform-inapplicable.
+- No investigated original advisory lacks an upstream fix. There are no confirmed
+  withdrawn/disputed records or package-version mismatches beyond the stated platform
+  mismatch. Availability of a Go fix is distinct from availability in an official image.
+
+### Disposable compatibility and regression evidence
+
+The full backend/security suite uses the pinned image in one owned tmpfs container,
+generated credentials and a random loopback port; per-test databases are disposable.
+Fresh EF migrations and the pending-model check run only there. Existing integration
+cases exercise real authentication/stamp changes, scheduling persistence, approved
+and pending absences, immutable publication snapshots, exchanges, transaction rollback,
+concurrent approvals and reads through fresh application hosts/contexts.
+
+`PostgresImageCompatibilityTests` adds a server-side check for PostgreSQL major 17,
+UTF-8, Hebrew ICU collation and PL/pgSQL, then compares PostgreSQL's image tzdata with
+.NET's `ShiftClock` across Jerusalem's spring/autumn DST transitions and an ordinary
+night: **11 / 13 / 12 hours**, with Hebrew text round trips. No broad normalization or
+UI change is made.
+
+`scripts/test-postgres-image.py` additionally owns a unique, labeled **disposable named
+volume** and container, with no network or exposed port. It accepts no database target.
+It verifies Docker health, transaction rollback, 0700/70:70 data-directory permissions,
+synthetic UTF-8/date/UTC/jsonb persistence across a restart of **that owned container
+only**, and a `pg_dump`/`pg_restore` round trip into another disposable database.
+Backup bytes stay in memory. Exact ownership labels gate cleanup, and only its own
+container/volume are removed. This probe also runs in the Backend CI job.
+
+The first backend attempt exposed a Phase 7C demo-scenario regression: some random
+seeds selected a deputy to decide their own personal proposal. The approved independent
+approver rule correctly rejected it. The demo tool now chooses that deputy's team
+leader, preserving server enforcement. The integration fixture uses seed `7100001`
+to always cover the former selection, checks every decision has a different actor,
+and retains rollback/idempotency/data-preservation assertions. This fix was tested
+only in disposable fixtures; no existing demo scenario was reapplied.
+
+The final exclusive backend run passed **420/420 tests, zero failed/skipped**, including
+all **27 Phase 7C security cases** and the new image/time-zone case. Release builds
+had zero warnings/errors; clean migrations and pending-model validation passed. The
+new image/time-zone case also passed **1/1** through the separate Testcontainers
+fallback, proving that image reference can start directly. The final storage probe
+passed with its disposable volume removed.
+
+Earlier attempts remain part of the validation record: the first had **418 passes /
+two failures** in demo-scenario helpers, corrected by the independent-approver selection
+fix. The second had **418 passes / two failures** at the same instant in
+`Cross_year_weeks_share_the_same_three_block_limit` and
+`Delegated_availability_changes_stale_review_without_mutating_preliminary_snapshot`.
+These were connection/HTTP-500 failures, including an Npgsql end-of-stream during
+connection negotiation. The captured disposable-container state/logs showed no
+restart, OOM kill or PostgreSQL crash; a root cause was not established. Both tests
+passed in the final complete run without overlapping scanners/suites. No automatic
+retry or weakened assertion was added. This is a local validation limitation to
+monitor in CI, not evidence that a transport defect was fixed.
+
+Final local results on the selected image/toolchain:
+
+| Check | Result |
+| --- | --- |
+| Complete backend suite, including all 27 Phase 7C security cases | **420 passed; zero failed/skipped** |
+| Separate Testcontainers image/time-zone compatibility path | **One passed; zero failed/skipped** |
+| Complete frontend suite | **128 passed; zero failed/skipped** |
+| Complete Phase 7B/7C Chromium suite, one worker | **31 passed; zero failed/skipped/flaky** |
+| Browser isolation guards | **Nine checks passed**: one valid and eight unsafe targets, without connecting |
+| Artifact-redaction safety tests | **Three passed** |
+| Development-runner safety tests | **Seven passed** |
+| Image storage probe | Passed: healthy startup, rollback, restart durability, backup/restore, permissions and cleanup |
+| Backend/E2E-host Release builds and clean migrations/model check | Passed; zero build warnings/errors, no pending model changes |
+| Frontend production build and E2E type checking | Passed |
+| Compose image resolution, Actionlint, Python/Node/shell syntax and whitespace checks | Passed |
+| NuGet/npm dependency audits; all-history/source Gitleaks | Zero advisory/secret findings |
+| Selected image scans | ARM64 and AMD64: **25 High / one Critical**, same CVE/package set; three original findings fixed, zero introduced |
+
+All full-suite figures are actual executed local results. The backend transport
+failures above are disclosed despite the final passing run. CI now uses the same
+image pin and includes the storage probe; its YAML passes Actionlint. **No remote CI
+run was triggered or observed for these unpushed commits.**
+
+Reproduce from the repository root with the documented toolchain and Docker:
+
+```sh
+python3 scripts/test-postgres-image.py
+python3 scripts/test-security.py --all
+npm test --prefix frontend -- --maxWorkers=1
+npm run build --prefix frontend
+npm run typecheck:e2e --prefix frontend
+npm run test:e2e:safety --prefix frontend
+npm run test:e2e --prefix frontend
+python3 scripts/test-dev.py
+python3 scripts/security-audit.py --gitleaks /path/to/verified/gitleaks --trivy /path/to/verified/trivy
+# Explicit cross-architecture scan (registry image; no AMD64 execution implied):
+python3 scripts/security-audit.py --gitleaks /path/to/verified/gitleaks --trivy /path/to/verified/trivy --image-platform linux/amd64
+```
+
+The comparison's safe local JSON evidence is ignored under `TestResults/security/phase7c1/`,
+including the original/candidate ARM64 reports, selected AMD64 report, raw index manifests,
+canonical Go records and storage-probe result. `scripts/security-audit.py` now scans the
+pinned image and optionally selects ARM64/AMD64 explicitly; scanner failure is not a clean
+result. Image findings are still reported separately from the dependency/secret gate.
+No credentials, raw browser captures, database dumps or employee data are committed.
+
+### Persistent-environment verification and deployment requirements
+
+The two protected containers, images, start times and mounts were recorded read-only
+before testing. Demo: **60 users / 1,397 assignments / three publications / 29 absences**,
+migration `20261106074419_SchedulingPriority`; development: **eight users / zero assignments /
+zero publications**, migration `20261027224058_AdditionalSchedulingConstraints`.
+Final read-only checks matched both baselines, including migration levels. Image IDs,
+start times and exact volume mounts were unchanged and both containers were healthy.
+No image-probe volumes or image/security/E2E-owned containers remained, and raw private
+browser captures were removed. Neither persistent target was migrated, reseeded,
+restarted, upgraded or used for compatibility payloads. Their old image exposure
+therefore remains until an explicitly approved maintenance operation.
+
+Before a pilot or any approved persistent-image rollout:
+
+1. Keep PostgreSQL off public interfaces. The local Compose ports remain **loopback-only**
+   (5432 development / 55432 demo); the storage probe has no network, and other disposable
+   services bind random loopback ports. A real deployment needs a restricted private
+   database network and trusted TLS/authentication when crossing hosts. Private networking
+   reduces exposure but does not fix vulnerable libraries or authorize untrusted SQL.
+2. Use a dedicated non-superuser runtime role with only required database/schema/table/
+   sequence privileges. Separate migration/bootstrap ownership and DDL privileges;
+   no runtime CREATEDB/CREATEROLE or disposable superuser credentials. The official image's
+   `POSTGRES_USER` bootstrap role and public CI credentials are not a production role design.
+3. Store generated production credentials in an approved secret store or protected files,
+   with access restrictions and rotation. Never put them in Git, browser artifacts,
+   reports or shell arguments. Retain SCRAM authentication and review `pg_hba.conf`.
+4. Preserve exact volume identity and PostgreSQL ownership/permissions. The selected
+   image retains UID/GID **70:70**, and its fresh data directory is **0700**. A distribution
+   change would need separate ownership, locale, collation and extension planning.
+   Do not run `down -v`, renew anonymous volumes, prune volumes or attach a valuable
+   directory to an experimental image. The demo currently uses an anonymous volume;
+   its identity must be recorded and deliberately preserved during any approved change.
+5. Before touching a protected database, obtain explicit approval, create and verify a
+   protected backup/restore target, review installed extensions and collation versions,
+   plan downtime and rollback, and verify volume ownership and connection targets.
+   PostgreSQL's [minor-update guidance](https://www.postgresql.org/docs/17/upgrading.html)
+   preserves storage compatibility within major 17, but does not certify OS/ICU changes.
+   The synthetic backup/restore probe is not a verified backup of real development/demo data.
+6. Review official PostgreSQL/Alpine/gosu advisories and both architecture scans at least
+   monthly and before each rollout; triage critical/high alerts promptly. Update the
+   specific tag **and** digest in all consumers together, compare CVE/package sets,
+   rerun compatibility/security suites and require review. Pinning must not become
+   permanent patch deferral. Resolve or explicitly accept residual helper findings
+   with the deployment owner; maintain no blanket scanner allowlist.
+7. Complete the existing Phase 7C HTTPS/trusted-proxy configuration, production Secure
+   `__Host-` cookies, protected persistent ASP.NET Data Protection keys, production
+   secret management, backup monitoring and final-commit CI requirements. A fresh
+   disposable volume does not validate production storage encryption, real disaster
+   recovery, live TLS/proxy behavior or multi-instance key management.
+
+### Updated recommendation
+
+The selected image applies the available OS-package fixes with the smallest compatible
+change. All raw residual findings remain visible. **Phase 7C is ready for PR review**:
+the final local suites pass, the approved authorization fixes remain intact, and all
+29 original findings have an explicit disposition. This is not pilot approval or a
+production-security guarantee. The protected running databases intentionally remain
+on the original image. Residual-helper review, an approved persistent-image rollout,
+real CI (including monitoring the disclosed transport failures), and deployment
+controls remain open acceptance requirements before a pilot.
 
 ## Primary references
 

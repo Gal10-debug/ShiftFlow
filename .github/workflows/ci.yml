@@ -30,7 +30,7 @@ jobs:
       ConnectionStrings__Database: Host=127.0.0.1;Port=5432;Database=shiftflow_ci;Username=shiftflow_ci;Password=ci-only-disposable
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17.11-alpine3.24@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
         env:
           POSTGRES_DB: shiftflow_ci
           POSTGRES_USER: shiftflow_ci
@@ -59,6 +59,8 @@ jobs:
         run: dotnet ef database update --project src/ShiftManager --configuration Release --no-build
       - name: Check for pending model changes
         run: dotnet ef migrations has-pending-model-changes --project src/ShiftManager --configuration Release --no-build
+      - name: Verify image health and disposable volume durability
+        run: python3 scripts/test-postgres-image.py
       - name: Run all backend tests against isolated service databases
         run: dotnet test ShiftManager.slnx -c Release --no-build --no-restore --logger "trx;LogFileName=backend.trx"
       - name: Summarize scheduling benchmark quality and proof status

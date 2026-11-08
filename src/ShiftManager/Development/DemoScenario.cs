@@ -182,6 +182,8 @@ public static class DemoScenario
                 var employee = DemoCli.Principal(users.Single(u => u.Id == c.Account.Id), roles.Where(r => r.UserId == c.Account.Id).Select(r => r.Name!).ToArray());
                 var team = teams.Single(t => t.Slot == c.Account.Team);
                 var approverId = c.Account.Index % 2 == 0 ? team.LeaderUserId!.Value : team.DeputyUserId!.Value;
+                // Deputies also submit personal requests; their team leader must decide them.
+                if (approverId == c.Account.Id) approverId = team.LeaderUserId!.Value;
                 var approver = DemoCli.Principal(users.Single(u => u.Id == approverId), roles.Where(r => r.UserId == approverId).Select(r => r.Name!).ToArray());
                 var request = await absence.Submit(c.Pattern, employee);
                 async Task<AbsenceResponse> Approve(AbsenceResponse r)

@@ -14,7 +14,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gitleaks", default="gitleaks", help="Path to checksum-verified Gitleaks 8.30.1")
     parser.add_argument("--trivy", help="Optional path to Trivy for image review; image findings are reported separately")
+    parser.add_argument("--image-platform", choices=("linux/arm64", "linux/amd64"), help="Scan this image platform explicitly")
     args = parser.parse_args()
+    if args.image_platform and not args.trivy:
+        parser.error("--image-platform requires --trivy")
     root = Path(__file__).resolve().parent.parent
     reports = root / "TestResults/security"
     reports.mkdir(parents=True, exist_ok=True)
@@ -96,9 +99,13 @@ def main():
     images = []
     if args.trivy:
         report = reports / "postgres-image.json"
-        run([args.trivy, "image", "--scanners", "vuln", "--severity", "HIGH,CRITICAL", "--quiet", "--timeout", "5m",
-             "--format", "json", "--output", str(report), "postgres:17-alpine"])
+        image = "postgres:17.11-alpine3.24@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac"
+        platform = ["--image-src", "remote", "--platform", args.image_platform] if args.image_platform else []
+        run([args.trivy, "image", *platform, "--scanners", "vuln", "--severity", "HIGH,CRITICAL", "--quiet", "--timeout", "5m",
+             "--format", "json", "--output", str(report), image])
         result = json.loads(report.read_text())
+        metadata = result["Metadata"]
+        print("Reviewed image:", image, "architecture:", metadata["ImageConfig"]["architecture"])
         for target in result.get("Results", []):
             for finding in target.get("Vulnerabilities", []):
                 images.append({"target": target["Target"], "id": finding["VulnerabilityID"], "package": finding["PkgName"],

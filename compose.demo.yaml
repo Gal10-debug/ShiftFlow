@@ -1,7 +1,8 @@
 # Dedicated local demo instance. No normal development volume or service is used.
 services:
   demo-postgres:
-    image: postgres:17-alpine
+    # Applying this image to existing demo data requires a separately approved maintenance window.
+    image: postgres:17.11-alpine3.24@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
     environment:
       POSTGRES_DB: ${DEMO_DATABASE:-shiftflow_demo_202611_42}
       POSTGRES_USER: shiftflow_demo
