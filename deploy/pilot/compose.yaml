@@ -1,0 +1,166 @@
+name: ${PILOT_PROJECT:?Set a unique pilot project}
+x-app: &app
+  image: ${PILOT_APP_IMAGE:?Build and identify the reviewed application image}
+  user: "1654:1654"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  mem_limit: 1024m
+  cpus: 2
+  pids_limit: 128
+  stop_grace_period: 40s
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=64m,uid=1654,gid=1654,mode=700"]
+  environment: &environment
+    ASPNETCORE_ENVIRONMENT: Production
+    ASPNETCORE_HTTP_PORTS: "8080"
+    PILOT_MODE: "1"
+    PILOT_DEPLOYMENT_ID: ${PILOT_DEPLOYMENT_ID:?Required deployment identity}
+    PILOT_DATABASE_NAME: ${PILOT_DATABASE_NAME:?Required database name}
+    PILOT_DATABASE_HOST: postgres
+    PILOT_PUBLIC_ORIGIN: ${PILOT_PUBLIC_ORIGIN:?Required HTTPS origin}
+    PILOT_TRUSTED_PROXY: ${PILOT_PROXY_ADDRESS:?Required exact proxy address}
+    PILOT_KEYS_DIRECTORY: /var/lib/shiftflow/keys
+    PILOT_DATABASE_CONNECTION_FILE: /run/secrets/database_connection
+    PILOT_KEY_CERTIFICATE_FILE: /run/secrets/key_certificate
+    PILOT_KEY_CERTIFICATE_PASSWORD_FILE: /run/secrets/key_certificate_password
+  volumes: ["keys:/var/lib/shiftflow/keys"]
+  secrets:
+    - source: runtime_connection
+      target: database_connection
+    - key_certificate
+    - key_certificate_password
+  networks: [data]
+  labels: &labels
+    shiftflow.pilot.deployment: ${PILOT_DEPLOYMENT_ID}
+    shiftflow.pilot.validation: ${PILOT_VALIDATION_RUN:-none}
+  logging: {driver: json-file, options: {max-size: "10m", max-file: "3"}}
+
+services:
+  postgres:
+    image: postgres:17.11-alpine3.24@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
+    user: "70:70"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      POSTGRES_USER: pilot_owner
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_owner_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    secrets: [postgres_owner_password]
+    volumes: ["database:/var/lib/postgresql/data"]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m,uid=70,gid=70,mode=700
+      - /var/run/postgresql:rw,noexec,nosuid,size=8m,uid=70,gid=70,mode=755
+    networks: [data]
+    mem_limit: 512m
+    cpus: 2
+    pids_limit: 128
+    stop_grace_period: 40s
+    healthcheck:
+      test: [CMD-SHELL, 'PGPASSWORD="$$(cat /run/secrets/postgres_owner_password)" pg_isready -h 127.0.0.1 -U pilot_owner -d postgres']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    labels: *labels
+    logging: {driver: json-file, options: {max-size: "10m", max-file: "3"}}
+  app:
+    <<: *app
+    depends_on: {postgres: {condition: service_healthy}}
+    networks:
+      data: {}
+      edge: {ipv4_address: "${PILOT_APP_ADDRESS:?Required private application address}"}
+  proxy:
+    image: ${PILOT_PROXY_IMAGE:?Build and identify the reviewed proxy image}
+    user: "101:101"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 64m
+    cpus: 0.5
+    pids_limit: 32
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m,uid=101,gid=101,mode=700"]
+    environment: {PILOT_PUBLIC_HOST: "${PILOT_PUBLIC_HOST:?Required exact public hostname}"}
+    entrypoint: [/bin/sh, -ec]
+    command: ["envsubst '$$PILOT_PUBLIC_HOST' < /etc/nginx/pilot.conf.template > /tmp/pilot.conf; exec nginx -c /tmp/pilot.conf -g 'daemon off;'"]
+    volumes: ["./nginx.conf.template:/etc/nginx/pilot.conf.template:ro"]
+    secrets: [tls_certificate, tls_private_key]
+    ports: ["${PILOT_BIND_ADDRESS:-127.0.0.1}:${PILOT_HTTPS_PORT:?Required port}:8443"]
+    networks:
+      ingress: {}
+      edge: {ipv4_address: "${PILOT_PROXY_ADDRESS}"}
+    depends_on: {app: {condition: service_healthy}}
+    labels: *labels
+    logging: {driver: json-file, options: {max-size: "10m", max-file: "3"}}
+  migrate:
+    <<: *app
+    profiles: [operations]
+    command: [--pilot-command, migrate, --confirm-target, "${PILOT_DEPLOYMENT_ID}/${PILOT_DATABASE_NAME}"]
+    healthcheck: {disable: true}
+    secrets:
+      - source: migration_connection
+        target: database_connection
+      - key_certificate
+      - key_certificate_password
+  bootstrap:
+    <<: *app
+    profiles: [operations]
+    command: [--pilot-command, bootstrap, --confirm-target, "${PILOT_DEPLOYMENT_ID}/${PILOT_DATABASE_NAME}"]
+    healthcheck: {disable: true}
+    environment:
+      <<: *environment
+      PILOT_BOOTSTRAP_PASSWORD_FILE: /run/secrets/bootstrap_password
+      BOOTSTRAP_ADMIN_USERNAME: ${PILOT_BOOTSTRAP_USERNAME:?Required administrator login}
+      BOOTSTRAP_ADMIN_FIRST_NAME: ${PILOT_BOOTSTRAP_FIRST_NAME:?Required name}
+      BOOTSTRAP_ADMIN_LAST_NAME: ${PILOT_BOOTSTRAP_LAST_NAME:?Required name}
+    secrets:
+      - source: runtime_connection
+        target: database_connection
+      - key_certificate
+      - key_certificate_password
+      - bootstrap_password
+  maintain:
+    <<: *app
+    profiles: [operations]
+    command: [--pilot-command, inspect-keys, --confirm-target, "${PILOT_DEPLOYMENT_ID}/${PILOT_DATABASE_NAME}"]
+    healthcheck: {disable: true}
+  backup:
+    image: postgres:17.11-alpine3.24@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
+    profiles: [operations]
+    user: "70:70"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 1
+    pids_limit: 32
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,uid=70,gid=70,mode=700
+      - /var/lib/postgresql/data:rw,noexec,nosuid,size=1m,uid=70,gid=70,mode=700
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${PILOT_DATABASE_NAME}
+      PGUSER: sf_${PILOT_DEPLOYMENT_ID}_backup
+      PGPASSFILE: /tmp/pgpass
+    secrets: [backup_pgpass]
+    entrypoint: [/bin/sh, -ec]
+    command: ['umask 077; cp /run/secrets/backup_pgpass /tmp/pgpass; chmod 600 /tmp/pgpass; exec pg_dump --format=custom --no-owner --no-privileges --exclude-schema=shiftflow_ops']
+    networks: [data]
+    labels: *labels
+volumes:
+  database: {labels: {shiftflow.pilot.deployment: "${PILOT_DEPLOYMENT_ID}", shiftflow.pilot.validation: "${PILOT_VALIDATION_RUN:-none}"}}
+  keys: {labels: {shiftflow.pilot.deployment: "${PILOT_DEPLOYMENT_ID}", shiftflow.pilot.validation: "${PILOT_VALIDATION_RUN:-none}"}}
+networks:
+  ingress: {external: true, name: "${PILOT_INGRESS_NETWORK:?Required proxy-only ingress network}"}
+  edge: {external: true, name: "${PILOT_EDGE_NETWORK:?Required verified network}"}
+  data: {external: true, name: "${PILOT_DATA_NETWORK:?Required verified network}"}
+secrets:
+  postgres_owner_password: {file: "${PILOT_SECRET_DIRECTORY:?Required private secret directory}/postgres-owner-password"}
+  runtime_connection: {file: "${PILOT_SECRET_DIRECTORY}/runtime-connection"}
+  migration_connection: {file: "${PILOT_SECRET_DIRECTORY}/migration-connection"}
+  backup_pgpass: {file: "${PILOT_SECRET_DIRECTORY}/backup-pgpass"}
+  bootstrap_password: {file: "${PILOT_SECRET_DIRECTORY}/bootstrap-password"}
+  key_certificate: {file: "${PILOT_SECRET_DIRECTORY}/keys.pfx"}
+  key_certificate_password: {file: "${PILOT_SECRET_DIRECTORY}/keys-password"}
+  tls_certificate: {file: "${PILOT_SECRET_DIRECTORY}/tls.crt"}
+  tls_private_key: {file: "${PILOT_SECRET_DIRECTORY}/tls.key"}

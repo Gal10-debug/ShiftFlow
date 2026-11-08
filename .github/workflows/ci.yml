@@ -166,7 +166,7 @@ jobs:
     # Preserve the existing required check name. Skipped/cancelled dependencies fail closed.
     name: Backend
     if: always()
-    needs: [backend-correctness, scheduling-benchmarks]
+    needs: [backend-correctness, scheduling-benchmarks, pilot-deployment]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -174,7 +174,43 @@ jobs:
         env:
           CORRECTNESS: ${{ needs.backend-correctness.result }}
           BENCHMARKS: ${{ needs.scheduling-benchmarks.result }}
-        run: test "$CORRECTNESS" = success && test "$BENCHMARKS" = success
+          PILOT: ${{ needs.pilot-deployment.result }}
+        run: test "$CORRECTNESS" = success && test "$BENCHMARKS" = success && test "$PILOT" = success
+
+  pilot-deployment:
+    name: Production pilot package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked browser dependencies
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Verify operation guards
+        run: python3 scripts/test-pilot.py
+      - name: Build the actual Production images
+        run: |
+          docker build -f deploy/pilot/Dockerfile -t shiftflow-pilot:phase7e-local .
+          docker build -f deploy/pilot/Dockerfile.proxy -t shiftflow-pilot-proxy:phase7e-local .
+      - name: Validate HTTPS, synthetic workflow, failures and separate-database recovery
+        run: python3 scripts/test-pilot-deployment.py
+      - name: Publish status-only deployment evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pilot-deployment-validation
+          path: TestResults/phase7e/deployment-validation.json
+          if-no-files-found: error
+          retention-days: 7
 
   frontend:
     name: Frontend

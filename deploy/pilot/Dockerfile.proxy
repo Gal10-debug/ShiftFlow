@@ -1,0 +1,8 @@
+FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03
+USER 0
+# Exact fixes verified against the Phase 7E scan. A missing version must fail the
+# build and trigger review rather than silently selecting a different package.
+RUN apk add --no-cache --upgrade \
+    brotli-libs=1.2.1-r0 curl=8.23.0-r0 libcurl=8.23.0-r0 \
+    libexpat=2.10.0-r0 musl=1.2.6-r3 musl-utils=1.2.6-r3 zlib=1.4-r0
+USER 101:101
