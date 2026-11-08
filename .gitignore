@@ -18,4 +18,5 @@ src/ShiftManager/wwwroot/
 .e2e-private/
 frontend/e2e-report/
 frontend/e2e-workflow-report/
+.pilot-private/
 **/__pycache__/

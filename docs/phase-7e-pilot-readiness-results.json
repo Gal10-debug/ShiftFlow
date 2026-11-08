@@ -1,0 +1,1175 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-08",
+  "branch": "feature/phase-7e-pilot-readiness",
+  "baseCommit": "4919a17e9d791b55aef94806ad557760d7246009",
+  "classification": "NOT READY",
+  "scope": "Synthetic isolated local Production validation only; no live deployment or data",
+  "remoteGitChanges": false,
+  "githubActionsVerified": false,
+  "environment": {
+    "local": "macOS ARM64 / Docker Desktop Linux ARM64",
+    "sdk": "10.0.403",
+    "runtime": "10.0.14",
+    "processorLimit": 2,
+    "postgresMemoryMiB": 512,
+    "browserWorkers": 1
+  },
+  "backendCorrectness": {
+    "counts": {
+      "total": "436",
+      "executed": "436",
+      "passed": "436",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    },
+    "wallSeconds": 226.65034654201008,
+    "exitCode": 0
+  },
+  "benchmarks": {
+    "exitCode": 0,
+    "wallSeconds": 265.4101265830104,
+    "experimentsRun": 6,
+    "qualityAccepted": false,
+    "trials": [
+      {
+        "Scenario": "normal",
+        "BudgetSeconds": 30,
+        "ElapsedSeconds": 17.3600271,
+        "Status": "OPTIMAL",
+        "ProvenObjectives": 6,
+        "CoverageCriticalHighNormal": [
+          238,
+          0,
+          56
+        ],
+        "Missing": 0,
+        "Stages": [
+          {
+            "Objective": "CRITICAL_COVERAGE",
+            "Status": "OPTIMAL",
+            "Value": 238,
+            "Bound": 238,
+            "ElapsedSeconds": 1.3661496,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 0.816243
+          },
+          {
+            "Objective": "HIGH_COVERAGE",
+            "Status": "OPTIMAL",
+            "Value": 0,
+            "Bound": 0,
+            "ElapsedSeconds": 0.8061688,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 0.782483
+          },
+          {
+            "Objective": "NORMAL_COVERAGE",
+            "Status": "OPTIMAL",
+            "Value": 56,
+            "Bound": 56,
+            "ElapsedSeconds": 1.8763633,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 1.8605120000000002
+          },
+          {
+            "Objective": "FAIRNESS",
+            "Status": "OPTIMAL",
+            "Value": -29848,
+            "Bound": -29848,
+            "ElapsedSeconds": 7.4180676,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 7.4116290000000005
+          },
+          {
+            "Objective": "PREFERENCES",
+            "Status": "OPTIMAL",
+            "Value": 0,
+            "Bound": 0,
+            "ElapsedSeconds": 2.7633787,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 2.7571120000000002
+          },
+          {
+            "Objective": "STABILITY",
+            "Status": "OPTIMAL",
+            "Value": 0,
+            "Bound": 0,
+            "ElapsedSeconds": 3.003141,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 2.996013
+          }
+        ],
+        "Fairness": {
+          "ProvenOptimal": true,
+          "TargetMet": true,
+          "Cohorts": [
+            {
+              "Qualified": true,
+              "Employees": 14,
+              "Minimum": 5,
+              "Maximum": 6,
+              "IdleEmployees": 0
+            },
+            {
+              "Qualified": false,
+              "Employees": 42,
+              "Minimum": 5,
+              "Maximum": 6,
+              "IdleEmployees": 0
+            }
+          ],
+          "ProvenRegression": false,
+          "Outcome": "PROVEN_TARGET_MET"
+        }
+      },
+      {
+        "Scenario": "normal",
+        "BudgetSeconds": 60,
+        "ElapsedSeconds": 18.2128701,
+        "Status": "OPTIMAL",
+        "ProvenObjectives": 6,
+        "CoverageCriticalHighNormal": [
+          238,
+          0,
+          56
+        ],
+        "Missing": 0,
+        "Stages": [
+          {
+            "Objective": "CRITICAL_COVERAGE",
+            "Status": "OPTIMAL",
+            "Value": 238,
+            "Bound": 238,
+            "ElapsedSeconds": 0.8430497,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 0.834948
+          },
+          {
+            "Objective": "HIGH_COVERAGE",
+            "Status": "OPTIMAL",
+            "Value": 0,
+            "Bound": 0,
+            "ElapsedSeconds": 0.7939164,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 0.787181
+          },
+          {
+            "Objective": "NORMAL_COVERAGE",
+            "Status": "OPTIMAL",
+            "Value": 56,
+            "Bound": 56,
+            "ElapsedSeconds": 1.9268704,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 1.9136330000000001
+          },
+          {
+            "Objective": "FAIRNESS",
+            "Status": "OPTIMAL",
+            "Value": -29848,
+            "Bound": -29848,
+            "ElapsedSeconds": 7.6244282,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 7.618130000000001
+          },
+          {
+            "Objective": "PREFERENCES",
+            "Status": "OPTIMAL",
+            "Value": 0,
+            "Bound": 0,
+            "ElapsedSeconds": 3.1877592,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 3.180552
+          },
+          {
+            "Objective": "STABILITY",
+            "Status": "OPTIMAL",
+            "Value": 0,
+            "Bound": 0,
+            "ElapsedSeconds": 3.7619577,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 3.7524620000000004
+          }
+        ],
+        "Fairness": {
+          "ProvenOptimal": true,
+          "TargetMet": true,
+          "Cohorts": [
+            {
+              "Qualified": true,
+              "Employees": 14,
+              "Minimum": 5,
+              "Maximum": 6,
+              "IdleEmployees": 0
+            },
+            {
+              "Qualified": false,
+              "Employees": 42,
+              "Minimum": 5,
+              "Maximum": 6,
+              "IdleEmployees": 0
+            }
+          ],
+          "ProvenRegression": false,
+          "Outcome": "PROVEN_TARGET_MET"
+        }
+      },
+      {
+        "Scenario": "normal",
+        "BudgetSeconds": 120,
+        "ElapsedSeconds": 18.6662627,
+        "Status": "OPTIMAL",
+        "ProvenObjectives": 6,
+        "CoverageCriticalHighNormal": [
+          238,
+          0,
+          56
+        ],
+        "Missing": 0,
+        "Stages": [
+          {
+            "Objective": "CRITICAL_COVERAGE",
+            "Status": "OPTIMAL",
+            "Value": 238,
+            "Bound": 238,
+            "ElapsedSeconds": 0.9672216,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 0.96035
+          },
+          {
+            "Objective": "HIGH_COVERAGE",
+            "Status": "OPTIMAL",
+            "Value": 0,
+            "Bound": 0,
+            "ElapsedSeconds": 0.856672,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 0.847843
+          },
+          {
+            "Objective": "NORMAL_COVERAGE",
+            "Status": "OPTIMAL",
+            "Value": 56,
+            "Bound": 56,
+            "ElapsedSeconds": 2.0104499,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 2.003523
+          },
+          {
+            "Objective": "FAIRNESS",
+            "Status": "OPTIMAL",
+            "Value": -29848,
+            "Bound": -29848,
+            "ElapsedSeconds": 8.2640009,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 8.256485
+          },
+          {
+            "Objective": "PREFERENCES",
+            "Status": "OPTIMAL",
+            "Value": 0,
+            "Bound": 0,
+            "ElapsedSeconds": 3.1882852,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 3.180765
+          },
+          {
+            "Objective": "STABILITY",
+            "Status": "OPTIMAL",
+            "Value": 0,
+            "Bound": 0,
+            "ElapsedSeconds": 3.303949,
+            "ProvenOptimal": true,
+            "NativeWallSeconds": 3.2876700000000003
+          }
+        ],
+        "Fairness": {
+          "ProvenOptimal": true,
+          "TargetMet": true,
+          "Cohorts": [
+            {
+              "Qualified": true,
+              "Employees": 14,
+              "Minimum": 5,
+              "Maximum": 6,
+              "IdleEmployees": 0
+            },
+            {
+              "Qualified": false,
+              "Employees": 42,
+              "Minimum": 5,
+              "Maximum": 6,
+              "IdleEmployees": 0
+            }
+          ],
+          "ProvenRegression": false,
+          "Outcome": "PROVEN_TARGET_MET"
+        }
+      },
+      {
+        "Scenario": "severe-shortage",
+        "BudgetSeconds": 30,
+        "ElapsedSeconds": 30.0036151,
+        "Status": "FEASIBLE",
+        "ProvenObjectives": 0,
+        "CoverageCriticalHighNormal": [
+          176,
+          0,
+          0
+        ],
+        "Missing": 118,
+        "Stages": [
+          {
+            "Objective": "CRITICAL_COVERAGE",
+            "Status": "FEASIBLE",
+            "Value": 176,
+            "Bound": 198,
+            "ElapsedSeconds": 29.9995615,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": 29.998162
+          },
+          {
+            "Objective": "HIGH_COVERAGE",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          },
+          {
+            "Objective": "NORMAL_COVERAGE",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          },
+          {
+            "Objective": "FAIRNESS",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          },
+          {
+            "Objective": "PREFERENCES",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          },
+          {
+            "Objective": "STABILITY",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          }
+        ],
+        "Fairness": null
+      },
+      {
+        "Scenario": "severe-shortage",
+        "BudgetSeconds": 60,
+        "ElapsedSeconds": 60.0052373,
+        "Status": "FEASIBLE",
+        "ProvenObjectives": 0,
+        "CoverageCriticalHighNormal": [
+          176,
+          0,
+          0
+        ],
+        "Missing": 118,
+        "Stages": [
+          {
+            "Objective": "CRITICAL_COVERAGE",
+            "Status": "FEASIBLE",
+            "Value": 176,
+            "Bound": 198,
+            "ElapsedSeconds": 60.0019419,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": 59.999379000000005
+          },
+          {
+            "Objective": "HIGH_COVERAGE",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          },
+          {
+            "Objective": "NORMAL_COVERAGE",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          },
+          {
+            "Objective": "FAIRNESS",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          },
+          {
+            "Objective": "PREFERENCES",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          },
+          {
+            "Objective": "STABILITY",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          }
+        ],
+        "Fairness": null
+      },
+      {
+        "Scenario": "severe-shortage",
+        "BudgetSeconds": 120,
+        "ElapsedSeconds": 120.0041221,
+        "Status": "FEASIBLE",
+        "ProvenObjectives": 0,
+        "CoverageCriticalHighNormal": [
+          176,
+          0,
+          0
+        ],
+        "Missing": 118,
+        "Stages": [
+          {
+            "Objective": "CRITICAL_COVERAGE",
+            "Status": "FEASIBLE",
+            "Value": 176,
+            "Bound": 198,
+            "ElapsedSeconds": 120.0006266,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": 119.998975
+          },
+          {
+            "Objective": "HIGH_COVERAGE",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          },
+          {
+            "Objective": "NORMAL_COVERAGE",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          },
+          {
+            "Objective": "FAIRNESS",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          },
+          {
+            "Objective": "PREFERENCES",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          },
+          {
+            "Objective": "STABILITY",
+            "Status": "NOT_RUN",
+            "Value": null,
+            "Bound": null,
+            "ElapsedSeconds": 0,
+            "ProvenOptimal": false,
+            "NativeWallSeconds": null
+          }
+        ],
+        "Fairness": null
+      }
+    ]
+  },
+  "frontend": {
+    "passed": 128,
+    "productionBuild": "PASS",
+    "typeChecks": "PASS"
+  },
+  "browserWorkflows": {
+    "passed": 31,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0,
+    "durationMs": 71930.58
+  },
+  "browserPerformanceRecovery": {
+    "passed": 2,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0,
+    "durationMs": 42811.504
+  },
+  "operationGuards": {
+    "passed": 12
+  },
+  "browserSafety": {
+    "passed": 4
+  },
+  "timingParser": {
+    "passed": 2
+  },
+  "scannerInstaller": {
+    "passed": 9
+  },
+  "postgresImageHealthDurability": "PASS",
+  "releaseBuildWarningsAsErrors": "PASS",
+  "productionDeploymentValidation": {
+    "deploymentId": "ad87388355434f5687ebc024902716e3",
+    "image": "shiftflow-pilot:phase7e-final",
+    "checks": [
+      {
+        "name": "compose-configuration",
+        "status": "PASS"
+      },
+      {
+        "name": "clean-install-migrations-and-idempotent-bootstrap",
+        "status": "PASS"
+      },
+      {
+        "name": "production-https-topology",
+        "status": "PASS"
+      },
+      {
+        "name": "provisioning-availability-delegation-generation-shortage-publication-issue-correction",
+        "status": "PASS",
+        "solveSeconds": 0.7789303750032559,
+        "solverStatus": "OPTIMAL",
+        "missing": 24
+      },
+      {
+        "name": "exchange-independent-absence-approval-and-republication",
+        "status": "PASS"
+      },
+      {
+        "name": "secure-cookies-csrf-cors-host-health-and-least-privilege",
+        "status": "PASS"
+      },
+      {
+        "name": "application-restart-keeps-session-and-data",
+        "status": "PASS"
+      },
+      {
+        "name": "graceful-shutdown-container-replacement-and-key-continuity",
+        "status": "PASS"
+      },
+      {
+        "name": "database-restart-keeps-volume-data",
+        "status": "PASS"
+      },
+      {
+        "name": "database-outage-readiness-and-recovery",
+        "status": "PASS"
+      },
+      {
+        "name": "invalid-database-credentials-fail-readiness-and-recover",
+        "status": "PASS"
+      },
+      {
+        "name": "missing-configuration-fails-closed",
+        "status": "PASS"
+      },
+      {
+        "name": "production-browser-hebrew-rtl-and-secure-context",
+        "status": "PASS"
+      },
+      {
+        "name": "logout-revokes-copied-cookie",
+        "status": "PASS"
+      },
+      {
+        "name": "separate-database-backup-restore-and-session-invalidation",
+        "status": "PASS"
+      }
+    ],
+    "startedUtc": "2026-11-08T16:01:35.119041+00:00",
+    "data": "synthetic only",
+    "publicExposure": false,
+    "imageId": "sha256:ff0642ce019825c5e6d7056554b9f2853e7cf54bc59ee5af90d6afb66c65d501",
+    "dataProtection": {
+      "keyFiles": 1,
+      "encrypted": true,
+      "permissions": "UserExecute, UserWrite, UserRead"
+    },
+    "backupRestore": {
+      "elapsedSeconds": 0.39909983301186003,
+      "sourceChecksumVerified": true,
+      "backupSeconds": 0.39824412498273887,
+      "databaseTablesVerified": 34,
+      "sameDataBeforeSessionInvalidation": true,
+      "rpoTargetApproved": false,
+      "rtoTargetApproved": false,
+      "encryption": "private synthetic drill only; live backup requires approved age recipient",
+      "recoveryToReadySeconds": 10.83872495900141
+    },
+    "cleanup": "PASS",
+    "exitCode": 0
+  },
+  "dependencyAndSecretAudit": {
+    "nuget": [],
+    "npm": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "secrets": [],
+    "imageFindings": [],
+    "failures": []
+  },
+  "imageScans": {
+    "tool": "Trivy 0.76.2",
+    "severityFilter": [
+      "HIGH",
+      "CRITICAL"
+    ],
+    "database": {
+      "Version": 2,
+      "NextUpdate": "2026-11-08T18:32:58.034005498Z",
+      "UpdatedAt": "2026-11-07T18:32:58.034005789Z",
+      "DownloadedAt": "2026-11-07T23:28:52.011391Z"
+    },
+    "riskAccepted": false,
+    "postgresArm64": {
+      "createdAt": "2026-11-08T17:06:56.573897+02:00",
+      "architecture": "arm64",
+      "imageDigests": [
+        "postgres@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac"
+      ],
+      "counts": {
+        "CRITICAL": 1,
+        "HIGH": 25
+      },
+      "findings": [
+        {
+          "id": "CVE-2025-68121",
+          "severity": "CRITICAL",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.24.13, 1.25.7, 1.26.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2025-61726",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.24.12, 1.25.6",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2025-61729",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.24.11, 1.25.5",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-111943",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.26.10, 1.27.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-25679",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.8, 1.26.1",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-27145",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.11, 1.26.4",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-32280",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.9, 1.26.2",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-32281",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.9, 1.26.2",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-32283",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.9, 1.26.2",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-33811",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.10, 1.26.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-33814",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.10, 1.26.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-33818",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-39820",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.10, 1.26.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-39821",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-39822",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.12, 1.26.5, 1.27.0-rc.2",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-39836",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.10, 1.26.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-42499",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.10, 1.26.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-42504",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.11, 1.26.4",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-56853",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-56858",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-56859",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-56860",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-56862",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-78667",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.26.9, 1.27.2",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-78669",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.26.9, 1.27.2",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-97031",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.26.9, 1.27.2",
+          "target": "usr/local/bin/gosu"
+        }
+      ]
+    },
+    "postgresAmd64": {
+      "createdAt": "2026-11-08T17:45:54.025112+02:00",
+      "architecture": "amd64",
+      "imageDigests": [
+        "postgres@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac"
+      ],
+      "counts": {
+        "CRITICAL": 1,
+        "HIGH": 25
+      },
+      "findings": [
+        {
+          "id": "CVE-2025-68121",
+          "severity": "CRITICAL",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.24.13, 1.25.7, 1.26.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2025-61726",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.24.12, 1.25.6",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2025-61729",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.24.11, 1.25.5",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-111943",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.26.10, 1.27.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-25679",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.8, 1.26.1",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-27145",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.11, 1.26.4",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-32280",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.9, 1.26.2",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-32281",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.9, 1.26.2",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-32283",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.9, 1.26.2",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-33811",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.10, 1.26.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-33814",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.10, 1.26.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-33818",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-39820",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.10, 1.26.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-39821",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-39822",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.12, 1.26.5, 1.27.0-rc.2",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-39836",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.10, 1.26.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-42499",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.10, 1.26.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-42504",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.11, 1.26.4",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-56853",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-56858",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-56859",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-56860",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-56862",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-78667",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.26.9, 1.27.2",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-78669",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.26.9, 1.27.2",
+          "target": "usr/local/bin/gosu"
+        },
+        {
+          "id": "CVE-2026-97031",
+          "severity": "HIGH",
+          "package": "stdlib",
+          "version": "v1.24.6",
+          "fixedVersion": "1.26.9, 1.27.2",
+          "target": "usr/local/bin/gosu"
+        }
+      ]
+    },
+    "applicationArm64": {
+      "createdAt": "2026-11-08T18:01:46.218622+02:00",
+      "architecture": "arm64",
+      "imageDigests": [
+        "shiftflow-pilot@sha256:ff0642ce019825c5e6d7056554b9f2853e7cf54bc59ee5af90d6afb66c65d501"
+      ],
+      "counts": {},
+      "findings": []
+    },
+    "proxyArm64": {
+      "createdAt": "2026-11-08T17:38:48.989713+02:00",
+      "architecture": "arm64",
+      "imageDigests": [
+        "shiftflow-pilot-proxy@sha256:daa78af20bce8ce21c1ac10f95818765e6e771bbefff155407417677551ae726"
+      ],
+      "counts": {},
+      "findings": []
+    }
+  },
+  "persistentDatabaseIsolation": {
+    "verification": "No SQL or mutating container/volume operation targeted existing development/demo resources; original IDs, start times and restart counts unchanged. Only owned harness resources cleaned.",
+    "existingContainers": [
+      {
+        "id": "f00454a53922579a019a9cfbabdfb1b5ef7b05d3c847cf883c447f42c26acdec",
+        "name": "shiftflow-demo-demo-postgres-1",
+        "startedUtc": "2026-11-05T09:43:29.827394045Z",
+        "restartCount": 0
+      },
+      {
+        "id": "62f7ee472643d7da08f7b41d8007240683aed5614b843e2af8cca270a3aaa332",
+        "name": "shiftflow-postgres-1",
+        "startedUtc": "2026-11-05T09:43:28.363460461Z",
+        "restartCount": 0
+      }
+    ],
+    "pilotResourcesRemaining": 0
+  },
+  "proposedRecoveryTargets": {
+    "rpoHours": 24,
+    "rtoHours": 4,
+    "approved": false,
+    "encryptedOffHostAndKeyRecoveryVerified": false
+  },
+  "requiredDecisions": [
+    "Hosting/domain/budget/access and real deployment/data approval",
+    "PostgreSQL residual risk remediation or authorized acceptance",
+    "Severe-shortage scheduling quality review",
+    "Encrypted off-host database and key-bundle recovery rehearsal",
+    "Operational, backup, incident and support ownership; RPO/RTO/retention/privacy approval",
+    "Remote CI and final Linux host/architecture/TLS/ACL validation"
+  ]
+}

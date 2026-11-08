@@ -13,14 +13,27 @@ using ShiftManager.Domain;
 using ShiftManager.Security;
 using ShiftManager.Services;
 using ShiftManager.Services.AutomaticScheduling;
+using ShiftManager.Operations;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+
+if (args is ["--healthcheck", var health]) { Environment.ExitCode = await OperationalHealth.Probe(health); return; }
+var pilotCommand = args is ["--pilot-command", _, "--confirm-target", _] ? args[1] : null;
+if ((args.Contains("--pilot-command") && pilotCommand is null) || args.Contains("--healthcheck"))
+{ Console.Error.WriteLine("Invalid operational command arguments."); Environment.ExitCode = 1; return; }
 
 var demo = args.FirstOrDefault() is "seed-demo" or "clean-demo" or "smoke-demo" or "preview-demo-scenario" or "apply-demo-scenario";
 var bootstrap = args.Contains("--bootstrap-admin");
-var builder = WebApplication.CreateBuilder(demo ? [] : args.Where(arg => arg != "--bootstrap-admin").ToArray());
+var builder = WebApplication.CreateBuilder(demo || pilotCommand is not null ? [] : args.Where(arg => arg != "--bootstrap-admin").ToArray());
+PilotConfiguration? pilot;
+try { pilot = PilotConfiguration.Configure(builder, pilotCommand, demo); }
+catch (InvalidOperationException error) { Console.Error.WriteLine(error.Message); Environment.ExitCode = 1; return; }
+if (pilot is not null && bootstrap) { Console.Error.WriteLine("Use the target-confirmed pilot bootstrap command."); Environment.ExitCode = 1; return; }
 if (demo) builder.Configuration["ConnectionStrings:Database"] = Environment.GetEnvironmentVariable("SHIFTFLOW_DEMO_CONNECTION") ?? "";
 builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(
     builder.Configuration.GetConnectionString("Database") ?? "Host=localhost;Database=shiftmanager;Username=shiftmanager"));
 builder.Services.AddDataProtection();
+builder.Services.AddHealthChecks().AddCheck<DatabaseReadiness>("database", tags: ["ready"]);
+builder.Services.AddScoped<DatabaseReadiness>();
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
 {
     options.Password.RequiredLength = 12;
@@ -91,6 +104,9 @@ builder.Services.AddOpenApi();
 builder.Services.Configure<RequestLocalizationOptions>(options => options
     .SetDefaultCulture("he-IL").AddSupportedCultures("he-IL").AddSupportedUICultures("he-IL"));
 var app = builder.Build();
+if (pilotCommand is not null) { Environment.ExitCode = await PilotCommands.Run(app, pilot, pilotCommand, args[3]); return; }
+app.UsePilotObservability(pilot);
+if (pilot is not null) app.UseForwardedHeaders();
 if (demo)
 {
     try { await ShiftManager.Development.DemoCli.Run(app.Services, app.Environment.EnvironmentName, builder.Configuration.GetConnectionString("Database")!, args); }
@@ -127,9 +143,11 @@ app.Use(async (context, next) =>
 if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
-    app.UseHttpsRedirection();
+    app.UseWhen(context => !OperationalHealth.IsHealth(context.Request.Path), https =>
+    {
+    https.UseHttpsRedirection();
     // Fail closed if no HTTPS redirect port has been configured.
-    app.Use(async (context, next) =>
+    https.Use(async (context, next) =>
     {
         if (!context.Request.IsHttps)
         {
@@ -138,6 +156,7 @@ if (!app.Environment.IsDevelopment())
             return;
         }
         await next(context);
+    });
     });
 }
 app.Use(async (context, next) =>
@@ -170,6 +189,19 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseRateLimiter();
+if (pilot is not null)
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api") &&
+            (await context.RequestServices.GetRequiredService<DatabaseReadiness>().CheckHealthAsync(new(), context.RequestAborted)).Status
+                != Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy)
+        {
+            app.Logger.LogWarning("API unavailable: database target/readiness verification failed, trace {TraceId}", context.TraceIdentifier);
+            context.Response.StatusCode = 503;
+            await context.Response.WriteAsJsonAsync(ApiErrors.Error("INTERNAL_ERROR")); return;
+        }
+        await next(context);
+    });
 app.UseAuthentication();
 app.UseAuthorization();
 app.Use(async (context, next) =>
@@ -188,6 +220,8 @@ app.Use(async (context, next) =>
     await next(context);
 });
 app.MapControllers();
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
 foreach (var role in AppRoles.All)
     app.MapGet($"/api/access/{role.ToLowerInvariant()}", () => Results.NoContent()).RequireAuthorization(role);
 if (app.Environment.IsDevelopment()) app.MapOpenApi().AllowAnonymous();
