@@ -20,7 +20,7 @@ internal sealed class TestDatabase : IAsyncDisposable
         {
             if (Environment.GetEnvironmentVariable("CI") == "true")
                 throw new InvalidOperationException("CI requires TEST_POSTGRES_CONNECTION_STRING.");
-            container = new PostgreSqlBuilder("postgres:17-alpine").Build();
+            container = new PostgreSqlBuilder("postgres:17.11-alpine3.24@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac").Build();
             await container.StartAsync();
             connectionString = container.GetConnectionString();
             return;

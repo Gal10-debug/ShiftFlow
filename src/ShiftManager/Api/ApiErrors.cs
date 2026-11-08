@@ -21,6 +21,7 @@ public static class ApiErrors
         "PUBLICATION_UNAVAILABLE" => "הפרסום מוסתר או נמחק ואינו זמין לעובדים.",
         "INVALID_ABSENCE" => "יש לבדוק את סיבת ההיעדרות, התאריכים, ימי השבוע וטווח השעות.",
         "INVALID_ABSENCE_DECISION" => "יש לבחור החלטה ולמלא סיבת דחייה.",
+        "SELF_ABSENCE_DECISION" => "לא ניתן להחליט בבקשת היעדרות אישית. נדרש מאשר אחר.",
         "ABSENCE_CHANGE_PENDING" => "כבר קיימת בקשת שינוי או ביטול ממתינה להיעדרות זו.",
         "STALE_ABSENCE_CONFLICTS" => "נתוני הבקשה או השיבוצים השתנו. יש לרענן את בדיקת ההתנגשויות לפני האישור.",
         "ABSENCE_DRAFT_CONFIRMATION" => "יש לאשר במפורש את הסרת השיבוצים המוצגים מטיוטות הסידור.",

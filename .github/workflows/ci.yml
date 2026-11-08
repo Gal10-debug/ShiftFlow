@@ -30,7 +30,7 @@ jobs:
       ConnectionStrings__Database: Host=127.0.0.1;Port=5432;Database=shiftflow_ci;Username=shiftflow_ci;Password=ci-only-disposable
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17.11-alpine3.24@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
         env:
           POSTGRES_DB: shiftflow_ci
           POSTGRES_USER: shiftflow_ci
@@ -59,6 +59,8 @@ jobs:
         run: dotnet ef database update --project src/ShiftManager --configuration Release --no-build
       - name: Check for pending model changes
         run: dotnet ef migrations has-pending-model-changes --project src/ShiftManager --configuration Release --no-build
+      - name: Verify image health and disposable volume durability
+        run: python3 scripts/test-postgres-image.py
       - name: Run all backend tests against isolated service databases
         run: dotnet test ShiftManager.slnx -c Release --no-build --no-restore --logger "trx;LogFileName=backend.trx"
       - name: Summarize scheduling benchmark quality and proof status
@@ -166,3 +168,42 @@ jobs:
         if: always()
         run: |
           docker ps -aq --filter label=shiftflow.e2e.run | xargs -r docker rm -f
+
+  security:
+    name: Dependency and secret checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      DOTNET_NOLOGO: 'true'
+      DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Restore dependency graphs
+        run: |
+          dotnet restore ShiftManager.slnx
+          npm ci --prefix frontend
+      - name: Test fail-closed scanner installation
+        run: python3 scripts/test-install-gitleaks.py
+      - name: Cache pinned Gitleaks archive
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        # Cache availability is optional; installation and the scan must succeed.
+        continue-on-error: true
+        timeout-minutes: 2
+        with:
+          path: ${{ runner.temp }}/gitleaks-cache
+          key: gitleaks-linux-x64-8.30.1-551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+      - name: Install checksum-verified Gitleaks
+        run: python3 scripts/install-gitleaks.py --cache-dir "${{ runner.temp }}/gitleaks-cache" --install-dir "${{ runner.temp }}/gitleaks-bin"
+      - name: Audit dependencies and redact secret-scan findings
+        run: python3 scripts/security-audit.py --gitleaks "${{ runner.temp }}/gitleaks-bin/gitleaks"

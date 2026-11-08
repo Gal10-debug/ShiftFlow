@@ -50,7 +50,7 @@ public sealed partial class SchedulingTests
         Assert.Equal(HttpStatusCode.Conflict, (await Send(admin, $"{GenerationPath}/{run.Id}/save", new { }, "POST")).StatusCode);
         var next = await Generate(admin); Assert.Equal("READY", next.State);
         Assert.Single(next.Cells.Single(c => c.DefinitionId == BoardDefinition(2) && c.Date == first).Employees);
-        await using var restarted = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Development")
+        await using var restarted = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Development").WithIsolatedTestKeys()
             .UseSetting("ConnectionStrings:Database", database.GetConnectionString()));
         using var scope = restarted.Services.CreateScope();
         var rows = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Set<ShiftTypeDefinition>().AsNoTracking().ToArrayAsync();

@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    # Applying this image to existing development data requires approved maintenance.
+    image: postgres:17.11-alpine3.24@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
     environment:
       POSTGRES_DB: shiftmanager
       POSTGRES_USER: shiftmanager

@@ -64,7 +64,7 @@ try {
   const dockerEnv = { ...env, POSTGRES_DB: db, POSTGRES_USER: db, POSTGRES_PASSWORD: dbPassword };
   containerId = command('docker', ['run', '-d', '--name', container, '--label', `shiftflow.e2e.run=${run}`,
     '--memory=512m', '--cpus=2', '--tmpfs', '/var/lib/postgresql/data:rw', '-p', '127.0.0.1::5432',
-    '-e', 'POSTGRES_DB', '-e', 'POSTGRES_USER', '-e', 'POSTGRES_PASSWORD', 'postgres:17-alpine'], { env: dockerEnv });
+    '-e', 'POSTGRES_DB', '-e', 'POSTGRES_USER', '-e', 'POSTGRES_PASSWORD', 'postgres:17.11-alpine3.24@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac'], { env: dockerEnv });
   const binding = command('docker', ['port', containerId, '5432/tcp']);
   if (!/^127\.0\.0\.1:\d+$/.test(binding)) throw new Error('Unexpected Docker binding.');
   const dbPort = Number(binding.split(':')[1]);

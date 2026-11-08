@@ -134,6 +134,8 @@ public sealed partial class AbsenceService(ApplicationDbContext db, AccountServi
             || input.Decision == "REJECTED" && string.IsNullOrWhiteSpace(input.RejectionReason)) throw new ApiException("INVALID_ABSENCE_DECISION");
         await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync() : null; var id = await Lock(actor);
         var r = await Request(requestId); await AuthorizeApprover(id, r.UserId);
+        // Team authority does not permit deciding the actor's own proposal.
+        if (r.UserId == id) throw new ApiException("SELF_ABSENCE_DECISION", 403);
         if (r.Status != "PENDING" || r.Version != input.ExpectedVersion) throw new ApiException("CONFLICT", 409);
         if (input.Decision == "APPROVED")
         {

@@ -14,7 +14,7 @@ using ShiftManager.Services;
 
 namespace ShiftManager.Tests;
 
-public sealed class AuthTests : IAsyncLifetime
+public sealed partial class AuthTests : IAsyncLifetime
 {
     private const string Password = "TestPassword!2026";
     private const string NewPassword = "PersonalSecret!2026";
@@ -25,7 +25,7 @@ public sealed class AuthTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         await database.StartAsync();
-        factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder.UseEnvironment("Development")
+        factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder.UseEnvironment("Development").WithIsolatedTestKeys()
             .UseSetting("ConnectionStrings:Database", database.GetConnectionString()));
         using var scope = factory.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.MigrateAsync();

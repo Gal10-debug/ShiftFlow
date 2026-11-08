@@ -32,7 +32,7 @@ public sealed class AvailabilityTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         await database.StartAsync();
-        factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Development")
+        factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Development").WithIsolatedTestKeys()
             .UseSetting("ConnectionStrings:Database", database.GetConnectionString())
             .ConfigureServices(s => { s.RemoveAll<TimeProvider>(); s.AddSingleton<TimeProvider>(clock); }));
         using var scope = factory.Services.CreateScope();

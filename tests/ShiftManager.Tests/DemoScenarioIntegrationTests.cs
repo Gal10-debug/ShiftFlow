@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -20,13 +19,17 @@ public sealed class DemoScenarioIntegrationTests
     {
         await using var database = new TestDatabase();
         await database.StartAsync();
-        var seed = RandomNumberGenerator.GetInt32(1, int.MaxValue);
+        // This seed always exercises the old self-approval selection. The service
+        // container is disposable; no persistent demo database is used.
+        const int seed = 7100001;
+        Assert.Contains(DemoScenario.Plan(new(2026, 12, 1), seed, DemoPlan.Accounts(seed).Where(a => a.Position != "leader")),
+            c => c.Account.Position == "deputy" && c.Account.Index % 2 == 1 && c.Workflow == "APPROVED");
         var name = DemoCli.DatabaseName(new(2026, 11, 1), seed);
         await using var admin = new NpgsqlConnection(database.GetConnectionString());
         await admin.OpenAsync();
         await using (var cmd = new NpgsqlCommand($"CREATE DATABASE \"{name}\"", admin)) await cmd.ExecuteNonQueryAsync();
         var connection = new NpgsqlConnectionStringBuilder(database.GetConnectionString()) { Database = name, Host = "127.0.0.1", Pooling = false }.ConnectionString;
-        WebApplicationFactory<Program> Factory() => new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Testing")
+        WebApplicationFactory<Program> Factory() => new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Testing").WithIsolatedTestKeys()
             .UseSetting("ConnectionStrings:Database", connection).ConfigureServices(services =>
             {
                 var worker = services.FirstOrDefault(d => d.ServiceType == typeof(IHostedService) && d.ImplementationType == typeof(GenerationWorker));
@@ -61,7 +64,8 @@ public sealed class DemoScenarioIntegrationTests
             {
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 Assert.Empty(await db.Set<AbsenceRequest>().ToArrayAsync());
-                var login = initial.Items.First(i => i.Workflow == "APPROVED").Login;
+                var login = initial.Items.First(i => i.Workflow == "APPROVED"
+                    && DemoPlan.Accounts(seed).Single(a => a.Login == i.Login).Position == "employee").Login;
                 var user = await db.Users.SingleAsync(u => u.UserName == login);
                 var request = await scope.ServiceProvider.GetRequiredService<AbsenceService>().Submit(
                     new("OTHER", new(2026, 11, 1), new(2026, 12, 31), false, [], true, null, null, "manual: preserve"), DemoCli.Principal(user, "EMPLOYEE"));
@@ -84,7 +88,11 @@ public sealed class DemoScenarioIntegrationTests
             Assert.Equal("manual: preserve", requests.Single(r => r.Id == manualId).Explanation);
             Assert.Equal("PENDING", requests.Single(r => r.Id == manualId).Status);
             Assert.Equal(preview.PlannedRequests + 1, requests.Length);
-            Assert.Equal(preview.PlannedDecisions, await verify.Set<AbsenceDecision>().CountAsync());
+            var decisions = await verify.Set<AbsenceDecision>().ToArrayAsync();
+            Assert.Equal(preview.PlannedDecisions, decisions.Length);
+            Assert.All(decisions, d => Assert.NotEqual(requests.Single(r => r.Id == d.AbsenceRequestId).UserId, d.ActorUserId));
+            var deputyIds = (await verify.Set<OrganizationalTeam>().ToArrayAsync()).Select(t => t.DeputyUserId).ToArray();
+            Assert.Contains(decisions, d => deputyIds.Contains(requests.Single(r => r.Id == d.AbsenceRequestId).UserId));
             Assert.Equal(preview.Items.Sum(i => i.PlannedWeekdayRecords), await verify.Set<AbsenceWeekday>().CountAsync());
             Assert.Equal(preview.Items.Sum(i => i.PlannedConflictRecords), await verify.Set<AbsenceConflict>().CountAsync());
             Assert.Single(requests, r => r.Kind == "MODIFY" && r.Status == "APPROVED");

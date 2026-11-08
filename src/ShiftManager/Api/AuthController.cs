@@ -41,6 +41,15 @@ public sealed class AuthController(UserManager<ApplicationUser> users, SignInMan
     [HttpPost("logout"), Authorize(Policy = "SignedIn")]
     public async Task<IActionResult> Logout()
     {
+        await using var tx = await db.Database.BeginTransactionAsync();
+        await accounts.Lock();
+        var user = await users.GetUserAsync(User);
+        if (user is null || !user.IsActive || user.SecurityStamp != User.FindFirst("AspNet.Identity.SecurityStamp")?.Value)
+            throw new ApiException("UNAUTHENTICATED", 401);
+        // Logout revokes every existing ticket, including copied cookies and
+        // sessions on other devices, using the same boundary as account changes.
+        ApiErrors.Ensure(await users.UpdateSecurityStampAsync(user));
+        await tx.CommitAsync();
         await signIn.SignOutAsync();
         return NoContent();
     }

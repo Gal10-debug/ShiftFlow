@@ -49,7 +49,7 @@ public sealed class DemoSmokeIntegrationTests
         try
         {
             var optimizer = new MultipleAssignmentOptimizer();
-            await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Testing")
+            await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Testing").WithIsolatedTestKeys()
                 .UseSetting("ConnectionStrings:Database", connection.ConnectionString).ConfigureServices(services =>
                 {
                     var worker = services.FirstOrDefault(d => d.ServiceType == typeof(IHostedService) && d.ImplementationType == typeof(GenerationWorker));
