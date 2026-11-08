@@ -434,6 +434,7 @@ public sealed partial class ScheduleReviewService(ApplicationDbContext db, Accou
 
     public async Task<PublicationResponse> Mine(int year, int month, ClaimsPrincipal actor, int? version = null)
     {
+        if (version is <= 0) throw new ApiException("VALIDATION_ERROR");
         AvailabilityService.MonthStart(year, month); await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead); var id = await Employee(actor);
         var period = await Period(year, month) ?? throw new ApiException("NOT_FOUND", 404);
         await VisibleLatest(period.Id);
@@ -441,7 +442,8 @@ public sealed partial class ScheduleReviewService(ApplicationDbContext db, Accou
             .OrderByDescending(p => p.VersionNumber).FirstOrDefaultAsync() ?? throw new ApiException("NOT_FOUND", 404);
         var response = Publication(pub);
         // Only immutable published JSON is returned; live drafts and availability are never queried here.
-        response = response with { PublishedByUserId = Guid.Empty, PublishedByName = null };
+        response = response with { PublishedByUserId = Guid.Empty, PublishedByName = null,
+            PersonalSchedule = response.Snapshot is null ? null : PlannedWorkHoursCalculator.Calculate(response.Snapshot, id, year, month) };
         await tx.CommitAsync(); return response;
     }
     public async Task<ScheduleIssue> Report(int year, int month, CreateIssueRequest input, ClaimsPrincipal actor)

@@ -1026,6 +1026,9 @@ select:disabled {
 .automatic-generation button { margin-inline-end: .6rem; margin-block: .4rem; }
 
 .own-assignment { background: #edf8f5; }
+.planned-hours-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
+.planned-hours-summary dd { margin: .4rem 0; font-size: 1.4rem; font-weight: 700; }
+.personal-shifts small { display: block; }
 .cell-edit { padding: 0.15rem 0.4rem; font-size: 0.8rem; margin-block-end: 0.3rem; }
 textarea { font: inherit; min-height: 5rem; max-width: 100%; resize: vertical; }
 

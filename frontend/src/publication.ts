@@ -43,6 +43,7 @@ export interface Snapshot {
   legacyAssignments: LegacyAssignment[];
 }
 export interface Publication {
+  personalSchedule?: import("./personalSchedule").PersonalSchedule | null;
   hidden?: boolean;
   deleted?: boolean;
   controlVersion?: number;
