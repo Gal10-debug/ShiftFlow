@@ -130,6 +130,7 @@ test.describe("Exchange and personal schedule", () => {
     // The draft changed but the employee still reads the previous publication.
     await logout(page); await login(page, 4); await page.goto("/my-schedule?period=2031-01");
     await expect(page.getByText("★ השיבוץ שלי", { exact: true })).toBeVisible();
+    expect((await api<{ totals: { totalAssignedShifts: number } }>(page, "/my-statistics/2031/1")).totals.totalAssignedShifts).toBe(1);
     await logout(page); await login(page, 1); await page.goto("/exchange-management");
     await page.getByRole("button", { name: "בדיקה ופרסום התיקון", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "בדיקה ופרסום תיקון החלפה", exact: true });
@@ -147,6 +148,8 @@ test.describe("Exchange and personal schedule", () => {
     await logout(page); await login(page, 4); await page.goto("/my-schedule?period=2031-01");
     await expect(page.getByText("★ השיבוץ שלי", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "סיכום חודשי מתוכנן" })).toContainText("שעות עבודה מתוכננות0");
+    expect((await api<{ totals: { totalAssignedShifts: number } }>(page, "/my-statistics/2031/1")).totals.totalAssignedShifts).toBe(0);
+    expect((await api<{ totals: { knownPlannedMinutes: number } }>(page, "/my-statistics/2031/1?version=1")).totals.knownPlannedMinutes).toBe(720);
     await page.getByRole("combobox", { name: "גרסת פרסום", exact: true }).selectOption("1");
     await expect(page.getByRole("region", { name: "סיכום חודשי מתוכנן" })).toContainText("שעות עבודה מתוכננות12");
   });

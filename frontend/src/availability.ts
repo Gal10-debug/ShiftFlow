@@ -118,11 +118,14 @@ export function daysInMonth(year: number, month: number) {
   );
 }
 export function monthLabel(year: number, month: number) {
+  const date = new Date(Date.UTC(year, month - 1, 1));
+  // Date.UTC interprets years 0–99 as 1900–1999; reporting supports early years too.
+  date.setUTCFullYear(year);
   return new Intl.DateTimeFormat("he-IL", {
     month: "long",
     year: "numeric",
     timeZone: "UTC",
-  }).format(new Date(Date.UTC(year, month - 1, 1)));
+  }).format(date);
 }
 export function instant(value: string | null) {
   return value

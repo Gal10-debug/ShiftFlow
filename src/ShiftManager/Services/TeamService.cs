@@ -17,6 +17,13 @@ public sealed class TeamService(ApplicationDbContext db, AccountService accounts
         if (admin && !await (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id where ur.UserId == id && r.NormalizedName == "ADMIN" select ur).AnyAsync()) throw new ApiException("FORBIDDEN", 403);
         return id;
     }
+    public async Task<Guid> SchedulingEmployee(ClaimsPrincipal actor)
+    {
+        var id = await Actor(actor);
+        if (!await (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id where ur.UserId == id && r.NormalizedName == "EMPLOYEE" select ur).AnyAsync()) throw new ApiException("FORBIDDEN", 403);
+        if (await IsAdministrator(id) || await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == id)) throw new ApiException("FORBIDDEN", 403);
+        return id;
+    }
     public Task<bool> IsAdministrator(Guid id) => (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id
         where ur.UserId == id && r.NormalizedName == "ADMIN" select ur).AnyAsync();
     public async Task<Guid> AuthorizeTarget(ClaimsPrincipal actor, Guid target)

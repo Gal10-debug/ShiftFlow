@@ -51,6 +51,7 @@ builder.Services.AddScoped<AbsenceService>();
 builder.Services.AddScoped<TeamService>();
 builder.Services.AddScoped<RosterValidationService>();
 builder.Services.AddScoped<ScheduleReviewService>();
+builder.Services.AddScoped<SchedulingAnalyticsService>();
 builder.Services.AddScoped<SchedulingService>();
 builder.Services.AddScoped<SchedulingInputs>();
 builder.Services.AddScoped<GeneratedDraftService>();

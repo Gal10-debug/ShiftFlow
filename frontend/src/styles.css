@@ -1057,3 +1057,10 @@ textarea { font: inherit; min-height: 5rem; max-width: 100%; resize: vertical; }
 .absence-cancelled { background: #edf0f4; color: #485263; }
 .absence-review { border-inline-start: 4px solid #3865a4; }
 @media (max-width: 600px) { .absence-fields { grid-template-columns: 1fr; } }
+
+.analytics-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem; }
+.analytics-controls .field { flex: 1 1 9rem; min-width: 0; }
+.analytics-bars { margin: 1rem 0; }
+.analytics-bars label { display: flex; align-items: center; gap: .75rem; margin-block: .6rem; }
+.analytics-bars meter { width: min(18rem, 65%); }
+table meter { width: 5rem; vertical-align: middle; }

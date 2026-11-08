@@ -400,3 +400,12 @@ employee shift exchanges and Friday-only weekend eligibility for rehabilitation
 morning. This phase adds an explicit additive migration; it does not migrate or
 repair an existing demo automatically. Fresh isolated seeds have 61 accounts
 (including a separate administrator), while existing accounts remain unchanged.
+
+### Phase 8B — statistics and analytics
+
+Employees can view monthly/yearly personal statistics at `/my-statistics`;
+administrators can view workforce, team/employee workload and organization staffing
+coverage at `/statistics`. Both use authorized immutable publications and Phase 8A
+planned-hours calculations, with explicit unknown durations and publication versions.
+Delegated availability roles receive no additional analytics access. See
+[Phase 8B definitions, API contracts, authorization and validation](docs/phase-8b-statistics-analytics.md).
