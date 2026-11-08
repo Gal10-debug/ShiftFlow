@@ -580,7 +580,8 @@ Final local results on the selected image/toolchain:
 All full-suite figures are actual executed local results. The backend transport
 failures above are disclosed despite the final passing run. CI now uses the same
 image pin and includes the storage probe; its YAML passes Actionlint. **No remote CI
-run was triggered or observed for these unpushed commits.**
+run was triggered or observed at the completion of the local Phase 7C.1 implementation.**
+The subsequently reported scanner-installation failure is recorded in the follow-up below.
 
 Reproduce from the repository root with the documented toolchain and Docker:
 
@@ -666,6 +667,44 @@ production-security guarantee. The protected running databases intentionally rem
 on the original image. Residual-helper review, an approved persistent-image rollout,
 real CI (including monitoring the disclosed transport failures), and deployment
 controls remain open acceptance requirements before a pilot.
+
+### Follow-up — CI scanner download reliability
+
+The user subsequently reported a failure in **Install checksum-verified Gitleaks**:
+the release download returned HTTP **504** for the initial request and all three
+retries, ending with curl exit 22. The scanner had not run; this was not a reported
+secret finding, dependency finding or checksum mismatch. Official release metadata
+confirmed the existing URL, version **8.30.1**, Linux x64 asset and pinned SHA-256.
+
+The job now uses `scripts/install-gitleaks.py` and caches only the archive using
+checksum-pinned `actions/cache` **v5.0.3**. Cache availability is optional and bounded
+to two minutes; installation and the audit remain mandatory. A restored archive is
+rehashed every time, then its executable version is checked before installation.
+Corrupt cache bytes are discarded and downloaded again. Downloaded checksum mismatches
+stop installation, and archive links are not extracted/executed.
+
+Cold-cache downloads use bounded curl retries, connection/request/overall timeouts,
+and HTTPS-only redirects. After a transport/HTTP failure, the installer tries the
+same release asset through GitHub's official
+[release-asset API](https://docs.github.com/en/rest/releases/assets#get-a-release-asset),
+asset ID `378332058`, with `Accept: application/octet-stream`. This public endpoint
+requires no token. Both paths retain the original SHA-256
+`551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb`.
+Neither a fallback to an unpinned version nor skipping the scanner is permitted.
+If both official paths fail, the job fails without a clean security result.
+
+Targeted validation: **nine offline installer tests passed**, including exhausted
+HTTP-504 retries, timeout fallback, verified/corrupt caches, wrong checksums, both
+endpoints failing, wrong executable versions and unsafe archive links. The actual
+Linux archive was retrieved from the official API and its SHA-256 verified locally.
+The final live helper also recovered from a primary-download connection failure via
+that API, then reused its verified cache without another download. Linux executable
+execution is not claimed on macOS. Workflow lint and Python syntax checks passed;
+the real local NuGet/npm and redacted history/source checks reported zero findings.
+These installer regressions now run in CI before installation.
+Application/database code is unchanged by this follow-up; the full-suite results
+above are the preceding Phase 7C.1 results. A successful run on the real Linux CI
+runner remains required after the user publishes the local fix.
 
 ## Primary references
 

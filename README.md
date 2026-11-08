@@ -292,7 +292,7 @@ After the first GitHub run, configure **Settings → Rules → Rulesets** (or br
 for `main`: require a pull request, require the **Backend** and **Frontend** status checks,
 require branches to be up to date, and block force pushes and branch deletion. Select the
 actual check names shown by GitHub. Enable GitHub Actions and allow the pinned official
-`actions/checkout`, `actions/setup-dotnet`, and `actions/setup-node` actions under repository
+`actions/checkout`, `actions/setup-dotnet`, `actions/setup-node`, and `actions/cache` actions under repository
 or organization policy. No deployment permissions or secrets are required.
 
 CI validates changes. CD delivers or deploys builds to an environment. Automated production
