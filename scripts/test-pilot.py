@@ -72,6 +72,25 @@ class DeploymentDiagnostics(unittest.TestCase):
         self.assertEqual(validation.command.call_count,5)
         self.assertEqual(validation.command.call_args.args[0][:3],['docker','rm','-v'])
 
+    def test_static_edge_network_uses_an_explicit_docker_allocated_subnet(self):
+        validation=deployment.Validation.__new__(deployment.Validation)
+        validation.id='a'*32;validation.networks=[]
+        info={'Labels':{'shiftflow.pilot.validation':validation.id},'IPAM':{'Config':[{'Subnet':'172.22.0.0/16'}]}}
+        validation.command=Mock(side_effect=[subprocess.CompletedProcess([],0,value,b'') for value in
+            [b'',json.dumps([info]).encode(),b'',b'']])
+        self.assertEqual(str(validation.create_edge_network()),'172.22.0.0/16')
+        args=validation.command.call_args.args[0]
+        self.assertEqual(args[args.index('--subnet')+1],'172.22.0.0/16')
+        self.assertEqual(validation.networks,['shiftflow-pilot-'+validation.id+'-edge'])
+
+    def test_network_allocation_mismatch_refuses_removal_or_adoption(self):
+        validation=deployment.Validation.__new__(deployment.Validation)
+        validation.id='a'*32;validation.networks=[]
+        validation.command=Mock(side_effect=[subprocess.CompletedProcess([],0,value,b'') for value in
+            [b'',json.dumps([{'Labels':{}}]).encode()]])
+        with self.assertRaisesRegex(RuntimeError,'ownership mismatch'):validation.create_edge_network()
+        self.assertEqual(validation.command.call_count,2)
+
 
 class OperationGuards(unittest.TestCase):
     def setUp(self):

@@ -42,6 +42,7 @@ def failure_details(stage, error, private_logs):
         'DATA_PROTECTION_CERTIFICATE_TIME_INVALID': 'pilot configuration invalid: data protection certificate validity.',
         'SECRET_FILE_INVALID': 'pilot configuration invalid: required secret file.',
         'DATABASE_IDENTITY_INVALID': 'pilot configuration invalid: database identity or pool limit.',
+        'STATIC_IP_REQUIRES_CONFIGURED_SUBNET': 'user specified ip address is supported only',
         'IMAGE_ARCHITECTURE_UNAVAILABLE': 'no matching manifest',
         'IMAGE_PULL_DENIED': 'pull access denied',
         'REGISTRY_RATE_LIMITED': 'toomanyrequests',
@@ -134,6 +135,25 @@ class Validation:
         # be readable by the distinct non-root service UIDs on Docker Desktop.
         os.chmod(path, 0o444)
 
+    def create_edge_network(self):
+        # Ask Docker's allocator for an unused subnet, then create our final
+        # network with that subnet explicitly configured for static endpoints.
+        # Older engines reject static addresses on auto-configured networks.
+        prefix='shiftflow-pilot-'+self.id+'-edge'
+        probe=prefix+'-allocation'
+        labels=['--label','shiftflow.pilot.validation='+self.id,'--label','shiftflow.pilot.deployment='+self.id]
+        self.command(['docker','network','create','--internal',*labels,probe])
+        self.networks.append(probe)
+        info=json.loads(self.command(['docker','network','inspect',probe]).stdout)[0]
+        if info.get('Labels',{}).get('shiftflow.pilot.validation')!=self.id:
+            raise RuntimeError('Network allocation ownership mismatch')
+        subnet=next(ipaddress.ip_network(c['Subnet']) for c in info['IPAM']['Config']
+                    if ipaddress.ip_network(c['Subnet']).version==4)
+        self.command(['docker','network','rm',probe]);self.networks.remove(probe)
+        self.command(['docker','network','create','--internal','--subnet',str(subnet),*labels,prefix])
+        self.networks.append(prefix)
+        return subnet
+
     def setup(self):
         self.report['imageId'] = json.loads(self.command(['docker','image','inspect',self.image]).stdout)[0]['Id']
         self.last_step='image-key-directory'
@@ -148,13 +168,13 @@ class Validation:
                 raise RuntimeError('Production image key directory must be owned by UID/GID 1654 with mode 0700')
         finally:self.command(['docker','rm','-v',probe])
         self.last_step='validation-configuration'
-        for purpose in ["edge", "data", "ingress"]:
+        subnet=self.create_edge_network()
+        self.report['explicitPrivateEdgeSubnet']=True
+        for purpose in ["data", "ingress"]:
             name = "shiftflow-pilot-" + self.id + "-" + purpose
             self.command(["docker", "network", "create", *([] if purpose == "ingress" else ["--internal"]), "--label", "shiftflow.pilot.validation=" + self.id,
                           "--label", "shiftflow.pilot.deployment=" + self.id, name])
             self.networks.append(name)
-        edge = json.loads(self.command(["docker", "network", "inspect", self.networks[0]]).stdout)[0]
-        subnet = ipaddress.ip_network(edge["IPAM"]["Config"][0]["Subnet"])
         with socket.socket() as s: s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]
         database = "shiftflow_pilot_" + self.id
         environment = {"PILOT_APP_IMAGE": self.image, "PILOT_PROXY_IMAGE": "shiftflow-pilot-proxy:phase7e-local", "PILOT_BIND_ADDRESS": "127.0.0.1", "PILOT_HTTPS_PORT": str(port),

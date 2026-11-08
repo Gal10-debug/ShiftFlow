@@ -44,6 +44,26 @@ certificate, secret-file and database-identity configuration categories. This
 removes dependence on opaque configuration failures if the runner differs again.
 The new image layout still requires confirmation in a new CI run.
 
+The next [run 42519173480](https://github.com/Gal10-debug/ShiftFlow/actions/runs/42519173480)
+at `0234b10` verified UID/GID 1654 and mode 0700, then passed initial/repeated
+migration and bootstrap. This confirms that the image-layout change cleared the
+original configuration rejection. The next pilot failure was at app/proxy startup.
+Its static endpoints used an automatically allocated edge subnet, which older
+Docker engines reject for user-specified container IPs. The harness now asks
+Docker for an unused subnet through a temporary owned network, removes only that
+verified allocation, and creates its final private edge network with `--subnet`.
+It never chooses a fixed potentially conflicting host subnet or adopts an
+existing network. An allocation conflict fails closed.
+
+The same run also failed the separate PostgreSQL image probe before backend test
+execution. That probe's Unix-socket health command could accept the entrypoint's
+temporary initialization server. It now checks `127.0.0.1` TCP readiness, matching
+the pilot Compose health check. A controlled local six-second initialization
+delay reproduced the distinction: the temporary server accepted Unix-socket
+connections while TCP and container health correctly remained unready, then the
+final server became healthy. The probe's rollback, persistence, backup/restore and
+private-volume checks also passed with TCP readiness.
+
 ## Reading a failure after the diagnostic change
 
 The workflow pulls the pinned PostgreSQL image in a separate visible step, so

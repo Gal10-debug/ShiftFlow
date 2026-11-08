@@ -48,7 +48,9 @@ def main():
         command(["run", "-d", "--name", name, "--label", label + "=" + run,
                  "--memory=256m", "--cpus=1", "--network", "none",
                  "--mount", "type=volume,source=" + volume + ",target=/var/lib/postgresql/data",
-                 "--health-cmd", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"',
+                 # The entrypoint's temporary initialization server exposes only
+                 # a Unix socket. TCP readiness waits for the final server.
+                 "--health-cmd", 'pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"',
                  "--health-interval", "1s", "--health-timeout", "3s", "--health-retries", "30",
                  "-e", "POSTGRES_USER", "-e", "POSTGRES_DB", "-e", "POSTGRES_PASSWORD", IMAGE])
         created.add("container")
