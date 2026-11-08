@@ -27,6 +27,28 @@ import uuid
 from pilot import Pilot, POSTGRES, ROOT, identifier
 
 
+def failure_details(stage, error, private_logs):
+    """Export fixed diagnostic codes, never exception messages or raw log lines."""
+    markers = {
+        'FILESYSTEM_PERMISSION_DENIED': 'permission denied',
+        'FILESYSTEM_OPERATION_NOT_PERMITTED': 'operation not permitted',
+        'READ_ONLY_FILESYSTEM': 'read-only file system',
+        'DATABASE_AUTHENTICATION_FAILED': 'password authentication failed',
+        'PILOT_CONFIGURATION_INVALID': 'pilot configuration invalid',
+        'IMAGE_ARCHITECTURE_UNAVAILABLE': 'no matching manifest',
+        'IMAGE_PULL_DENIED': 'pull access denied',
+        'REGISTRY_RATE_LIMITED': 'toomanyrequests',
+        'DISK_SPACE_EXHAUSTED': 'no space left on device',
+        'DOTNET_RUNTIME_UNAVAILABLE': 'you must install or update .net',
+        'DATABASE_CONNECTION_FAILED': 'pilot operation failed (npgsqlexception)',
+        'POSTGRES_OPERATION_FAILED': 'pilot operation failed (postgresexception)',
+    }
+    content = b'\n'.join(private_logs).decode(errors='replace').lower()
+    return {'stage': stage, 'type': type(error).__name__,
+            'message': 'Validation failed; raw diagnostics remain private.',
+            'diagnostics': [code for code, marker in markers.items() if marker in content]}
+
+
 class Client:
     def __init__(self, base, certificate):
         self.base = base
@@ -128,15 +150,24 @@ class Validation:
         self.pilot = Pilot(self.config)
         self.pilot.compose("config", "--quiet")
         self.passed("compose-configuration")
+        self.last_step = 'postgres-start'
         self.pilot.compose("up", "-d", "postgres")
+        self.last_step = 'postgres-readiness'
         self.wait_database()
+        self.last_step = 'database-provision'
         self.pilot.provision()
+        self.last_step = 'initial-migration'
         self.pilot.compose("run", "--rm", "-T", "--no-deps", "migrate")
+        self.last_step = 'migration-history-permissions'
         self.pilot.harden_history()
+        self.last_step = 'repeated-migration'
         self.pilot.compose("run", "--rm", "-T", "--no-deps", "migrate")
+        self.last_step = 'initial-bootstrap'
         self.pilot.compose("run", "--rm", "-T", "--no-deps", "bootstrap")
+        self.last_step = 'repeated-bootstrap'
         self.pilot.compose("run", "--rm", "-T", "--no-deps", "bootstrap")
         self.passed("clean-install-migrations-and-idempotent-bootstrap")
+        self.last_step = 'app-and-proxy-start'
         self.pilot.compose("up", "-d", "app", "proxy")
         self.base = environment["PILOT_PUBLIC_ORIGIN"]
         self.admin = Client(self.base, str(self.secret_dir / "tls.crt"))
@@ -443,11 +474,16 @@ def main():
                     logs=validation.command(['docker','logs',cid],check=False)
                     (validation.private/(service+'-private.log')).write_bytes(logs.stdout+logs.stderr)
                 except Exception:pass
-        validation.report['failure']={'stage':validation.last_step,'type':type(error).__name__,'message':str(error) if isinstance(error,(AssertionError,RuntimeError)) else 'See private local diagnostics'}
-        print('Pilot validation failed; no readiness success is claimed.',flush=True)
+        private_logs=[p.read_bytes() for p in validation.private.glob('*-private.log')]
+        validation.report['failure']=failure_details(validation.last_step,error,private_logs)
+        failure=validation.report['failure']
+        print(f"Pilot validation failed at {failure['stage']} ({failure['type']}); no readiness success is claimed.",flush=True)
+        print('Safe diagnostic codes: '+(', '.join(failure['diagnostics']) or 'none'),flush=True)
     finally:
         try:validation.cleanup();validation.report['cleanup']='PASS'
-        except Exception:validation.report['cleanup']='FAILED';code=1
+        except Exception:
+            validation.report['cleanup']='FAILED';code=1
+            print('Pilot resource cleanup failed; no readiness success is claimed.',flush=True)
         validation.report['exitCode']=code
         (validation.results/'deployment-validation.json').write_text(json.dumps(validation.report,indent=2)+'\n')
         if not args.keep_private:shutil.rmtree(validation.private)

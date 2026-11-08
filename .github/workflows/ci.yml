@@ -201,6 +201,9 @@ jobs:
         run: |
           docker build -f deploy/pilot/Dockerfile -t shiftflow-pilot:phase7e-local .
           docker build -f deploy/pilot/Dockerfile.proxy -t shiftflow-pilot-proxy:phase7e-local .
+      - name: Pull pinned disposable PostgreSQL image
+        # Keep public registry/pull failures visible, outside private operation logs.
+        run: docker pull postgres:17.11-alpine3.24@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
       - name: Validate HTTPS, synthetic workflow, failures and separate-database recovery
         run: python3 scripts/test-pilot-deployment.py
       - name: Publish status-only deployment evidence

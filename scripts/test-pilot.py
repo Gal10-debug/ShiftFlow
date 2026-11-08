@@ -2,6 +2,7 @@
 """Offline regression checks for operations that must refuse unsafe targets."""
 import copy
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import subprocess
@@ -10,6 +11,27 @@ import unittest
 from unittest.mock import Mock, patch
 
 from pilot import Pilot, identifier
+
+
+spec=importlib.util.spec_from_file_location('pilot_deployment',Path(__file__).with_name('test-pilot-deployment.py'))
+deployment=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(deployment)
+
+
+class DeploymentDiagnostics(unittest.TestCase):
+    def test_failure_exports_fixed_codes_without_credentials_or_exception_payloads(self):
+        canary='SyntheticPrivateDiagnosticCanary!'
+        failure=deployment.failure_details('initial-migration',RuntimeError(canary),
+            [('password authentication failed for '+canary).encode(),('Permission denied: '+canary).encode()])
+        self.assertEqual(failure['stage'],'initial-migration')
+        self.assertEqual(failure['type'],'RuntimeError')
+        self.assertEqual(set(failure['diagnostics']),{'DATABASE_AUTHENTICATION_FAILED','FILESYSTEM_PERMISSION_DENIED'})
+        self.assertNotIn(canary,json.dumps(failure))
+
+    def test_unknown_non_utf8_diagnostics_remain_private(self):
+        failure=deployment.failure_details('postgres-start',ValueError('private payload'),[b'\xffprivate payload'])
+        self.assertEqual(failure['diagnostics'],[])
+        self.assertNotIn('private payload',json.dumps(failure))
 
 
 class OperationGuards(unittest.TestCase):
