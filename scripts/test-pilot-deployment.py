@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import http.cookiejar
 import importlib.util
+import io
 import ipaddress
 import json
 import os
@@ -18,6 +19,7 @@ import socket
 import ssl
 import subprocess
 import sys
+import tarfile
 import time
 import traceback
 import urllib.error
@@ -35,6 +37,11 @@ def failure_details(stage, error, private_logs):
         'READ_ONLY_FILESYSTEM': 'read-only file system',
         'DATABASE_AUTHENTICATION_FAILED': 'password authentication failed',
         'PILOT_CONFIGURATION_INVALID': 'pilot configuration invalid',
+        'KEY_DIRECTORY_PERMISSIONS_INVALID': 'pilot configuration invalid: key directory permissions.',
+        'DATA_PROTECTION_CERTIFICATE_INVALID': 'pilot configuration invalid: data protection certificate.',
+        'DATA_PROTECTION_CERTIFICATE_TIME_INVALID': 'pilot configuration invalid: data protection certificate validity.',
+        'SECRET_FILE_INVALID': 'pilot configuration invalid: required secret file.',
+        'DATABASE_IDENTITY_INVALID': 'pilot configuration invalid: database identity or pool limit.',
         'IMAGE_ARCHITECTURE_UNAVAILABLE': 'no matching manifest',
         'IMAGE_PULL_DENIED': 'pull access denied',
         'REGISTRY_RATE_LIMITED': 'toomanyrequests',
@@ -47,6 +54,16 @@ def failure_details(stage, error, private_logs):
     return {'stage': stage, 'type': type(error).__name__,
             'message': 'Validation failed; raw diagnostics remain private.',
             'diagnostics': [code for code, marker in markers.items() if marker in content]}
+
+
+def key_directory_metadata(archive):
+    """Inspect only archive metadata; never extract or export key contents."""
+    with tarfile.open(fileobj=io.BytesIO(archive)) as stream:
+        members=stream.getmembers()
+    if len(members)!=1 or not members[0].isdir() or members[0].name.rstrip('/')!='keys':
+        raise RuntimeError('Production image must contain an empty key directory')
+    directory=members[0]
+    return {'uid':directory.uid,'gid':directory.gid,'mode':f'{directory.mode & 0o7777:04o}'}
 
 
 class Client:
@@ -119,6 +136,18 @@ class Validation:
 
     def setup(self):
         self.report['imageId'] = json.loads(self.command(['docker','image','inspect',self.image]).stdout)[0]['Id']
+        self.last_step='image-key-directory'
+        probe=self.command(['docker','create','--network','none','--read-only','--cap-drop','ALL',
+            '--label','shiftflow.pilot.deployment='+self.id,'--label','shiftflow.pilot.validation='+self.id,self.image]).stdout.decode().strip()
+        info=json.loads(self.command(['docker','inspect',probe]).stdout)[0]
+        if info['Config']['Labels'].get('shiftflow.pilot.validation')!=self.id:raise RuntimeError('Image probe ownership mismatch')
+        try:
+            metadata=key_directory_metadata(self.command(['docker','cp',probe+':/var/lib/shiftflow/keys','-']).stdout)
+            self.report['imageKeyDirectory']=metadata
+            if metadata!={'uid':1654,'gid':1654,'mode':'0700'}:
+                raise RuntimeError('Production image key directory must be owned by UID/GID 1654 with mode 0700')
+        finally:self.command(['docker','rm','-v',probe])
+        self.last_step='validation-configuration'
         for purpose in ["edge", "data", "ingress"]:
             name = "shiftflow-pilot-" + self.id + "-" + purpose
             self.command(["docker", "network", "create", *([] if purpose == "ingress" else ["--internal"]), "--label", "shiftflow.pilot.validation=" + self.id,
@@ -441,7 +470,8 @@ class Validation:
         self.passed('production-browser-hebrew-rtl-and-secure-context')
 
     def cleanup(self):
-        if self.pilot is not None:
+        # A probe can exist before Compose/Pilot has been initialized.
+        if self.pilot is not None or self.last_step=='image-key-directory':
             ids=self.command(['docker','ps','-aq','--filter','label=shiftflow.pilot.deployment='+self.id],check=False).stdout.decode().split()
             for cid in ids:
                 info=json.loads(self.command(['docker','inspect',cid]).stdout)[0]

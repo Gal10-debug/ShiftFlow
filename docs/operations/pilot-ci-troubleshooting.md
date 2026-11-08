@@ -21,6 +21,29 @@ AMD64, and setup using an exact AMD64 build of the Production Dockerfile. The
 AMD64 containers ran under local Docker Desktop emulation, not a GitHub-hosted
 runner. The original CI failure remains unconfirmed and requires a new CI run.
 
+## Configuration rejection and image directory layout
+
+The diagnostic [run 42518269432](https://github.com/Gal10-debug/ShiftFlow/actions/runs/42518269432)
+at `fc55b57` narrowed the failure to `initial-migration` with
+`PILOT_CONFIGURATION_INVALID`. Database startup and role/database provisioning
+therefore completed; configuration was rejected before the migration command
+could run. Certificate provisioning also passed local checks with Linux OpenSSL 3.
+
+The image previously copied the contents of an empty directory with `COPY
+--chmod`. Directory handling has differed between builders (see the upstream
+[BuildKit issue](https://github.com/moby/buildkit/issues/4945)). The corrected image
+prepares `keys` with mode 0700 in its build stage and copies that child directory
+with numeric ownership, preserving explicit source-directory metadata. It does
+not relax startup permission checks or run the application as root.
+
+Before any database is created, the harness now inspects the actual image's key
+directory through a stopped, ownership-labeled container. It checks UID/GID 1654,
+mode 0700 and absence of embedded key material, exporting only those metadata
+fields. Failure diagnostics additionally distinguish allowlisted key-directory,
+certificate, secret-file and database-identity configuration categories. This
+removes dependence on opaque configuration failures if the runner differs again.
+The new image layout still requires confirmation in a new CI run.
+
 ## Reading a failure after the diagnostic change
 
 The workflow pulls the pinned PostgreSQL image in a separate visible step, so
