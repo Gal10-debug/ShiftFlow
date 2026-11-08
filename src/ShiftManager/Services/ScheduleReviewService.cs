@@ -418,13 +418,7 @@ public sealed partial class ScheduleReviewService(ApplicationDbContext db, Accou
             return Publication(p) with { Hidden = c?.Hidden ?? false, Deleted = c?.DeletedAt != null, ControlVersion = c?.Version ?? 0 };
         }).ToArray();
     }
-    private async Task<Guid> Employee(ClaimsPrincipal actor)
-    {
-        var id = await teams.Actor(actor);
-        if (!await (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id where ur.UserId == id && r.NormalizedName == "EMPLOYEE" select ur).AnyAsync()) throw new ApiException("FORBIDDEN", 403);
-        if (await teams.IsAdministrator(id) || await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == id)) throw new ApiException("FORBIDDEN", 403);
-        return id;
-    }
+    private Task<Guid> Employee(ClaimsPrincipal actor) => teams.SchedulingEmployee(actor);
     public async Task<object[]> PublishedPeriods(ClaimsPrincipal actor)
     {
         await Employee(actor);

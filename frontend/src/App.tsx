@@ -12,6 +12,7 @@ import AvailabilityAdmin from "./pages/AvailabilityAdmin";
 import ShiftExchanges from "./pages/ShiftExchanges";
 import MySchedule from "./pages/MySchedule";
 import SchedulingBoard from "./pages/SchedulingBoard";
+import Statistics from "./pages/Statistics";
 import Teams from "./pages/Teams";
 import TeamAvailability from "./pages/TeamAvailability";
 import Absences from "./pages/Absences";
@@ -46,6 +47,7 @@ export function AppRoutes() {
           <Route path="/profile" element={<Profile />} />
           <Route element={<Protected role="ADMIN" />}>
             <Route path="/exchange-management" element={<ShiftExchanges admin />} />
+            <Route path="/statistics" element={<Statistics admin />} />
             <Route path="/teams" element={<Teams />} />
             <Route path="/absence-management" element={<Absences manage />} />
             <Route path="/users" element={<Users />} />
@@ -60,6 +62,7 @@ export function AppRoutes() {
           </Route>
           <Route element={<Protected role="EMPLOYEE" />}>
             <Route path="/shift-exchanges" element={<ShiftExchanges />} />
+            <Route path="/my-statistics" element={<Statistics />} />
             <Route path="/my-schedule" element={<MySchedule />} />
             <Route path="/absences" element={<Absences />} />
             <Route path="/employee" element={<PersonalAvailability />} />

@@ -66,6 +66,8 @@ public sealed partial class AuthTests
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await copiedTicket.GetAsync("/api/auth/me")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await otherSession.GetAsync("/api/auth/me")).StatusCode);
+        foreach (var path in new[] { "/api/my-statistics/2026/10", "/api/my-statistics/2026", "/api/admin/statistics/2026/10", "/api/admin/statistics/2026" })
+            Assert.Equal(HttpStatusCode.Unauthorized, (await copiedTicket.GetAsync(path)).StatusCode);
         await Login(otherSession, "employee");
         Assert.Equal(HttpStatusCode.OK, (await otherSession.GetAsync("/api/auth/me")).StatusCode);
     }

@@ -98,6 +98,7 @@ public sealed partial class SchedulingTests
     {
         var rows = await Types(x.Admin); var r = await Review(x.Admin);
         return [
+            new("GET", "/api/admin/statistics/2026/10"), new("GET", "/api/admin/statistics/2026"),
             new("GET", "/api/users"), new("GET", $"/api/users/{ids["foreign"]}"),
             new("POST", "/api/users", new CreateUserRequest("בדיקת", "אבטחה", "unauthorized-create", Password, ["ADMIN"])),
             new("PUT", $"/api/users/{ids["foreign"]}", new ProfileRequest("שינוי", "אסור", "unauthorized-rename")),
