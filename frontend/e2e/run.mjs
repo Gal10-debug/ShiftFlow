@@ -24,6 +24,8 @@ const env = { ...process.env, SHIFTFLOW_E2E_RUN: run, SHIFTFLOW_E2E_TOKEN: token
   SHIFTFLOW_E2E_PASSWORD: password, SHIFTFLOW_E2E_NEW_PASSWORD: `Changed!${secret()}`,
   SHIFTFLOW_E2E_PRIVATE: privateDir, SHIFTFLOW_E2E_REPORT: reportDir,
   DOTNET_NOLOGO: 'true', DOTNET_CLI_TELEMETRY_OPTOUT: 'true' };
+const production = env.SHIFTFLOW_PERFORMANCE === '1' && env.SHIFTFLOW_PERFORMANCE_BUILD !== 'development';
+if (env.SHIFTFLOW_PERFORMANCE === '1') env.DOTNET_PROCESSOR_COUNT = '2';
 function command(exe, args, options = {}) {
   const r = spawnSync(exe, args, { cwd: root, env, encoding: 'utf8', ...options });
   if (r.status !== 0) throw new Error(`${exe} failed; see sanitized diagnostics.`);
@@ -79,13 +81,22 @@ try {
   while (frontendPort === backendPort) frontendPort = await port();
   Object.assign(env, { SHIFTFLOW_E2E_CONNECTION: `Host=127.0.0.1;Port=${dbPort};Database=${db};Username=${db};Password=${dbPassword}`,
     SHIFTFLOW_E2E_BACKEND_PORT: String(backendPort), SHIFTFLOW_E2E_BACKEND_URL: `http://127.0.0.1:${backendPort}`,
-    SHIFTFLOW_E2E_FRONTEND_URL: `http://127.0.0.1:${frontendPort}` });
+    SHIFTFLOW_E2E_FRONTEND_URL: `http://127.0.0.1:${production ? backendPort : frontendPort}`,
+    SHIFTFLOW_PERFORMANCE_BUILD: production ? 'production' : 'development' });
+  if (env.SHIFTFLOW_PERFORMANCE === '1') {
+    // Test-only bounded fault detection. Never changes the production connection settings.
+    env.SHIFTFLOW_E2E_CONNECTION += ';Timeout=2;Command Timeout=2';
+    env.SHIFTFLOW_E2E_CONTAINER = container;
+  }
+  if (production) command('npm', ['run', 'build'], { cwd: frontend, stdio: 'inherit' });
   command('dotnet', ['build', 'tests/ShiftManager.E2EHost', '-c', 'Release', '--warnaserror'], { stdio: 'inherit' });
   command('dotnet', ['tests/ShiftManager.E2EHost/bin/Release/net10.0/ShiftManager.E2EHost.dll', '--verify-guards'], { stdio: 'inherit' });
   start('dotnet', ['tests/ShiftManager.E2EHost/bin/Release/net10.0/ShiftManager.E2EHost.dll'], 'backend');
   await ready(`${env.SHIFTFLOW_E2E_BACKEND_URL}/__e2e/ready`, async r => { const j = await r.json(); return j.run === run && j.ready; }, { 'X-E2E-Control': token });
-  start(process.execPath, ['node_modules/vite/bin/vite.js', '--config', 'e2e/vite.config.ts', '--host', '127.0.0.1', '--port', String(frontendPort), '--strictPort'], 'frontend', frontend);
-  await ready(`${env.SHIFTFLOW_E2E_FRONTEND_URL}/__e2e/frontend-ready`, async r => (await r.json()).run === run);
+  if (!production) {
+    start(process.execPath, ['node_modules/vite/bin/vite.js', '--config', 'e2e/vite.config.ts', '--host', '127.0.0.1', '--port', String(frontendPort), '--strictPort'], 'frontend', frontend);
+    await ready(`${env.SHIFTFLOW_E2E_FRONTEND_URL}/__e2e/frontend-ready`, async r => (await r.json()).run === run);
+  }
   await ready(`${env.SHIFTFLOW_E2E_FRONTEND_URL}/api/__e2e/ready`, async r => (await r.json()).run === run, { 'X-E2E-Control': token });
   console.log('Disposable E2E environment ready; one Chromium worker.');
   if (process.argv.includes('--serve')) {

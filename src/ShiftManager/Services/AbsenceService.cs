@@ -81,7 +81,9 @@ public sealed partial class AbsenceService(ApplicationDbContext db, AccountServi
         if (from > through) throw new ApiException("VALIDATION_ERROR");
         var requests = await query.OrderByDescending(r => r.CreatedAt).ThenBy(r => r.Id).ToArrayAsync();
         var result = new List<AbsenceResponse>();
-        foreach (var r in requests) result.Add(await Response(r, await HasRole(id, "ADMIN")));
+        // Every row sees this transaction's repeatable-read role snapshot.
+        var administrator = requests.Length > 0 && await HasRole(id, "ADMIN");
+        foreach (var r in requests) result.Add(await Response(r, administrator));
         if (tx is not null) await tx.CommitAsync(); return result.ToArray();
     }
     private async Task<AbsenceResponse> Response(AbsenceRequest r, bool admin = false)

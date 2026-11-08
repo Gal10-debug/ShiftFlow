@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend:
-    name: Backend
+  backend-correctness:
+    name: Backend correctness
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -23,6 +23,7 @@ jobs:
       DOTNET_NOLOGO: 'true'
       DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
       ASPNETCORE_ENVIRONMENT: CI
+      DOTNET_PROCESSOR_COUNT: '2'
       RUN_POSTGRES_TESTS: '1'
       SCHEDULING_VALIDATION_REPORT_DIRECTORY: ${{ github.workspace }}/TestResults/scheduling-validation
       # Disposable service credentials only; never use repository secrets here.
@@ -61,8 +62,56 @@ jobs:
         run: dotnet ef migrations has-pending-model-changes --project src/ShiftManager --configuration Release --no-build
       - name: Verify image health and disposable volume durability
         run: python3 scripts/test-postgres-image.py
-      - name: Run all backend tests against isolated service databases
-        run: dotnet test ShiftManager.slnx -c Release --no-build --no-restore --logger "trx;LogFileName=backend.trx"
+      - name: Verify performance timing report parsing
+        run: python3 scripts/test-performance.py
+      - name: Run correctness and security tests against isolated service databases
+        env:
+          TEST_TIMING_DIRECTORY: ${{ github.workspace }}/TestResults/fixtures
+        run: dotnet test ShiftManager.slnx -c Release --no-build --no-restore --filter 'Category!=SchedulingBenchmark' --results-directory TestResults/correctness --logger "trx;LogFileName=backend.trx"
+      - name: Summarize per-test and class timings
+        if: always()
+        run: python3 scripts/summarize-performance.py --trx 'TestResults/correctness/*.trx' --output TestResults/timing/correctness.json
+      - name: Publish timing fields and synthetic solver diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-correctness-timing
+          path: |
+            TestResults/timing/
+            TestResults/fixtures/
+            TestResults/scheduling-validation/
+          if-no-files-found: error
+          retention-days: 7
+
+  scheduling-benchmarks:
+    name: Scheduling benchmarks (${{ matrix.budget }}s)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        budget: [30, 60, 120]
+    env:
+      DOTNET_NOLOGO: 'true'
+      DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+      DOTNET_PROCESSOR_COUNT: '2'
+      SCHEDULING_BENCHMARK_BUDGETS: ${{ matrix.budget }}
+      SCHEDULING_BENCHMARK_SCENARIOS: normal,severe-shortage
+      SCHEDULING_VALIDATION_REPORT_DIRECTORY: ${{ github.workspace }}/TestResults/scheduling-validation
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore and build Release
+        run: |
+          dotnet restore ShiftManager.slnx
+          dotnet build ShiftManager.slnx -c Release --no-restore --warnaserror
+      - name: Run both required monthly scenarios at this unchanged budget
+        run: dotnet test ShiftManager.slnx -c Release --no-build --no-restore --filter 'Category=SchedulingBenchmark' --results-directory TestResults/benchmarks --logger "trx;LogFileName=benchmarks.trx"
       - name: Summarize scheduling benchmark quality and proof status
         if: always()
         run: |
@@ -73,9 +122,12 @@ jobs:
           lines = ["## Scheduling benchmark results", "",
                    "A passing test run does not establish pilot acceptance for unproven or missed quality targets.", ""]
           if not report.is_file():
-              lines.append("No benchmark report was produced; the test/build may have stopped before benchmarking.")
+              raise SystemExit("Required benchmark report missing; the test/build may have stopped before benchmarking.")
           else:
               trials = json.loads(report.read_text())
+              budget = int(os.environ["SCHEDULING_BENCHMARK_BUDGETS"])
+              assert {(t["Scenario"], t["BudgetSeconds"]) for t in trials} == {("normal", budget), ("severe-shortage", budget)}
+              assert len(trials) == 2, "Each matrix job must execute exactly its two benchmark scenarios"
               lines += ["| Scenario | Budget (s) | Status | Proven stages | Critical value / bound | Fairness status | Fairness value / bound | Quality target | Max cohort spread |",
                         "| --- | ---: | --- | ---: | --- | --- | --- | --- | ---: |"]
               for trial in trials:
@@ -95,6 +147,34 @@ jobs:
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as stream:
               stream.write(summary)
           PY
+
+      - name: Summarize benchmark test timing
+        if: always()
+        run: python3 scripts/summarize-performance.py --trx 'TestResults/benchmarks/*.trx' --output TestResults/timing/benchmarks.json
+      - name: Publish timing fields and synthetic solver diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: scheduling-benchmark-${{ matrix.budget }}s
+          path: |
+            TestResults/timing/
+            TestResults/scheduling-validation/
+          if-no-files-found: error
+          retention-days: 7
+
+  backend:
+    # Preserve the existing required check name. Skipped/cancelled dependencies fail closed.
+    name: Backend
+    if: always()
+    needs: [backend-correctness, scheduling-benchmarks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require correctness, security and all six benchmark experiments
+        env:
+          CORRECTNESS: ${{ needs.backend-correctness.result }}
+          BENCHMARKS: ${{ needs.scheduling-benchmarks.result }}
+        run: test "$CORRECTNESS" = success && test "$BENCHMARKS" = success
 
   frontend:
     name: Frontend
@@ -156,12 +236,21 @@ jobs:
       - name: Run browser workflows with owned disposable PostgreSQL
         working-directory: frontend
         run: npm run test:e2e
+      - name: Preserve sanitized workflow diagnostics
+        if: always()
+        run: |
+          if [ -d frontend/e2e-report ]; then cp -R frontend/e2e-report frontend/e2e-workflow-report; fi
+      - name: Run bounded pilot performance and owned failure recovery checks
+        working-directory: frontend
+        run: npm run test:performance
       - name: Publish sanitized diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: e2e-sanitized-report
-          path: frontend/e2e-report/
+          path: |
+            frontend/e2e-workflow-report/
+            frontend/e2e-report/
           if-no-files-found: warn
           retention-days: 7
       - name: Remove containers owned by this isolated job after interruption

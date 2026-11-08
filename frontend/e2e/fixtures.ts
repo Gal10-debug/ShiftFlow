@@ -7,7 +7,7 @@ export const month = "2031-01";
 export const userId = (n: number) => `71000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
 export const rowId = (n: number) => `40000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
 export const periodPath = "/admin/scheduling/periods/2031/1";
-export type Profile = "empty" | "published" | "qualified" | "shortage";
+export type Profile = "empty" | "published" | "qualified" | "shortage" | "pilot";
 type State = { assignments: { id: string; userId: string }[]; publications: { id: string; versionNumber: number; hash: string }[];
   controls: { publicationId: string; hidden: boolean; deletedAt: string | null }[]; absences: { id: string; status: string }[] };
 

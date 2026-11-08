@@ -15,6 +15,7 @@ REDACTED = "[REDACTED]"
 class Sanitizer:
     def __init__(self, secrets=()):
         self.secrets = {v for v in secrets if isinstance(v, str) and len(v) >= 8}
+        self._replacements = None
 
     def discover(self, value):
         if isinstance(value, dict):
@@ -41,16 +42,23 @@ class Sanitizer:
 
     def remember(self, value):
         if isinstance(value, str) and len(value) >= 8:
-            self.secrets.add(value)
+            if value not in self.secrets:
+                self.secrets.add(value)
+                self._replacements = None
             if "=" in value:
                 for component in value.split(";"):
                     if "=" in component:
                         self.remember(component.split("=", 1)[1].strip())
 
     def text(self, value):
-        for secret in sorted(self.secrets, key=len, reverse=True):
+        # A trace can contain thousands of small strings. Sorting and JSON-escaping
+        # every secret for every string makes failure artifact publication expensive.
+        if self._replacements is None:
+            self._replacements = [(secret, json.dumps(secret)[1:-1]) for secret in sorted(self.secrets, key=len, reverse=True)]
+        for secret, escaped in self._replacements:
             value = value.replace(secret, REDACTED)
-            value = value.replace(json.dumps(secret)[1:-1], REDACTED)
+            if escaped != secret:
+                value = value.replace(escaped, REDACTED)
         value = re.sub(r"(?i)(password\s*=)[^;\s]+", r"\1[REDACTED]", value)
         return value
 

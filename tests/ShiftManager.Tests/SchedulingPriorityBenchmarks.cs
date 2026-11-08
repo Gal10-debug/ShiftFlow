@@ -25,7 +25,8 @@ public sealed class SchedulingPriorityBenchmarks(ITestOutputHelper output)
             var watch = Stopwatch.StartNew(); var result = new ScheduleOptimizer().Solve(p, seconds, default); watch.Stop();
             var metrics = SchedulingStressTests.Metrics(p, result);
             var fairness = scenario == "normal" ? BenchmarkFairnessAssessment.Evaluate(result, metrics) : null;
-            var report = new { Scenario = scenario, BudgetSeconds = seconds, ElapsedSeconds = watch.Elapsed.TotalSeconds,
+            var report = new { Scenario = scenario, BudgetSeconds = seconds, ElapsedSeconds = watch.Elapsed.TotalSeconds, result.ModelBuildSeconds,
+                ProcessPeakWorkingSetBytes = Process.GetCurrentProcess().PeakWorkingSet64,
                 result.Status, result.ProvenObjectives, CoverageCriticalHighNormal = PriorityOptimizationTests.Coverage(p, result.Cells),
                 Missing = p.Cells.Sum(c => c.Required) - result.Cells.Sum(c => c.Employees.Length),
                 result.Stages, Fairness = fairness, EmployeesMetrics = metrics };

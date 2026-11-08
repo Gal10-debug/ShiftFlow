@@ -32,13 +32,16 @@ public sealed partial class SchedulingTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         await database.StartAsync();
+        var watch = System.Diagnostics.Stopwatch.StartNew();
         factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Development").WithIsolatedTestKeys()
             .UseSetting("ConnectionStrings:Database", database.GetConnectionString())
             .ConfigureServices(s => { s.RemoveAll<TimeProvider>(); s.AddSingleton<TimeProvider>(clock); }));
         using var scope = factory.Services.CreateScope();
+        TestTiming.Record("scheduling-host-start", watch.Elapsed.TotalSeconds); watch.Restart();
         await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.MigrateAsync();
         // Legacy scenarios use synthetic ordinary rows; semantic-specific cases opt in explicitly.
         await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.ExecuteSqlRawAsync("UPDATE \"ShiftTypeDefinition\" SET \"Semantic\" = 'ORDINARY'");
+        TestTiming.Record("scheduling-migrations", watch.Elapsed.TotalSeconds); watch.Restart();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         foreach (var (name, role) in new[] { ("admin", "ADMIN"), ("employee", "EMPLOYEE"), ("coordinator", "COORDINATOR"), ("firstlogin", "ADMIN") })
         {
@@ -46,6 +49,7 @@ public sealed partial class SchedulingTests : IAsyncLifetime
             Assert.True((await users.CreateAsync(user, Password)).Succeeded);
             Assert.True((await users.AddToRoleAsync(user, role)).Succeeded); ids[name] = user.Id;
         }
+        TestTiming.Record("scheduling-account-seed", watch.Elapsed.TotalSeconds);
     }
     public async Task DisposeAsync() { if (factory is not null) await factory.DisposeAsync(); await database.DisposeAsync(); }
     private HttpClient Client() => factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), AllowAutoRedirect = false });

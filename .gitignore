@@ -17,4 +17,5 @@ src/ShiftManager/wwwroot/
 # E2E raw captures contain disposable credentials and must never be published.
 .e2e-private/
 frontend/e2e-report/
+frontend/e2e-workflow-report/
 **/__pycache__/

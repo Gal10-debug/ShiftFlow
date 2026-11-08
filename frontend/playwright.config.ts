@@ -3,6 +3,8 @@ if (!process.env.SHIFTFLOW_E2E_RUN || !process.env.SHIFTFLOW_E2E_PRIVATE || !pro
   throw new Error("Use npm run test:e2e; direct execution against an existing environment is prohibited.");
 export default defineConfig({
   testDir: "./e2e/specs", workers: 1, fullyParallel: false, retries: 0,
+  testMatch: process.env.SHIFTFLOW_PERFORMANCE === "1" ? ["**/performance.spec.ts", "**/reliability.spec.ts"] : "**/*.spec.ts",
+  testIgnore: process.env.SHIFTFLOW_PERFORMANCE === "1" ? [] : ["**/performance.spec.ts", "**/reliability.spec.ts"],
   forbidOnly: !!process.env.CI, timeout: 90_000, globalTimeout: 15 * 60_000,
   expect: { timeout: 12_000 },
   outputDir: `${process.env.SHIFTFLOW_E2E_PRIVATE}/results`,
