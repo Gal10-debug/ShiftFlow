@@ -119,7 +119,8 @@ export default function Absences({ manage = false }: { manage?: boolean }) {
       {r.decision && <p>החלטה: {statuses[r.decision.decision]} · {r.decision.actorName} · {instant(r.decision.occurredAt)}{r.decision.rejectionReason && <><br />סיבת הדחייה: {r.decision.rejectionReason}</>}</p>}
       {!!r.unresolvedConflicts.length && <aside aria-label="התנגשויות שטרם תוקנו"><p role="alert">ההיעדרות אושרה, אך קיימים שיבוצים שפורסמו וטרם תוקנו. נדרשים תיקון ופרסום גרסה חדשה.</p><ConflictList items={r.unresolvedConflicts} admin={admin} /></aside>}
       <div className="form-actions">
-        {manage && r.status === "PENDING" && <button disabled={busy} onClick={() => void inspect(r)}>בדיקה והחלטה</button>}
+        {manage && r.status === "PENDING" && r.userId !== user?.id && <button disabled={busy} onClick={() => void inspect(r)}>בדיקה והחלטה</button>}
+        {manage && r.status === "PENDING" && r.userId === user?.id && <p>בקשה אישית מחייבת החלטה של מאשר אחר.</p>}
         {!manage && r.status === "PENDING" && <button disabled={busy} onClick={() => void action(`/absences/${r.id}/cancel-pending`, { expectedVersion: r.version })}>ביטול בקשה ממתינה</button>}
         {!manage && r.status === "APPROVED" && r.kind !== "CANCEL" && (items.some(child => child.replacesId === r.id && child.status === "PENDING") ? <p>בקשת שינוי או ביטול ממתינה לאישור.</p> : <>
           <button disabled={busy} onClick={() => setEditing(r)}>בקשת שינוי</button>

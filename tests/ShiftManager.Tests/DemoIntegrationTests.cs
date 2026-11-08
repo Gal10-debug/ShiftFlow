@@ -30,7 +30,7 @@ public sealed class DemoIntegrationTests
         var output = Path.Combine(Directory.GetCurrentDirectory(), ".demo", name);
         try
         {
-            await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Testing")
+            await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Testing").WithIsolatedTestKeys()
                 .UseSetting("ConnectionStrings:Database",cs.ConnectionString).ConfigureServices(services =>
                 {
                     var worker = services.FirstOrDefault(d => d.ServiceType == typeof(IHostedService) && d.ImplementationType == typeof(GenerationWorker));

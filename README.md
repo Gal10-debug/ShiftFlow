@@ -351,6 +351,18 @@ Automatic generation, manual editing, saved-preview validation and every publica
 
 Apply `20261027224058_AdditionalSchedulingConstraints` explicitly. Existing data and all 51 definitions are preserved. See [scheduling constraints, boundary policy and manual verification](docs/scheduling-architecture.md#phase-51--additional-mandatory-constraints).
 
+## Security validation (Phase 7C)
+
+Use .NET SDK 10.0.403+; the project targets serviced .NET/ASP.NET Core 10.0.14.
+`python3 scripts/test-security.py` runs the security regressions against one owned
+disposable PostgreSQL container; `--all` runs the full backend suite and migration checks.
+`python3 scripts/security-audit.py --gitleaks /path/to/gitleaks` checks package advisories,
+repository history/source secrets and private-file ignore rules. See the
+[security validation report](docs/phase-7c-security-validation.md) for the authorization
+matrix, approved all-device logout and independent absence approval, image findings,
+CI, and required pilot deployment hardening. Existing development/demo databases
+must never be used as security-test targets.
+
 ## Browser workflow tests (Phase 7B)
 
 The Playwright suite starts one owned PostgreSQL 17 container, a real Kestrel backend,

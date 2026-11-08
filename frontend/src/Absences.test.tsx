@@ -7,7 +7,8 @@ import { api } from "./api";
 import type { Absence, AbsenceReport } from "./absences";
 vi.mock("./api", () => ({ api: vi.fn() }));
 let admin = false;
-vi.mock("./auth", () => ({ useAuth: () => ({ user: { roles: admin ? ["ADMIN"] : ["EMPLOYEE"] } }) }));
+let actorId = "approver";
+vi.mock("./auth", () => ({ useAuth: () => ({ user: { id: actorId, roles: admin ? ["ADMIN"] : ["EMPLOYEE"] } }) }));
 const mocked = vi.mocked(api);
 let requests: Absence[];
 let report: AbsenceReport;
@@ -17,7 +18,7 @@ const request: Absence = {
   replacesId: null, version: 1, createdAt: "2026-11-01T10:00:00Z", updatedAt: "2026-11-01T10:00:00Z", decision: null, unresolvedConflicts: []
 };
 beforeEach(() => {
-  admin = false; mocked.mockReset(); requests = [structuredClone(request)]; report = { token: "conflicts", items: [] };
+  admin = false; actorId = "approver"; mocked.mockReset(); requests = [structuredClone(request)]; report = { token: "conflicts", items: [] };
   mocked.mockImplementation(async (path, method = "GET") => {
     if (method !== "GET") return requests[0];
     if (path.endsWith("/conflicts")) return report;
@@ -26,6 +27,14 @@ beforeEach(() => {
   });
 });
 function page(manage = false) { return render(<MemoryRouter><Absences manage={manage} /></MemoryRouter>); }
+it("requires another approver for personal proposals while preserving decisions on teammates' requests", async () => {
+  actorId = "employee";
+  requests.push({ ...structuredClone(request), id: "teammate-request", userId: "teammate", employeeName: "עמית לצוות" });
+  page(true);
+  expect(await screen.findByText("בקשה אישית מחייבת החלטה של מאשר אחר.")).toBeInTheDocument();
+  expect(screen.getAllByRole("button", { name: "בדיקה והחלטה" })).toHaveLength(1);
+  expect(within(screen.getByRole("article", { name: "בקשת היעדרות דנה כהן" })).queryByRole("button", { name: "בדיקה והחלטה" })).not.toBeInTheDocument();
+});
 it("submits inclusive one-time absence dates and displays pending as a warning only in Hebrew RTL", async () => {
   const { container } = page();
   expect(await screen.findByText("טרם אושרה — אינה חוסמת שיבוץ.")).toBeInTheDocument();

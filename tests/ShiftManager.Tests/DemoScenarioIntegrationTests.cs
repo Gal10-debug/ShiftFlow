@@ -26,7 +26,7 @@ public sealed class DemoScenarioIntegrationTests
         await admin.OpenAsync();
         await using (var cmd = new NpgsqlCommand($"CREATE DATABASE \"{name}\"", admin)) await cmd.ExecuteNonQueryAsync();
         var connection = new NpgsqlConnectionStringBuilder(database.GetConnectionString()) { Database = name, Host = "127.0.0.1", Pooling = false }.ConnectionString;
-        WebApplicationFactory<Program> Factory() => new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Testing")
+        WebApplicationFactory<Program> Factory() => new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Testing").WithIsolatedTestKeys()
             .UseSetting("ConnectionStrings:Database", connection).ConfigureServices(services =>
             {
                 var worker = services.FirstOrDefault(d => d.ServiceType == typeof(IHostedService) && d.ImplementationType == typeof(GenerationWorker));

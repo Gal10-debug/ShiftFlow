@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Require the serviced runtime shipped with the selected .NET 10 SDK. -->
+    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
+  </PropertyGroup>
+</Project>

@@ -32,7 +32,7 @@ public sealed partial class SchedulingTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         await database.StartAsync();
-        factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Development")
+        factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Development").WithIsolatedTestKeys()
             .UseSetting("ConnectionStrings:Database", database.GetConnectionString())
             .ConfigureServices(s => { s.RemoveAll<TimeProvider>(); s.AddSingleton<TimeProvider>(clock); }));
         using var scope = factory.Services.CreateScope();
@@ -104,7 +104,7 @@ public sealed partial class SchedulingTests : IAsyncLifetime
             Assert.Equal("צוות לילה", (await db.Set<ShiftTypeDefinition>().SingleAsync(x => x.Id == rows[0].Id)).Name);
         }
         // A fresh web host against the same database never resets names or settings.
-        await using var restarted = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Development").UseSetting("ConnectionStrings:Database", database.GetConnectionString()));
+        await using var restarted = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.UseEnvironment("Development").WithIsolatedTestKeys().UseSetting("ConnectionStrings:Database", database.GetConnectionString()));
         using var scope2 = restarted.Services.CreateScope();
         Assert.Equal("צוות לילה", (await scope2.ServiceProvider.GetRequiredService<SchedulingService>().List()).Single(x => x.Id == rows[0].Id).Name);
         var configuration = await scope2.ServiceProvider.GetRequiredService<IAutomaticSchedulingConfiguration>().GetConfiguration();
