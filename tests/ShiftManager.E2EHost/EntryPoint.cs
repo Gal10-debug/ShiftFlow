@@ -90,6 +90,7 @@ internal sealed class FixedClock : TimeProvider
 
 internal sealed class E2EFactory(string connection, Fixtures fixtures, string token) : WebApplicationFactory<global::Program>
 {
+    private readonly PerformanceProbe performance = new();
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseContentRoot(Path.Combine(Directory.GetCurrentDirectory(), "src", "ShiftManager"));
@@ -102,12 +103,13 @@ internal sealed class E2EFactory(string connection, Fixtures fixtures, string to
             services.RemoveAll<TimeProvider>(); services.AddSingleton<TimeProvider, FixedClock>();
             services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(
                 Environment.GetEnvironmentVariable("SHIFTFLOW_E2E_PRIVATE")!, "keys"))).SetApplicationName("ShiftFlow.E2E." + fixtures.Run);
-            services.AddSingleton<IStartupFilter>(new ControlEndpoints(fixtures, token));
+            services.AddSingleton<IStartupFilter>(new ControlEndpoints(fixtures, token, connection, performance));
+            services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(performance));
         });
     }
 }
 
-internal sealed class ControlEndpoints(Fixtures fixtures, string token) : IStartupFilter
+internal sealed class ControlEndpoints(Fixtures fixtures, string token, string connection, PerformanceProbe performance) : IStartupFilter
 {
     public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
     {
@@ -116,16 +118,24 @@ internal sealed class ControlEndpoints(Fixtures fixtures, string token) : IStart
             // Each independent fixture gets its own rate-limit partition. The real
             // ten-attempt policy still applies inside each browser test.
             ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse($"127.1.{fixtures.Epoch / 250}.{fixtures.Epoch % 250 + 1}");
+            if (fixtures.Pilot && int.TryParse(ctx.Request.Headers["X-E2E-Actor"], out var actor) && actor is >= 1 and <= 29)
+                ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse($"127.2.{fixtures.Epoch % 250}.{actor}");
             var proxyProof = ctx.Request.Path == "/api/__e2e/ready";
             if (!ctx.Request.Path.StartsWithSegments("/__e2e") && !proxyProof) { await proceed(); return; }
             if (!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(ctx.Request.Headers["X-E2E-Control"].ToString()), Encoding.UTF8.GetBytes(token)))
             { ctx.Response.StatusCode = 404; return; }
             if ((ctx.Request.Path == "/__e2e/ready" || proxyProof) && ctx.Request.Method == "GET")
                 await ctx.Response.WriteAsJsonAsync(new { fixtures.Run, fixtures.Ready });
+            else if (ctx.Request.Path == "/__e2e/performance" && ctx.Request.Method == "GET")
+                await ctx.Response.WriteAsJsonAsync(await performance.Report(connection));
+            else if (ctx.Request.Path == "/__e2e/metrics" && ctx.Request.Method == "GET")
+                await ctx.Response.WriteAsJsonAsync(performance.Snapshot());
+            else if (ctx.Request.Path == "/__e2e/performance" && ctx.Request.Method == "DELETE")
+            { performance.Clear(); ctx.Response.StatusCode = 200; await ctx.Response.WriteAsJsonAsync(new { cleared = true }); }
             else if (ctx.Request.Path == "/__e2e/reset" && ctx.Request.Method == "POST")
             {
                 var profile = ctx.Request.Query["profile"].ToString();
-                if (profile is not ("empty" or "published" or "qualified" or "shortage")) { ctx.Response.StatusCode = 400; return; }
+                if (profile is not ("empty" or "published" or "qualified" or "shortage" or "pilot")) { ctx.Response.StatusCode = 400; return; }
                 await fixtures.Reset(ctx.RequestServices, profile);
                 await ctx.Response.WriteAsJsonAsync(new { fixtures.Run });
             }
@@ -153,6 +163,7 @@ internal sealed class Fixtures(string run, string connection, string password)
     public string Run => run;
     public bool Ready { get; private set; }
     public int Epoch { get; private set; }
+    public bool Pilot { get; private set; }
     private readonly SemaphoreSlim gate = new(1);
     public static Guid User(int n) => Guid.Parse($"71000000-0000-0000-0000-{n:000000000000}");
     public static Guid Row(int n) => Guid.Parse($"40000000-0000-0000-0000-{n:000000000000}");
@@ -163,6 +174,7 @@ internal sealed class Fixtures(string run, string connection, string password)
         try
         {
             Ready = false;
+            Pilot = profile == "pilot";
             Epoch++;
             EntryPoint.Guard(run, connection, Environment.GetEnvironmentVariable("SHIFTFLOW_E2E_TOKEN")!, password);
             using var scope = services.CreateScope(); var sp = scope.ServiceProvider;
@@ -183,15 +195,17 @@ internal sealed class Fixtures(string run, string connection, string password)
                 if (!await roles.RoleExistsAsync(role)) Check(await roles.CreateAsync(new IdentityRole<Guid>(role)));
             var users = sp.GetRequiredService<UserManager<ApplicationUser>>();
             string[] names = ["מנהל מערכת", "ראש צוות", "סגן צוות", "עובדת אלף", "עובד בית", "מוסמכת גימל", "ראש אחר", "עובד אחר", "כניסה ראשונה"];
-            for (var i = 1; i <= names.Length; i++)
+            for (var i = 1; i <= (profile == "pilot" ? 29 : names.Length); i++)
             {
-                var parts = names[i - 1].Split(' ');
+                var parts = i <= names.Length ? names[i - 1].Split(' ') : new[] { "עובד", i.ToString(System.Globalization.CultureInfo.InvariantCulture) };
                 var u = new ApplicationUser { Id = User(i), UserName = "e2e-" + i, FirstName = parts[0], LastName = parts[1],
                     IsShiftLeadQualified = i is 4 or 6 or 8, MustChangePassword = i == 9 };
                 Check(await users.CreateAsync(u, password)); Check(await users.AddToRoleAsync(u, i == 1 ? "ADMIN" : "EMPLOYEE"));
             }
             var teams = await db.Set<OrganizationalTeam>().OrderBy(t => t.Slot).ToArrayAsync();
             foreach (var i in Enumerable.Range(2, 8)) db.Add(new TeamMembership { UserId = User(i), TeamId = teams[i is 7 or 8 ? 1 : 0].Id });
+            if (profile == "pilot")
+                foreach (var i in Enumerable.Range(10, 20)) db.Add(new TeamMembership { UserId = User(i), TeamId = teams[0].Id });
             await db.SaveChangesAsync();
             teams[0].LeaderUserId = User(2); teams[0].DeputyUserId = User(3); teams[1].LeaderUserId = User(7);
             var period = new SchedulePeriod { Id = Guid.Parse("72000000-0000-0000-0000-000000000001"), Year = 2031, Month = 1 };
@@ -201,6 +215,13 @@ internal sealed class Fixtures(string run, string connection, string password)
                 row.RequiredEmployees = row.Slot == 26 ? (profile == "shortage" ? 12 : 1) : 0;
                 row.IncludeInAutomaticScheduling = row.Slot == 26;
                 if (row.Slot == 26) { row.Name = "משמרת בדיקה"; row.RequiresShiftLeadQualification = profile is "qualified" or "shortage"; row.TimeRange = ShiftTimeRange.DAY; row.Period = ShiftType.DAY; }
+                if (profile == "pilot")
+                {
+                    row.Semantic = "ORDINARY"; row.TimeRange = ShiftTimeRange.DAY; row.Period = ShiftType.DAY;
+                    row.AssignmentMode = AssignmentMode.Automatic;
+                    row.RequiredEmployees = row.Slot is >= 26 and <= 35 ? 1 : 0;
+                    row.IncludeInAutomaticScheduling = row.RequiredEmployees > 0;
+                }
             }
             await db.SaveChangesAsync();
             var admin = (await users.FindByIdAsync(User(1).ToString()))!;
@@ -210,6 +231,39 @@ internal sealed class Fixtures(string run, string connection, string password)
             // and all window invariants are created exactly as in the admin UI.
             await sp.GetRequiredService<AvailabilityService>().Configure(2031, 1,
                 new(new FixedClock().GetUtcNow().AddDays(-1), DateTimeOffset.Parse("2030-12-31T20:00:00Z")), principal);
+            if (profile == "pilot")
+            {
+                await sp.GetRequiredService<AvailabilityService>().Configure(2031, 2,
+                    new(new FixedClock().GetUtcNow().AddDays(-1), DateTimeOffset.Parse("2031-01-31T20:00:00Z")), principal);
+                await sp.GetRequiredService<AvailabilityService>().SetState(2031, 2, true, principal);
+                // Deterministic weekday work: no overlaps, nights or weekend allocations.
+                // Only this claimed disposable database is populated.
+                var runId = Guid.Parse("73000000-0000-0000-0000-000000000001");
+                db.Add(new SchedulingRun { Id = runId, Year = 2031, Month = 1, SavedByUserId = User(1),
+                    SavedAt = new FixedClock().GetUtcNow().UtcDateTime, SolverStatus = "FIXTURE", InputFingerprint = "pilot-fixture" });
+                var shifts = await db.Set<Shift>().Where(s => s.SchedulePeriodId == period.Id && s.ShiftType == ShiftType.DAY).ToDictionaryAsync(s => s.ShiftDate);
+                foreach (var row in await db.Set<ShiftTypeDefinition>().Where(r => r.Slot >= 26 && r.Slot <= 35).ToArrayAsync())
+                foreach (var day in Enumerable.Range(1, 31))
+                {
+                    var date = new DateOnly(2031, 1, day);
+                    if (date.DayOfWeek is DayOfWeek.Friday or DayOfWeek.Saturday) continue;
+                    var shift = shifts[date];
+                    var cell = new SchedulingCell { ShiftTypeDefinitionId = row.Id, SchedulePeriodId = period.Id,
+                        Date = date, StartsAt = shift.StartsAt, EndsAt = shift.EndsAt, RequiredEmployees = 1,
+                        ConfigurationVersion = row.Version, SchedulingRunId = runId };
+                    db.Add(cell);
+                    db.Add(new ShiftAssignment { Cell = cell, ShiftId = shift.Id, UserId = User(10 + (row.Slot - 26) * 2 + day % 2), GeneratedByRunId = runId });
+                }
+                foreach (var i in Enumerable.Range(0, 100))
+                    db.Add(new AbsenceRequest { UserId = User(10 + i % 20), Status = "APPROVED", Reason = "VACATION",
+                        StartDate = new(2030, 11, 1 + i / 20), EndDate = new(2030, 11, 1 + i / 20),
+                        CreatedAt = new FixedClock().GetUtcNow().UtcDateTime, UpdatedAt = new FixedClock().GetUtcNow().UtcDateTime });
+                await db.SaveChangesAsync();
+                var review = sp.GetRequiredService<ScheduleReviewService>();
+                var r = await review.Review(2031, 1, principal);
+                r = await review.Acknowledge(2031, 1, new(r.Token), principal);
+                await review.Publish(2031, 1, "PRELIMINARY", new(r.Token, true, true, "בסיס בדיקת ביצועים"), principal);
+            }
             if (profile is "published" or "qualified")
             {
                 var review = sp.GetRequiredService<ScheduleReviewService>();

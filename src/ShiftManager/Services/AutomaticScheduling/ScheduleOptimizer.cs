@@ -5,7 +5,8 @@ using ShiftManager.Api;
 using ShiftManager.Domain;
 namespace ShiftManager.Services.AutomaticScheduling;
 
-public sealed record OptimizationResult(string Status, int ProvenObjectives, GeneratedCell[] Cells, OptimizationStageResult[]? Stages = null);
+public sealed record OptimizationResult(string Status, int ProvenObjectives, GeneratedCell[] Cells, OptimizationStageResult[]? Stages = null,
+    double ModelBuildSeconds = 0);
 public interface IScheduleOptimizer
 {
     OptimizationResult Solve(SchedulingProblem problem, double seconds, CancellationToken ct);
@@ -141,6 +142,7 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
         var diagnostics = stages.Select(s => new OptimizationStageResult(s.Name, "NOT_RUN", null, null, 0, false)).ToArray();
         var proven = 0; var status = "TIMEOUT";
         Dictionary<(int Cell, int Employee), bool>? best = null;
+        var modelBuildSeconds = watch.Elapsed.TotalSeconds;
         for (var stage = 0; stage < stages.Length; stage++)
         {
             var objective = stages[stage].Expression;
@@ -175,7 +177,7 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
                 break;
             }
         }
-        if (best is null) return new(status, proven, [], diagnostics);
+        if (best is null) return new(status, proven, [], diagnostics, modelBuildSeconds);
         if (proven == stages.Length) status = "OPTIMAL";
         var cells = p.Cells.Select((c, ci) => new GeneratedCell(c.DefinitionId, c.Date, c.Start, c.End, c.Required,
             fixedWork.Where(w => w.DefinitionId == c.DefinitionId && w.Date == c.Date).Select(w => new ScheduledEmployee(w.UserId, p.Employees.Single(e => e.Id == w.UserId).Name, true, w.Lead, w.AssignmentId, w.Note))
@@ -186,6 +188,6 @@ public sealed class ScheduleOptimizer : IScheduleOptimizer
         if (p.ExceedsCapacity(completed)) throw new ApiException("STAFFING_EXCEEDED", 409);
         var finalViolations = SchedulingRules.Violations(completed, p.Year, p.Month);
         if (finalViolations.Length > 0) throw new ApiException(finalViolations[0].Code, 409);
-        return new(status, proven, cells, diagnostics);
+        return new(status, proven, cells, diagnostics, modelBuildSeconds);
     }
 }

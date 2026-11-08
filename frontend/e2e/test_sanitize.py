@@ -36,6 +36,14 @@ class ArtifactSecurityTests(unittest.TestCase):
     def test_connection_strings_are_scrubbed(self):
         self.assertEqual("Host=127.0.0.1;Password=[REDACTED];Database=e2e", Sanitizer().text("Host=127.0.0.1;Password=hidden-value;Database=e2e"))
 
+    def test_cached_replacements_invalidate_when_new_escaped_secrets_are_discovered(self):
+        sanitizer = Sanitizer(["initial-secret"])
+        self.assertEqual("[REDACTED]", sanitizer.text("initial-secret"))
+        secret = 'new-\\secret-"quoted"'
+        sanitizer.discover({"password": secret})
+        self.assertEqual("[REDACTED] [REDACTED]", sanitizer.text(secret + " " + json.dumps(secret)[1:-1]))
+        self.assertEqual("[REDACTED]", sanitizer.text("initial-secret"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -17,7 +17,7 @@ public sealed class SchedulingStressTests(ITestOutputHelper output)
         ("moderate-absences", 2026, 11), ("severe-shortage", 2026, 11),
         ("insufficient-leads", 2026, 11), ("widespread-absences", 2026, 11), ("studies", 2026, 11),
         ("reserve-duty", 2026, 11), ("overlapping-restrictions", 2026, 11), ("heavily-constrained", 2026, 11),
-        ("variable-headcount", 2026, 11), ("year-boundary", 2027, 1), ("spring-dst", 2026, 3), ("autumn-dst", 2026, 10)
+        ("variable-headcount", 2026, 11), ("mixed-priorities", 2026, 11), ("year-boundary", 2027, 1), ("spring-dst", 2026, 3), ("autumn-dst", 2026, 10)
     }.Select(s => new object[] { s.Item1, s.Item2, s.Item3 });
 
     [Theory, MemberData(nameof(Scenarios))]
@@ -45,9 +45,11 @@ public sealed class SchedulingStressTests(ITestOutputHelper output)
         var report = new { Stages = result.Stages, Scenario = scenario, Year = year, Month = month, SchedulingValidationScenarios.Seed,
             Employees = p.Employees.Length, Cells = p.Cells.Length, Required = p.Cells.Sum(c => c.Required),
             ApprovedAbsences = p.ApprovedAbsences!.Length, Blocks = p.Preferences.Length, Protected = p.Work.Count(w => !w.Replaceable),
-            BudgetSeconds = seconds, ElapsedSeconds = watch.Elapsed.TotalSeconds, result.Status, result.ProvenObjectives,
+            BudgetSeconds = seconds, ElapsedSeconds = watch.Elapsed.TotalSeconds, result.ModelBuildSeconds, result.Status, result.ProvenObjectives,
+            ProcessPeakWorkingSetBytes = Process.GetCurrentProcess().PeakWorkingSet64,
             Termination = result.Status == "OPTIMAL" ? "All objectives proven" : "Shared budget: incumbent; later objectives unproven",
             Filled = result.Cells.Sum(c => c.Employees.Length), Missing = result.Cells.Sum(c => c.Shortage),
+            CoverageCriticalHighNormal = PriorityOptimizationTests.Coverage(p, result.Cells),
             Violations = violations, AssignmentHash = Hash(result), EmployeesMetrics = metrics };
         var json = JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true });
         output.WriteLine(json);
