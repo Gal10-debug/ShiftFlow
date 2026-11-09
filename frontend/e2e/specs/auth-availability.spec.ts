@@ -1,4 +1,4 @@
-import { test, expect, login, logout, api, raw, userId } from "../fixtures";
+import { test, expect, login, logout, api, raw, userId, absence } from "../fixtures";
 import type { Availability } from "../../src/availability";
 
 test("Fixture controls require their run secret and refuse unknown profiles without changing records", async ({ page, request }) => {
@@ -22,7 +22,7 @@ test("Authentication rejects bad credentials, persists a session, and revokes it
   await login(page, 4);
   await expect(page).toHaveURL(/\/employee$/);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "הזמינות שלי", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "אילוצי השיבוץ שלי", exact: true })).toBeVisible();
   await logout(page);
   expect((await raw(page, "/auth/me")).status()).toBe(401);
   await page.goto("/my-schedule");
@@ -57,36 +57,51 @@ test("Initial password change gates application access and persists the new pass
   await expect(page).toHaveURL(/\/employee$/);
 });
 
-test("Administrator opens and closes the window; valid availability survives reload and overflow never persists", async ({ page }) => {
+test("Delegated constraints survive window closure, worker review and deputy correction while absences remain self-service", async ({ page }) => {
   await login(page, 1);
   await page.goto("/availability-admin");
   await page.getByLabel("חודש", { exact: true }).fill("2031-01");
   await page.getByRole("button", { name: "פתיחת הגשה", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("נפתח");
-  await logout(page); await login(page, 4);
-  await page.getByRole("combobox", { name: "חודש", exact: true }).selectOption("2031/1");
+  await logout(page); await login(page, 2);
+  await page.getByRole("combobox", { name: "בחירת עובד", exact: true }).selectOption(userId(4));
   for (const day of [5, 6, 7]) await page.getByRole("combobox", { name: `0${day}/01/2031 יום 07:00–19:00`, exact: true }).selectOption("BLOCKED");
   await page.getByRole("button", { name: "הגש זמינות", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("הזמינות הוגשה בהצלחה");
-  await page.reload();
-  for (const day of [5, 6, 7]) await expect(page.getByRole("combobox", { name: `0${day}/01/2031 יום 07:00–19:00`, exact: true })).toHaveValue("BLOCKED");
-  const before = await api<Availability>(page, "/availability/2031/1");
+  await expect(page.getByRole("status").filter({ hasText: "הזמינות הוגשה בהצלחה" })).toBeVisible();
+  const path = `/team-availability/employees/${userId(4)}/2031/1`;
+  const before = await api<Availability>(page, path);
   await page.getByRole("combobox", { name: "08/01/2031 יום 07:00–19:00", exact: true }).selectOption("BLOCKED");
-  await expect(page.getByText("חריגה ממגבלת 3 החסימות בשבוע. יש להסיר חסימות לפני ההגשה.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText("חריגה ממגבלת 3 החסימות");
   await expect(page.getByRole("button", { name: "עדכן זמינות", exact: true })).toBeDisabled();
-  const invalid = await raw(page, "/availability/2031/1", "PUT", { expectedVersion: before.version,
+  const invalid = await raw(page, path, "PUT", { expectedVersion: before.version,
     selections: [5, 6, 7, 8].map(day => ({ date: `2031-01-0${day}`, shiftType: "DAY", state: "BLOCKED" })) });
   expect(invalid.status()).toBe(400);
   expect((await invalid.json()).code).toBe("WEEKLY_BLOCK_LIMIT");
+  expect((await api<Availability>(page, path)).selections).toEqual(before.selections);
+  await page.reload(); await logout(page); await login(page, 4);
+  await expect(page.getByRole("heading", { name: "אילוצי השיבוץ שלי", exact: true })).toBeVisible();
+  await expect(page.getByText("את האילוצים מזינים ראש הצוות או סגן ראש הצוות. אם מצאת טעות, יש לפנות אליהם לצורך תיקון.", { exact: true })).toBeVisible();
+  const shift = page.getByRole("combobox", { name: "05/01/2031 יום 07:00–19:00", exact: true });
+  await expect(shift).toHaveValue("BLOCKED"); await expect(shift).toBeDisabled();
+  await expect(page.getByRole("button", { name: /הגש זמינות|עדכן זמינות|ביטול שינויים/ })).toHaveCount(0);
+  for (const method of ["POST", "PUT", "DELETE"]) {
+    expect((await raw(page, "/availability/2031/1", method, { expectedVersion: before.version, selections: [] })).status()).toBe(method === "DELETE" ? 404 : 403);
+  }
   expect((await api<Availability>(page, "/availability/2031/1")).selections).toEqual(before.selections);
-  await page.reload(); await logout(page); await login(page, 1);
+  await logout(page); await login(page, 1);
   await page.goto("/availability-admin"); await page.getByLabel("חודש", { exact: true }).fill("2031-01");
   await page.getByRole("button", { name: "סגירת הגשה", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("נסגר");
+  await logout(page); await login(page, 3);
+  await page.getByRole("combobox", { name: "בחירת עובד", exact: true }).selectOption(userId(4));
+  await page.getByRole("combobox", { name: "05/01/2031 יום 07:00–19:00", exact: true }).selectOption("PREFERRED");
+  await page.getByRole("button", { name: "עדכן זמינות", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "הזמינות עודכנה בהצלחה" })).toBeVisible();
   await logout(page); await login(page, 4);
-  await expect(page.getByText("חלון ההגשה סגור. הזמינות מוצגת לקריאה בלבד.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "05/01/2031 יום 07:00–19:00", exact: true })).toBeDisabled();
-  expect((await raw(page, "/availability/2031/1", "PUT", { expectedVersion: before.version, selections: [] })).status()).toBe(409);
+  await expect(shift).toHaveValue("PREFERRED"); await expect(shift).toBeDisabled();
+  await absence(page, "בקשת היעדרות עצמאית לאחר עדכון אילוצים");
+  const requests = await api<{ status: string }[]>(page, "/absences/mine");
+  expect(requests).toHaveLength(1); expect(requests[0].status).toBe("PENDING");
 });
 
 for (const actor of [2, 3]) {
@@ -95,7 +110,7 @@ for (const actor of [2, 3]) {
     await page.getByRole("combobox", { name: "בחירת עובד", exact: true }).selectOption(userId(4));
     await page.getByRole("combobox", { name: "05/01/2031 יום 07:00–19:00", exact: true }).selectOption("PREFERRED");
     await page.getByRole("button", { name: "הגש זמינות", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("הזמינות הוגשה בהצלחה");
+    await expect(page.getByRole("status").filter({ hasText: "הזמינות הוגשה בהצלחה" })).toBeVisible();
     await page.reload();
     await page.getByRole("combobox", { name: "בחירת עובד", exact: true }).selectOption(userId(4));
     await expect(page.getByRole("combobox", { name: "05/01/2031 יום 07:00–19:00", exact: true })).toHaveValue("PREFERRED");

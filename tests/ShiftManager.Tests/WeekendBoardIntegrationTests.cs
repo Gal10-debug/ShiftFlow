@@ -102,8 +102,8 @@ public sealed partial class SchedulingTests
     {
         var (admin,definition,r) = await PairSetup(); using (admin)
         {
-            await ConfigureWindow(admin,open:true); using var employee = await Login("employee");
-            await Send(employee,"/api/availability/2026/10",Choices(0,3),"POST"); r = await Review(admin);
+            await ConfigureWindow(admin,open:true); await SetupTeam(admin); using var deputy = await Login("coordinator");
+            Assert.Equal(HttpStatusCode.Created, (await Send(deputy,Delegated(ids["employee"]),Choices(0,3),"POST")).StatusCode); r = await Review(admin);
             var candidates = (await admin.GetFromJsonAsync<CandidateResponse[]>($"{ReviewPath}/candidates?definitionId={definition}&date=2026-10-02"))!;
             var candidate = candidates.Single(c => c.UserId == ids["employee"]);
             Assert.False(candidate.Eligible); Assert.Contains("HARD_BLOCK_CONFLICT",candidate.Reasons);

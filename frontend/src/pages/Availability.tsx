@@ -6,7 +6,6 @@ import AvailabilityCalendar from "../components/AvailabilityCalendar";
 import {
   av,
   instant,
-  isWindowOpen,
   monthLabel,
   selectionsMap,
   weekCounts,
@@ -16,7 +15,11 @@ import {
   type Selection,
 } from "../availability";
 
-export default function Availability({ targetId }: { targetId?: string }) {
+export default function Availability({ targetId, onPeriodChange, onSaved }: {
+  targetId?: string;
+  onPeriodChange?: (period: string) => void;
+  onSaved?: () => void;
+}) {
   const base = targetId ? `/team-availability/employees/${targetId}` : "/availability";
   const [periods, setPeriods] = useState<Period[]>([]);
   const [selected, setSelected] = useState("");
@@ -26,7 +29,6 @@ export default function Availability({ targetId }: { targetId?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [now, setNow] = useState(Date.now());
   const saved = data ? selectionsMap(data.selections) : {};
   const normalized = (value: Record<string, Preference>) =>
     JSON.stringify(
@@ -85,7 +87,6 @@ export default function Availability({ targetId }: { targetId?: string }) {
   useEffect(() => {
     if (!selected) return;
     let alive = true;
-    const tick = window.setInterval(() => setNow(Date.now()), 1000);
     const poll = window.setInterval(() => {
       if (busyRef.current) return;
       const generation = generationRef.current;
@@ -109,7 +110,6 @@ export default function Availability({ targetId }: { targetId?: string }) {
     return () => {
       alive = false;
       window.clearInterval(poll);
-      window.clearInterval(tick);
     };
   }, [selected, base]);
   useEffect(() => {
@@ -134,11 +134,14 @@ export default function Availability({ targetId }: { targetId?: string }) {
       document.removeEventListener("click", link, true);
     };
   }, [dirty]);
-  const open = !!data && (!!targetId || isWindowOpen(data.window, now));
+  useEffect(() => {
+    if (selected) onPeriodChange?.(selected);
+  }, [selected, onPeriodChange]);
+  const open = !!data && !!targetId;
   const overflow =
     data && Object.values(weekCounts(data, choices)).some((count) => count > 3);
   async function submit() {
-    if (!data || busy) return;
+    if (!targetId || !data || busy) return;
     setBusy(true);
     busyRef.current = true;
     generationRef.current++;
@@ -159,6 +162,7 @@ export default function Availability({ targetId }: { targetId?: string }) {
       setData(value);
       setChoices(selectionsMap(value.selections));
       setSuccess(data.submitted ? av.updated : av.success);
+      onSaved?.();
     } catch (e) {
       setError(message(e));
       if (e instanceof Error && e.message === "WINDOW_CLOSED")
@@ -168,7 +172,6 @@ export default function Availability({ targetId }: { targetId?: string }) {
     } finally {
       busyRef.current = false;
       setBusy(false);
-      setNow(Date.now());
     }
   }
   return (
@@ -178,7 +181,7 @@ export default function Availability({ targetId }: { targetId?: string }) {
           <span className="eyebrow">{he.workspace}</span>
           <h1>{targetId ? "עריכת זמינות עובד" : av.title}</h1>
           {targetId && <p>ניתן לערוך גם כשהחלון סגור. השינויים נשמרים רק בהגשה מפורשת ומתועדים בהיסטוריה.</p>}
-          <p className="muted">{av.intro}</p>
+          <p className="muted">{targetId ? av.intro : av.employeeGuidance}</p>
         </div>
         {!!periods.length && (
           <label className="field">
@@ -229,7 +232,7 @@ export default function Availability({ targetId }: { targetId?: string }) {
             </div>
           </div>
           <p className="availability-help">{av.limit}</p>
-          {!open && <p className="notice">{av.readOnly}</p>}
+          {!data.submitted && <p className="notice">{av.noSubmission}</p>}
           {overflow && (
             <p className="notice error" role="alert">
               {av.overflow}
@@ -244,7 +247,7 @@ export default function Availability({ targetId }: { targetId?: string }) {
               setSuccess("");
             }}
           />
-          <div className="availability-actions">
+          {targetId && <div className="availability-actions">
             <button
               className="primary"
               disabled={!open || busy || !!overflow}
@@ -272,7 +275,7 @@ export default function Availability({ targetId }: { targetId?: string }) {
                   ? av.submitted
                   : av.notSubmitted}
             </span>
-          </div>
+          </div>}
         </>
       )}
     </section>

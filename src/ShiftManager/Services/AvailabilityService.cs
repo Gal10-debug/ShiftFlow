@@ -124,8 +124,9 @@ public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider cl
             }
         }
     }
+    // Retain legacy personal routes with an explicit denial, including direct service calls.
     public Task<AvailabilityResponse> Submit(int year, int month, SubmitAvailabilityRequest input, ClaimsPrincipal actor, bool update) =>
-        Retry(() => SubmitOnce(year, month, input, actor, update));
+        Task.FromException<AvailabilityResponse>(new ApiException("FORBIDDEN", 403));
 
     public Task<AvailabilityResponse> SubmitDelegated(int year, int month, Guid target, SubmitAvailabilityRequest input, ClaimsPrincipal actor, bool update) =>
         Retry(() => SubmitOnce(year, month, input, actor, update, target));
@@ -265,13 +266,22 @@ public sealed class AvailabilityService(ApplicationDbContext db, TimeProvider cl
         return await Summary(year, month);
     }
 
-    public async Task<WindowSummaryResponse> Summary(int year, int month)
+    public async Task<WindowSummaryResponse> Summary(int year, int month, ClaimsPrincipal? delegatedActor = null)
     {
         MonthStart(year, month);
         await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
         var period = await db.Set<SchedulePeriod>().AsNoTracking().Include(x => x.AvailabilityWindow).SingleOrDefaultAsync(x => x.Year == year && x.Month == month);
+        Guid? actorId = null;
+        if (delegatedActor is not null)
+        {
+            actorId = await teams.Actor(delegatedActor);
+            if (await teams.IsAdministrator(actorId.Value)) throw new ApiException("ADMIN_NOT_TEAM_MEMBER", 403);
+            if (!await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == actorId || t.DeputyUserId == actorId))
+                throw new ApiException("FORBIDDEN", 403);
+        }
         var employees = await (from u in db.Users.AsNoTracking()
-            where u.IsActive && !(from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id where ur.UserId == u.Id && r.NormalizedName == "ADMIN" select ur).Any() && !db.Set<OrganizationalTeam>().Any(t => t.LeaderUserId == u.Id) && (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id
+            where (!actorId.HasValue || (from m in db.Set<TeamMembership>() join t in db.Set<OrganizationalTeam>() on m.TeamId equals t.Id
+                where m.UserId == u.Id && (t.LeaderUserId == actorId || t.DeputyUserId == actorId) select m).Any()) && u.IsActive && !(from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id where ur.UserId == u.Id && r.NormalizedName == "ADMIN" select ur).Any() && !db.Set<OrganizationalTeam>().Any(t => t.LeaderUserId == u.Id) && (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id
                 where ur.UserId == u.Id && r.NormalizedName == "EMPLOYEE" select ur).Any()
             orderby u.LastName, u.FirstName, u.Id
             select new { u.Id, u.FirstName, u.LastName }).ToArrayAsync();

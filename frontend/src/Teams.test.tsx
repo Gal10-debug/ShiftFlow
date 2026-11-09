@@ -32,6 +32,8 @@ beforeEach(() => {
       if (method !== "GET") submitted = true;
       return { userId: "employee", year: 2026, month: 10, version: submitted ? 1 : 0, submitted, lastSubmittedAt: null, selections: [], weeks: [], window: { status: "CLOSED", administrativeState: "CLOSED", opensAt: null, closesAt: null } };
     }
+    if (path === "/team-availability/2026/10") return { year: 2026, month: 10, eligibleCount: 2, submittedCount: submitted ? 1 : 0,
+      employees: [{ userId: "employee", submitted }, { userId: "deputy", submitted: false }] };
     return teams;
   });
 });
@@ -81,6 +83,8 @@ it("allows editing closed window but writes only after explicit submission", asy
   await user.click(screen.getByRole("button", { name: av.submit }));
   await waitFor(() => expect(mock).toHaveBeenCalledWith("/team-availability/employees/employee/2026/10", "POST", { expectedVersion: 0, selections: [{ date: "2026-10-01", shiftType: "DAY", state: "BLOCKED" }] }));
   expect(await screen.findByText(av.success)).toBeInTheDocument();
+  expect(await screen.findByText(/1 מתוך 2 עובדים עם אילוצים רשומים/)).toBeVisible();
+  expect(screen.getByRole("option", { name: `דנה כהן — ${av.submitted}` })).toBeVisible();
 });
 it("shows unauthorized state without rendering other team data", async () => {
   denied = true; render(<TeamAvailability />);

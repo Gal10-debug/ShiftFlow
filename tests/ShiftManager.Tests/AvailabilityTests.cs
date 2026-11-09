@@ -45,6 +45,18 @@ public sealed class AvailabilityTests : IAsyncLifetime
             Assert.True((await users.CreateAsync(user, Password)).Succeeded);
             Assert.True((await users.AddToRoleAsync(user, role)).Succeeded); ids[name] = user.Id;
         }
+        var team = await db.Set<OrganizationalTeam>().OrderBy(t => t.Slot).FirstAsync();
+        db.AddRange(new TeamMembership { UserId = ids["other"], TeamId = team.Id },
+            new TeamMembership { UserId = ids["employee"], TeamId = team.Id });
+        await db.SaveChangesAsync();
+        team.LeaderUserId = ids["other"];
+        await db.SaveChangesAsync();
+    }
+    // Business-rule tests use the representative; personal reads still use the worker.
+    private async Task<HttpResponseMessage> Record(string path, object body, string method = "PUT")
+    {
+        using var leader = await Login("other");
+        return await Send(leader, path.Replace("/api/availability/", $"/api/team-availability/employees/{ids["employee"]}/"), body, method);
     }
     public async Task DisposeAsync() { if (factory is not null) await factory.DisposeAsync(); await database.DisposeAsync(); }
     private HttpClient Client() => factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), AllowAutoRedirect = false });
@@ -84,15 +96,15 @@ public sealed class AvailabilityTests : IAsyncLifetime
     {
         await Open(); using var employee = await Login();
         Assert.False((await employee.GetFromJsonAsync<AvailabilityResponse>("/api/availability/2026/10"))!.Submitted);
-        var first = await Send(employee, "/api/availability/2026/10", Input(), "POST");
+        var first = await Record("/api/availability/2026/10", Input(), "POST");
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         var submitted = (await first.Content.ReadFromJsonAsync<AvailabilityResponse>())!;
         Assert.True(submitted.Submitted); Assert.NotNull(submitted.LastSubmittedAt); Assert.Equal(1, submitted.Version); Assert.Empty(submitted.Selections);
         clock.Now = clock.Now.AddMinutes(2);
-        Assert.Equal(HttpStatusCode.OK, (await Send(employee, "/api/availability/2026/10", Input(1, Pick("2026-10-25"), Pick("2026-10-26", state: "PREFERRED")))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Record("/api/availability/2026/10", Input(1, Pick("2026-10-25"), Pick("2026-10-26", state: "PREFERRED")))).StatusCode);
         var current = (await employee.GetFromJsonAsync<AvailabilityResponse>("/api/availability/2026/10"))!;
         Assert.Equal(2, current.Version); Assert.Equal(2, current.Selections.Length); Assert.True(current.LastSubmittedAt > submitted.LastSubmittedAt);
-        Assert.Equal(HttpStatusCode.OK, (await Send(employee, "/api/availability/2026/10", Input(2))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Record("/api/availability/2026/10", Input(2))).StatusCode);
         current = (await employee.GetFromJsonAsync<AvailabilityResponse>("/api/availability/2026/10"))!;
         Assert.True(current.Submitted); Assert.Empty(current.Selections);
         using var scope = factory.Services.CreateScope();
@@ -106,10 +118,10 @@ public sealed class AvailabilityTests : IAsyncLifetime
         for (var count = 0; count <= 3; count++)
         {
             var rows = Enumerable.Range(0, count).Select(i => Pick($"2026-10-{25 + i}")).ToArray();
-            var result = await Send(employee, "/api/availability/2026/10", Input(count, rows), count == 0 ? "POST" : "PUT");
+            var result = await Record("/api/availability/2026/10", Input(count, rows), count == 0 ? "POST" : "PUT");
             Assert.True(result.IsSuccessStatusCode);
         }
-        var failure = await Send(employee, "/api/availability/2026/10", Input(4, Enumerable.Range(25, 4).Select(d => Pick($"2026-10-{d}")).ToArray()));
+        var failure = await Record("/api/availability/2026/10", Input(4, Enumerable.Range(25, 4).Select(d => Pick($"2026-10-{d}")).ToArray()));
         Assert.Equal(HttpStatusCode.BadRequest, failure.StatusCode);
         var error = (await failure.Content.ReadFromJsonAsync<ApiError>())!;
         Assert.Equal("WEEKLY_BLOCK_LIMIT", error.Code);
@@ -122,10 +134,10 @@ public sealed class AvailabilityTests : IAsyncLifetime
     public async Task Cross_month_replacement_counts_other_month_and_excludes_own_old_blocks()
     {
         await Open(2026, 9); await Open(); using var employee = await Login();
-        Assert.True((await Send(employee, "/api/availability/2026/9", Input(0, Pick("2026-09-30"), Pick("2026-09-30", "NIGHT")), "POST")).IsSuccessStatusCode);
-        Assert.True((await Send(employee, "/api/availability/2026/10", Input(0, Pick("2026-10-01")), "POST")).IsSuccessStatusCode);
-        Assert.True((await Send(employee, "/api/availability/2026/10", Input(1, Pick("2026-10-02")))).IsSuccessStatusCode);
-        await Error(await Send(employee, "/api/availability/2026/10", Input(2, Pick("2026-10-02"), Pick("2026-10-03"))), "WEEKLY_BLOCK_LIMIT");
+        Assert.True((await Record("/api/availability/2026/9", Input(0, Pick("2026-09-30"), Pick("2026-09-30", "NIGHT")), "POST")).IsSuccessStatusCode);
+        Assert.True((await Record("/api/availability/2026/10", Input(0, Pick("2026-10-01")), "POST")).IsSuccessStatusCode);
+        Assert.True((await Record("/api/availability/2026/10", Input(1, Pick("2026-10-02")))).IsSuccessStatusCode);
+        await Error(await Record("/api/availability/2026/10", Input(2, Pick("2026-10-02"), Pick("2026-10-03"))), "WEEKLY_BLOCK_LIMIT");
         var current = (await employee.GetFromJsonAsync<AvailabilityResponse>("/api/availability/2026/10"))!;
         Assert.Equal("2026-10-02", current.Selections.Single().Date.ToString("yyyy-MM-dd"));
         Assert.Equal(2, current.Weeks.Single(x => x.StartsOn == new DateOnly(2026, 9, 27)).OtherMonthBlocks);
@@ -136,8 +148,8 @@ public sealed class AvailabilityTests : IAsyncLifetime
     {
         await Open(2026, 9); await Open(); using var first = await Login(); using var second = await Login();
         var results = await Task.WhenAll(
-            Send(first, "/api/availability/2026/9", Input(0, Pick("2026-09-30"), Pick("2026-09-30", "NIGHT")), "POST"),
-            Send(second, "/api/availability/2026/10", Input(0, Pick("2026-10-01"), Pick("2026-10-01", "NIGHT")), "POST"));
+            Record("/api/availability/2026/9", Input(0, Pick("2026-09-30"), Pick("2026-09-30", "NIGHT")), "POST"),
+            Record("/api/availability/2026/10", Input(0, Pick("2026-10-01"), Pick("2026-10-01", "NIGHT")), "POST"));
         Assert.Single(results, r => r.IsSuccessStatusCode);
         await Error(Assert.Single(results, r => !r.IsSuccessStatusCode), "WEEKLY_BLOCK_LIMIT");
         using var scope = factory.Services.CreateScope();
@@ -148,32 +160,28 @@ public sealed class AvailabilityTests : IAsyncLifetime
     public async Task Concurrent_same_month_updates_have_one_winner_and_stale_versions_conflict()
     {
         await Open(); using var one = await Login(); using var two = await Login();
-        Assert.True((await Send(one, "/api/availability/2026/10", Input(), "POST")).IsSuccessStatusCode);
-        var results = await Task.WhenAll(Send(one, "/api/availability/2026/10", Input(1, Pick("2026-10-25"))), Send(two, "/api/availability/2026/10", Input(1, Pick("2026-10-26"))));
+        Assert.True((await Record("/api/availability/2026/10", Input(), "POST")).IsSuccessStatusCode);
+        var results = await Task.WhenAll(Record("/api/availability/2026/10", Input(1, Pick("2026-10-25"))), Record("/api/availability/2026/10", Input(1, Pick("2026-10-26"))));
         Assert.Single(results, r => r.IsSuccessStatusCode);
         await Error(Assert.Single(results, r => !r.IsSuccessStatusCode), "CONFLICT", HttpStatusCode.Conflict);
-        await Error(await Send(one, "/api/availability/2026/10", Input(), "POST"), "CONFLICT", HttpStatusCode.Conflict);
+        await Error(await Record("/api/availability/2026/10", Input(), "POST"), "CONFLICT", HttpStatusCode.Conflict);
     }
 
     [PostgresFact]
-    public async Task Time_range_manual_closing_and_reopening_are_enforced_without_losing_submission()
+    public async Task Window_states_remain_visible_and_delegated_edits_do_not_require_an_open_window()
     {
         await Open(); using var employee = await Login(); using var admin = await Login("admin");
         var path = "/api/admin/availability/2026/10";
-        Assert.True((await Send(admin, path, new WindowRequest(clock.Now.AddHours(1), clock.Now.AddHours(2)))).IsSuccessStatusCode);
+        await Send(admin, path, new WindowRequest(clock.Now.AddHours(1), clock.Now.AddHours(2)));
         Assert.Equal("SCHEDULED", (await employee.GetFromJsonAsync<AvailabilityResponse>("/api/availability/2026/10"))!.Window.Status);
-        await Error(await Send(employee, "/api/availability/2026/10", Input(), "POST"), "WINDOW_CLOSED", HttpStatusCode.Conflict);
-        clock.Now = clock.Now.AddHours(1);
-        Assert.True((await Send(employee, "/api/availability/2026/10", Input(), "POST")).IsSuccessStatusCode);
-        clock.Now = clock.Now.AddHours(1); // Exclusive deadline.
-        await Error(await Send(employee, "/api/availability/2026/10", Input(1)), "WINDOW_CLOSED", HttpStatusCode.Conflict);
-        Assert.True((await Send(admin, path + "/state", new { isOpen = false })).IsSuccessStatusCode);
-        Assert.True((await Send(admin, path, new WindowRequest(clock.Now.AddDays(-1), clock.Now.AddDays(1)))).IsSuccessStatusCode);
-        await Error(await Send(employee, "/api/availability/2026/10", Input(1)), "WINDOW_CLOSED", HttpStatusCode.Conflict);
-        Assert.True((await Send(admin, path + "/state", new { isOpen = true })).IsSuccessStatusCode);
-        Assert.True((await Send(employee, "/api/availability/2026/10", Input(1))).IsSuccessStatusCode);
-        Assert.True((await Send(admin, path + "/state", new { isOpen = false })).IsSuccessStatusCode);
-        await Error(await Send(employee, "/api/availability/2026/10", Input(2)), "WINDOW_CLOSED", HttpStatusCode.Conflict);
+        Assert.Equal(HttpStatusCode.Created, (await Record("/api/availability/2026/10", Input(), "POST")).StatusCode);
+        clock.Now = clock.Now.AddHours(2);
+        Assert.Equal("EXPIRED", (await employee.GetFromJsonAsync<AvailabilityResponse>("/api/availability/2026/10"))!.Window.Status);
+        Assert.Equal(HttpStatusCode.OK, (await Record("/api/availability/2026/10", Input(1))).StatusCode);
+        await Send(admin, path + "/state", new WindowStateRequest(false));
+        Assert.Equal(HttpStatusCode.OK, (await Record("/api/availability/2026/10", Input(2))).StatusCode);
+        await Send(admin, path, new WindowRequest(clock.Now.AddDays(-1), clock.Now.AddDays(1)));
+        await Send(admin, path + "/state", new WindowStateRequest(true));
         Assert.True((await employee.GetFromJsonAsync<AvailabilityResponse>("/api/availability/2026/10"))!.Submitted);
     }
 
@@ -181,11 +189,11 @@ public sealed class AvailabilityTests : IAsyncLifetime
     public async Task Admin_summary_distinguishes_all_available_missing_and_ineligible_employees()
     {
         await Open(); using var employee = await Login(); using var admin = await Login("admin");
-        Assert.True((await Send(employee, "/api/availability/2026/10", Input(), "POST")).IsSuccessStatusCode);
+        Assert.True((await Record("/api/availability/2026/10", Input(), "POST")).IsSuccessStatusCode);
         var result = (await admin.GetFromJsonAsync<WindowSummaryResponse>("/api/admin/availability/2026/10"))!;
-        Assert.Equal(3, result.EligibleCount); Assert.Equal(1, result.SubmittedCount);
+        Assert.Equal(2, result.EligibleCount); Assert.Equal(1, result.SubmittedCount);
         Assert.True(result.Employees.Single(x => x.UserId == ids["employee"]).Submitted);
-        Assert.False(result.Employees.Single(x => x.UserId == ids["other"]).Submitted);
+        Assert.False(result.Employees.Single(x => x.UserId == ids["firstlogin"]).Submitted);
         var detail = (await admin.GetFromJsonAsync<AvailabilityResponse>($"/api/admin/availability/2026/10/employees/{ids["employee"]}"))!;
         Assert.True(detail.Submitted); Assert.Empty(detail.Selections);
         var periods = await employee.GetFromJsonAsync<PeriodResponse[]>("/api/availability/periods");
@@ -214,7 +222,7 @@ public sealed class AvailabilityTests : IAsyncLifetime
     public async Task Deactivation_revokes_availability_access_and_preserves_history()
     {
         await Open(); using var employee = await Login(); using var admin = await Login("admin");
-        Assert.True((await Send(employee, "/api/availability/2026/10", Input(), "POST")).IsSuccessStatusCode);
+        Assert.True((await Record("/api/availability/2026/10", Input(), "POST")).IsSuccessStatusCode);
         Assert.True((await Send(admin, $"/api/users/{ids["employee"]}/status", new { isActive = false }, "PATCH")).IsSuccessStatusCode);
         await Error(await Send(employee, "/api/availability/2026/10", Input(1)), "UNAUTHENTICATED", HttpStatusCode.Unauthorized);
         Assert.True((await admin.GetFromJsonAsync<AvailabilityResponse>($"/api/admin/availability/2026/10/employees/{ids["employee"]}"))!.Submitted);
@@ -226,11 +234,11 @@ public sealed class AvailabilityTests : IAsyncLifetime
     {
         await Open(); using var employee = await Login(); using var admin = await Login("admin");
         foreach (var rows in new[] { new[] { Pick("2026-09-30") }, new[] { Pick("2026-10-01"), Pick("2026-10-01", state: "PREFERRED") }, new[] { Pick("2026-10-01", "INVALID") }, new[] { Pick("2026-10-01", state: "INVALID") } })
-            await Error(await Send(employee, "/api/availability/2026/10", Input(0, rows), "POST"), "VALIDATION_ERROR");
+            await Error(await Record("/api/availability/2026/10", Input(0, rows), "POST"), "VALIDATION_ERROR");
         await Error(await Send(admin, "/api/admin/availability/2026/10", new WindowRequest(clock.Now, clock.Now)), "INVALID_WINDOW_TIME");
         await Error(await Send(admin, "/api/admin/availability/2026/10", new { opensAt = clock.Now }), "VALIDATION_ERROR");
         await Error(await employee.GetAsync("/api/availability/2026/13"), "VALIDATION_ERROR");
-        await Error(await Send(employee, "/api/availability/2026/10", Input(1)), "CONFLICT", HttpStatusCode.Conflict);
+        await Error(await Record("/api/availability/2026/10", Input(1)), "CONFLICT", HttpStatusCode.Conflict);
     }
 
     [PostgresFact]
@@ -249,7 +257,7 @@ public sealed class AvailabilityTests : IAsyncLifetime
     public async Task Hard_block_query_and_database_backstop_prevent_even_direct_admin_assignment()
     {
         await Open(); using var employee = await Login();
-        Assert.True((await Send(employee, "/api/availability/2026/10", Input(0, Pick("2026-10-25")), "POST")).IsSuccessStatusCode);
+        Assert.True((await Record("/api/availability/2026/10", Input(0, Pick("2026-10-25")), "POST")).IsSuccessStatusCode);
         using var scope = factory.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var shift = await db.Set<Shift>().SingleAsync(x => x.ShiftDate == new DateOnly(2026, 10, 25) && x.ShiftType == ShiftType.DAY);
         var query = scope.ServiceProvider.GetRequiredService<IHardBlockQuery>(); Assert.True(await query.IsBlocked(ids["employee"], shift.Id));
@@ -269,7 +277,7 @@ public sealed class AvailabilityTests : IAsyncLifetime
             var shift = await db.Set<Shift>().SingleAsync(x => x.ShiftDate == new DateOnly(2026, 10, 25) && x.ShiftType == ShiftType.DAY);
             db.Add(new ShiftAssignment { ShiftId = shift.Id, UserId = ids["employee"] }); await db.SaveChangesAsync();
         }
-        await Error(await Send(employee, "/api/availability/2026/10", Input(0, Pick("2026-10-25")), "POST"), "SHIFT_ALREADY_ASSIGNED", HttpStatusCode.Conflict);
+        await Error(await Send(employee, "/api/availability/2026/10", Input(0, Pick("2026-10-25")), "POST"), "FORBIDDEN", HttpStatusCode.Forbidden);
         Assert.False((await employee.GetFromJsonAsync<AvailabilityResponse>("/api/availability/2026/10"))!.Submitted);
     }
 
@@ -277,9 +285,9 @@ public sealed class AvailabilityTests : IAsyncLifetime
     public async Task Cross_year_weeks_share_the_same_three_block_limit()
     {
         await Open(2026, 12); await Open(2027, 1); using var employee = await Login();
-        Assert.True((await Send(employee, "/api/availability/2026/12", Input(0, Pick("2026-12-31"), Pick("2026-12-31", "NIGHT")), "POST")).IsSuccessStatusCode);
-        await Error(await Send(employee, "/api/availability/2027/1", Input(0, Pick("2027-01-01"), Pick("2027-01-02")), "POST"), "WEEKLY_BLOCK_LIMIT");
-        Assert.True((await Send(employee, "/api/availability/2027/1", Input(0, Pick("2027-01-01")), "POST")).IsSuccessStatusCode);
+        Assert.True((await Record("/api/availability/2026/12", Input(0, Pick("2026-12-31"), Pick("2026-12-31", "NIGHT")), "POST")).IsSuccessStatusCode);
+        await Error(await Record("/api/availability/2027/1", Input(0, Pick("2027-01-01"), Pick("2027-01-02")), "POST"), "WEEKLY_BLOCK_LIMIT");
+        Assert.True((await Record("/api/availability/2027/1", Input(0, Pick("2027-01-01")), "POST")).IsSuccessStatusCode);
     }
 
     [PostgresFact]
@@ -291,7 +299,7 @@ public sealed class AvailabilityTests : IAsyncLifetime
             Assert.True((await users.AddToRoleAsync((await users.FindByIdAsync(ids["admin"].ToString()))!, "EMPLOYEE")).Succeeded);
         }
         await Open(); using var admin = await Login("admin");
-        await Error(await Send(admin, "/api/availability/2026/10", Input(0, Enumerable.Range(25, 4).Select(d => Pick($"2026-10-{d}")).ToArray()), "POST"), "EMPLOYEE_INELIGIBLE", HttpStatusCode.Conflict);
+        await Error(await Send(admin, "/api/availability/2026/10", Input(0, Enumerable.Range(25, 4).Select(d => Pick($"2026-10-{d}")).ToArray()), "POST"), "FORBIDDEN", HttpStatusCode.Forbidden);
         Assert.False((await admin.GetFromJsonAsync<AvailabilityResponse>("/api/availability/2026/10"))!.Submitted);
     }
 

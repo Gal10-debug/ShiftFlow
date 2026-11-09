@@ -203,8 +203,12 @@ public static class DemoCli
         await availability.SetState(month.Year, month.Month, true, admin);
         foreach (var a in accounts.Where(a => a.Position is not ("leader" or "administrator") && a.Index % 10 != 0))
         {
-            var user = (await users.FindByIdAsync(a.Id.ToString()))!;
-            await availability.Submit(month.Year, month.Month, new(0, DemoPlan.Selections(month, seed, a.Index)), Principal(user, "EMPLOYEE"), false);
+            // Match the delegated production workflow and fresh HTTP request identity map.
+            db.ChangeTracker.Clear();
+            var leaderId = accounts.Single(candidate => candidate.Team == a.Team && candidate.Position == "leader").Id;
+            var leader = (await users.FindByIdAsync(leaderId.ToString()))!;
+            await availability.SubmitDelegated(month.Year, month.Month, a.Id,
+                new(0, DemoPlan.Selections(month, seed, a.Index)), Principal(leader, "EMPLOYEE"), false);
         }
         var summary = await availability.Summary(month.Year, month.Month);
         await File.WriteAllTextAsync(Path.Combine(output, "seed-report.json"), JsonSerializer.Serialize(new { Accounts = 61, Administrators = 1, Leaders = 4, Deputies = 4,

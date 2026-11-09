@@ -109,7 +109,7 @@ public sealed partial class SchedulingTests
         var (admin,d,r) = await ManualSetup(); using(admin)
         {
             await ConfigureWindow(admin,open:true);
-            using var employee = await Login("employee"); await Send(employee,"/api/availability/2026/10",Choices(0,1),"POST"); r=await Review(admin);
+            await SetupTeam(admin); using var deputy = await Login("coordinator"); Assert.Equal(HttpStatusCode.Created, (await Send(deputy,Delegated(ids["employee"]),Choices(0,1),"POST")).StatusCode); r=await Review(admin);
             async Task Expect(string code,int day, Guid? row=null)
             {
                 var response=await Send(admin,ReviewPath+"/assignments",new ManualAssignmentRequest((await Review(admin)).Token,"ASSIGN",null,ids["employee"],row??d,new(2026,10,day)),"POST");

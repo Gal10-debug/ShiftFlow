@@ -409,3 +409,11 @@ coverage at `/statistics`. Both use authorized immutable publications and Phase 
 planned-hours calculations, with explicit unknown durations and publication versions.
 Delegated availability roles receive no additional analytics access. See
 [Phase 8B definitions, API contracts, authorization and validation](docs/phase-8b-statistics-analytics.md).
+
+### Phase 9A — Availability workflow alignment
+
+Employees review their recorded scheduling constraints; team leads and deputies
+enter and correct them through the existing team-scoped editor, including after
+window closure. Absence requests remain employee self-service. See
+[Phase 9A workflow](docs/phase-9a-availability-workflow.md) for current permissions,
+API behavior, validation and pilot considerations.

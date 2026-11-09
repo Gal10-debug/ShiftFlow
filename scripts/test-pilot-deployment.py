@@ -286,7 +286,9 @@ class Validation:
         self.call(self.admin, f"/admin/availability/{self.year}/{self.month}", "PUT", {"opensAt": (now-timedelta(hours=1)).isoformat(), "closesAt": (now+timedelta(days=2)).isoformat()})
         self.call(self.admin, f"/admin/availability/{self.year}/{self.month}/state", "PUT", {"isOpen": True})
         for name in ["deputy", "worker-a", "worker-b", "worker-c"]:
-            self.call(self.clients[name], self.availability, "POST", {"expectedVersion": 0, "selections": []}, 201)
+            self.call(self.clients['leader'], f"/team-availability/employees/{self.users[name]['id']}/{self.year}/{self.month}",
+                      "POST", {"expectedVersion": 0, "selections": []}, 201)
+            self.call(self.clients[name], self.availability, "PUT", {"expectedVersion": 1, "selections": []}, 403)
         day = first
         while day.weekday() in [4,5]: day += timedelta(days=1)
         self.call(self.clients['deputy'], f"/team-availability/employees/{self.users['worker-c']['id']}/{self.year}/{self.month}", "PUT",

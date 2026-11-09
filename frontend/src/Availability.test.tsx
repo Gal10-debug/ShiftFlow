@@ -104,7 +104,7 @@ beforeEach(() => {
         };
         return json(data);
       }
-      if (path === "/api/availability/periods")
+      if (path.endsWith("/periods"))
         return json([
           {
             id: "period",
@@ -121,10 +121,10 @@ beforeEach(() => {
     }),
   );
 });
-function page() {
+function page(delegated = true) {
   return render(
     <MemoryRouter>
-      <AvailabilityPage />
+      <AvailabilityPage targetId={delegated ? "employee" : undefined} />
     </MemoryRouter>,
   );
 }
@@ -134,7 +134,7 @@ async function day(date = "01/10/2026", shift = "DAY") {
   });
 }
 
-it("renders Hebrew RTL, Sunday-first calendar and first submission action", async () => {
+it("renders delegated Hebrew RTL, Sunday-first calendar and first submission action", async () => {
   const view = page();
   expect(await screen.findByRole("button", { name: av.submit })).toBeEnabled();
   expect(view.container.querySelector("section")).toHaveAttribute("dir", "rtl");
@@ -211,18 +211,18 @@ it("shows existing submissions read-only when closed", async () => {
   data.selections = [
     { date: "2026-10-01", shiftType: "DAY", state: "PREFERRED" },
   ];
-  page();
+  page(false);
   expect(await day()).toBeDisabled();
   expect(await day()).toHaveValue("PREFERRED");
-  expect(screen.getByRole("button", { name: av.update })).toBeDisabled();
-  expect(screen.getByText(av.readOnly)).toBeVisible();
+  expect(screen.queryByRole("button", { name: av.update })).not.toBeInTheDocument();
+  expect(screen.getByText(av.employeeGuidance)).toBeVisible();
 });
 it("keeps never-submitted status after closure", async () => {
   data.window.status = "CLOSED";
-  page();
+  page(false);
   expect(await day()).toBeDisabled();
   expect(screen.getAllByText(av.notSubmitted).length).toBeGreaterThan(0);
-  expect(screen.getByRole("button", { name: av.submit })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: av.submit })).not.toBeInTheDocument();
 });
 it("shows Hebrew server validation and affected week without claiming success", async () => {
   failure = "WEEKLY_BLOCK_LIMIT";
@@ -320,4 +320,46 @@ it("allows viewing a legacy submission even when no window has been configured",
   expect(
     screen.getByRole("button", { name: `${av.view} — יעל לוי` }),
   ).toBeDisabled();
+});
+
+for (const submitted of [false, true]) {
+  it(`keeps personal availability read-only in an open window (recorded: ${submitted})`, async () => {
+    data.submitted = submitted;
+    data.selections = submitted ? [
+      { date: "2026-10-01", shiftType: "DAY", state: "BLOCKED" },
+      { date: "2026-10-01", shiftType: "NIGHT", state: "PREFERRED" },
+    ] : [];
+    page(false);
+    expect(await screen.findByRole("heading", { name: av.title })).toBeVisible();
+    expect(await day()).toBeDisabled();
+    expect(await day()).toHaveValue(submitted ? "BLOCKED" : "AVAILABLE");
+    expect(await day("01/10/2026", "NIGHT")).toHaveValue(submitted ? "PREFERRED" : "AVAILABLE");
+    expect(screen.getByText(av.employeeGuidance)).toBeVisible();
+    expect(screen.queryByRole("button", { name: av.submit })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: av.update })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: av.reset })).not.toBeInTheDocument();
+    if (!submitted) expect(screen.getByText(av.noSubmission)).toBeVisible();
+    expect(writes).toHaveLength(0);
+  });
+}
+
+it("lets employees navigate recorded months while every shift remains read-only", async () => {
+  const original = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation(async (url, options) => {
+    if (String(url) === "/api/availability/periods") return json([
+      { id: "oct", year: 2026, month: 10 }, { id: "sep", year: 2026, month: 9 },
+    ]);
+    if (String(url) === "/api/availability/2026/9") return json({ ...data, month: 9, submitted: true,
+      selections: [{ date: "2026-09-01", shiftType: "DAY", state: "BLOCKED" }] });
+    return original(url, options);
+  });
+  const user = userEvent.setup();
+  page(false);
+  await day();
+  await user.selectOptions(screen.getByRole("combobox", { name: av.month }), "2026/9");
+  const september = await day("01/09/2026");
+  expect(september).toHaveValue("BLOCKED");
+  expect(september).toBeDisabled();
+  expect(screen.queryByRole("button", { name: av.submit })).not.toBeInTheDocument();
+  expect(writes).toHaveLength(0);
 });
