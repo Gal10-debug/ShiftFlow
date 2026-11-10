@@ -1,36 +1,86 @@
-# Local database migration audit and approved execution plan
+# Legacy-compatible local database upgrade
 
-Validation date: 2026-11-10. Application baseline: `65d3809` on
-`feature/full-local-docker-environment`. **Nothing in this document authorizes execution
-against the persistent database. Starting it and applying migrations require explicit
-approval.** Scheduling, authorization and migration implementations were not changed.
+The regular database must use the explicit compatibility upgrade below. **Do not run a
+normal `dotnet ef database update` against its current 12-migration baseline.** The
+historical EF migrations contain demo-layout backfills that do not match this database.
+Starting the persistent container and applying the upgrade still require explicit approval.
 
-The source is the stopped `shiftflow-postgres-1` container, database/owner `shiftmanager`,
-volume `shiftflow_postgres-data`. Its PostgreSQL image is preserved exactly:
-`sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24`.
-The applied baseline ends at `20261027224058_AdditionalSchedulingConstraints` (12 migrations).
+## Correction strategy and deployed history
 
-## Audit
+Read-only inspection of a RAM copy of the existing local demo confirmed all 17 migrations,
+including these five, are already applied. The demo's original container and volume were
+not modified. No local pilot deployment exists to inspect; external deployment state is
+not assumed. Historical migration classes, designer models, the current model snapshot,
+and application scheduling code therefore remain byte-for-byte unchanged.
 
-The five pending migrations and their generated [forward SQL](local-migration-up.sql)
-were inspected. The SQL is a review artifact, not an automatic startup script. It contains
-five transaction blocks and updates migration history for each migration. Do not assume a
-failed run leaves every migration unapplied; inspect history before recovery or retry.
+The correction is an **explicit compatibility path for this legacy database**, not a new
+migration or a rewrite of deployed history. `scripts/prepare-local-migrations.py` generates
+[the reviewed SQL](local-migration-up.sql) from EF's five original schema migrations and
+removes exactly the 12 known fixed-ID update statements. It fails on unexpected update,
+history-insert or transaction structure. All schema operations and five history inserts
+are retained. One transaction, migration-history/definition locks, a five-second lock
+limit, a five-minute statement limit and exact baseline checks protect execution.
 
-| Migration | Existing-table changes | Existing-record compatibility and risks | Reversibility |
-| --- | --- | --- | --- |
-| `20261031164800_WeekendBoardNotes` | Adds nullable `ShiftAssignment.Note`, varchar(1000). Changes `ShiftTypeDefinition.Semantic` for stable IDs ending `026` to `ORDINARY`, `016` to `WEEKEND_ON_CALL`; increments both `Version` values. | No rows deleted. Existing notes start null. This **changes classification**, even for renamed rows; old `026` is cleared first to satisfy the existing filtered unique semantic index. A customized conflicting classification could fail the migration. The restored source passed. Published snapshots are not rewritten. | `Down` drops notes and hardcodes the old semantics. It **does not decrement versions** or recover customized old values; not an exact data inverse. |
-| `20261103080334_Phase6AssignmentModes` | Adds non-null `ShiftTypeDefinition.AssignmentMode`, varchar(16), default `Automatic`; stable IDs `012`–`014` become `ManualOnly`. Adds `CK_ShiftTypeDefinition_AssignmentMode`. | All existing rows get valid defaults; existing names, order, staffing and qualification settings are retained. New configuration changes which rows are eligible for future automatic generation. | `Down` drops the check and column; loses assignment-mode configuration. |
-| `20261103081004_Phase6Absences` | Creates four absence tables described below; no existing columns altered or removed. | Empty new tables, no seeding/backfill of requests. New FKs restrict deletion of referenced users/publications/periods once requests exist. Adds immutable decisions trigger/function. Existing auth, availability and schedules are retained. | `Down` removes trigger/function and all four tables, losing requests, decisions, weekdays and conflicts created afterward. |
-| `20261104135940_OperationalControls` | Creates four publication/exchange tables described below; no existing columns altered or removed. | No publication snapshots or existing records rewritten, no exchanges created. Restrictive FKs apply once new rows exist. Existing publications have no new control row initially. | `Down` drops all four tables, losing visibility/deletion controls, exchanges and reservations. |
-| `20261106074419_SchedulingPriority` | Adds non-null `ShiftTypeDefinition.SchedulingPriority`, varchar(16), default `Normal`; stable IDs `001`–`007` become `Critical`. Adds `CK_ShiftTypeDefinition_SchedulingPriority`. | Existing rows receive valid values; names, order, staffing and published snapshots remain intact. Changes priority configuration for future generation. | `Down` drops check and column, losing subsequent priority edits. |
+The script accepts exactly the original 12 migration IDs and 51 existing definitions.
+Already-upgraded or partially upgraded databases are rejected without changes. Existing
+administrator edits in deployed databases are not repaired, normalized or reset. The
+compatibility path is not intended for upgrading demo/pilot or initializing a fresh site.
+The original migration behavior remains available to their established workflows.
 
-No forward migration drops a table/column, truncates/deletes rows, changes an existing
-column's type, or updates Identity credentials. The explicit existing-column data changes
-are the two semantic/version updates. New-column backfills are intentional. DDL takes
-locks, so execute during exclusive local maintenance with app/host development writers
-stopped. Rollback migrations are structurally available but can destroy post-upgrade data;
-prefer the verified backup recovery procedure.
+No migration ID is renamed/deleted. EF recognizes the resulting 17-entry history and
+schema normally. Re-running EF afterward performs no backfills; regression tests verify
+that administrator-set priorities survive. Model/snapshot consistency checks pass because
+customized seed *values* can differ without changing the schema/model definition.
+
+## Root cause and exact corrections
+
+Fixed seed IDs were treated as universally authoritative business meanings even after
+administrators customized their rows. For example, demo slot 16 means weekend on-call,
+but the regular database uses that ID for `שיקום ערב`; its actual `כונן סופש` is slot 26.
+The same mismatch maps Monday shifts to demo manual-only categories and treats seven
+legacy rows as critical regardless of administrator choice.
+
+| Pending migration | Compatible behavior | Existing configuration preserved |
+| --- | --- | --- |
+| `20261031164800_WeekendBoardNotes` | Adds nullable `ShiftAssignment.Note`; omits both semantic/version updates. | All semantic classifications and versions, including `שיקום ערב` = `ORDINARY` and `כונן סופש` = `WEEKEND_ON_CALL`. |
+| `20261103080334_Phase6AssignmentModes` | Adds `AssignmentMode` with `Automatic` default and the original check; omits three `ManualOnly` backfills. | Existing inclusion flags still decide automatic eligibility. Disabled rows remain disabled; the three enabled Monday rows remain automatic. |
+| `20261103081004_Phase6Absences` | All original schema/constraint/trigger operations. | No existing records are modified; four new empty tables. |
+| `20261104135940_OperationalControls` | All original schema/index/FK operations. | No existing snapshots or records are modified; four new empty tables. |
+| `20261106074419_SchedulingPriority` | Adds `SchedulingPriority` with `Normal` default and original check; omits seven `Critical` backfills. | No ID implies criticality in this upgrade. Administrators use the existing UI/API to select `Critical`, `High` or `Normal`. |
+
+All 51 definitions retain names, staffing, order, automatic flags, qualification requirements,
+semantics, time ranges, day/night periods, versions and timestamps. Every existing column
+is compared; the new columns are checked separately. See the complete
+[51-row comparison](local-shift-comparison.md) and [validation results](local-migration-results.md).
+
+New `Automatic` values intentionally preserve the old inclusion flag rather than creating
+manual-only rules from a disabled flag or a legacy ID. No independent authoritative rule
+requires these three Monday rows to become manual-only. The priority column did not exist
+in the source; `Normal` is a neutral initial value, not an override of saved priorities.
+
+## Runtime ID audit and scope
+
+- `ShiftTypeDefinitionConfiguration.HasData` and historical migration snapshots describe
+  the established seeded/demo layout. They are not startup reseeding instructions. Changing
+  them would introduce future model data updates and alter supported layouts; they are retained.
+- Runtime `SchedulingInputs`, `SchedulingService`, the optimizer and frontend use persisted
+  `AssignmentMode`, `SchedulingPriority`, semantic classification and inclusion flags.
+  The priority UI/API already supports all three values and validates authorization/versioning.
+- CP-SAT coverage stages remain Critical, High, Normal, then fairness, preferences and
+  stability. Qualification constraints, absences, team-leader exclusions, hard blocks,
+  overlap limits, quotas and semantic on-call pairing remain intact.
+- Existing documented weekend policy uses stable IDs 2/3/4/5/16, the row-3 staffing exception,
+  and row-8 Saturday exclusion. `PlannedWorkHoursCalculator` also has stable reporting
+  categories for IDs 8/12/13/14. These are existing explicit policies without an admin
+  priority/mode override; they were audited and retained, not generalized or deleted.
+  Their labels reflect the seeded layout and may differ from customized names. Redesigning
+  those policies needs separate business decisions; this task guarantees configuration
+  preservation and removes the conflicting migration backfills, not a new scheduling model.
+- Semantic-based `SIX_NINE` and `WEEKEND_ON_CALL` constraints remain semantic-based. The
+  regular on-call row 26 keeps pairing/weekend rules; row 16 does not acquire them.
+
+Historical `Down` operations are not a safe recovery strategy: they drop new tables/columns
+and `WeekendBoardNotes.Down` can hardcode old semantic values. Use backup recovery instead.
 
 ### New tables and columns
 
@@ -82,95 +132,83 @@ nine secondary indexes, and nine FKs, all `ON DELETE RESTRICT`:
 
 No existing index or constraint is dropped or weakened by these forward migrations.
 
-## Backups and rehearsal
+## Backup-preserving rehearsal
 
-The reusable validation command is:
+The existing backups remain under:
 
-```sh
-python3 scripts/validate-local-migrations.py
+```text
+.local-docker-private/20261110T191529Z-c448e80200b347f9991c31d1f3a70ff7/
 ```
 
-It requires Python 3.11+, Docker Compose supporting `!override`, the built local app image,
-the host .NET 10 build and EF tool. It refuses a running source, verifies regular-project
-ownership/mounts/credentials, checks PostgreSQL 17 clean shutdown metadata, and reads the
-source through a read-only mount. It never starts/stops that persistent container. If a
-future backup would require starting or restarting it, stop and obtain authorization first.
+`cluster.tar` and `shiftmanager.dump` are never overwritten or deleted. The cold image is
+`sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24`.
+The backup root/run directory is 0700; backup and report files are 0600. No backup or real
+account records enter Git or Docker images. Validation artifacts use a new private directory.
 
-Every run creates a new UUID/timestamp directory under ignored `.local-docker-private/`:
+To reproduce, with Python 3.11+, Docker Compose supporting `!override`, .NET 10 and the
+restored EF tool:
 
-- `cluster.tar`: complete consistent cold-cluster backup, including database files and roles;
-- `shiftmanager.dump`: PostgreSQL custom-format logical backup of `shiftmanager`, made from
-  the restored cold backup **before migration**;
-- `cold-backup.json`, `validation.json`: image identity, checksums and results;
-- `before.json`, `after.json`: counts and SHA-256 fingerprints, without raw records;
-- private migration/test diagnostics and disposable Compose override.
+```sh
+dotnet build ShiftManager.slnx -c Release --warnaserror
+python3 -B scripts/prepare-local-migrations.py  # checks; never applies SQL
+python3 -B scripts/local-docker.py build
+python3 -B scripts/validate-local-migrations.py
+python3 -B scripts/test-local-migrations.py
+python3 -B scripts/test-local-docker.py
+npm test --prefix frontend
+npm run build --prefix frontend
+```
 
-The backup root and run directory are mode 0700; backup, report and log files are mode
-0600. The test-only key subdirectory permits the container UID but sits beneath the private
-0700 parent. Backup files are outside the database volume, excluded from Git, and excluded
-from the image build context. Preserve them; do not share them or overwrite older backups.
+The validator checks source ownership/state and both existing backup checksums, restores
+`cluster.tar` into a uniquely named RAM-backed PostgreSQL instance, and restore-tests the
+logical dump into another fresh disposable database. It applies the reviewed compatibility
+SQL only to that restored copy. It compares all old-table fingerprints, all 51 definitions,
+new defaults, history, all FKs and index/constraint validity. It checks EF/model consistency,
+no replay/reseeding, copied-app startup/health/routing/authentication, and no startup writes.
+Additional synthetic integration fixtures use separate disposable databases.
 
-The cold archive is checked for PostgreSQL/control files and unsupported tablespace/WAL
-links, then actually restored into a UUID-named PostgreSQL container with a RAM data mount.
-Its exact original image is used. The logical dump is inspected with `pg_restore --list`,
-restored into a second fresh disposable database and compared against every original table's
-row count and canonical JSON content fingerprint. Only then are the five migrations applied
-to the copied `shiftmanager` database.
+The source volume is mounted only read-only for verification. The original container is
+never started/stopped. After tests, the original cold-volume archive checksum and original
+container state must still match. Backups are rechecked for byte equality. Disposable
+containers/networks are cleaned up; no Docker volumes are deleted.
 
-Comparison covers all existing columns, including password hashes/security stamps, role
-mappings, team leadership/membership, preferences and publication snapshot bytes. It removes
-the three new columns when comparing old-row fingerprints and predicts the exact two
-semantic/version updates. New columns are checked separately; eight new tables must be empty.
-History must retain all 12 old IDs and append exactly the five audited IDs. Every actual FK
-is checked for orphans; constraint validation and index ready/valid/live flags are checked.
+## Approved execution procedure — do not execute yet
 
-The app starts only against the migrated copy. React/SPA routing, health, same-origin CSRF
-API and anonymous authorization are checked. Startup must leave all copied database rows
-unchanged. Backend integration fixtures use additional fresh databases, never the copy
-containing real records. Cleanup removes only the test project's containers/network; no
-Docker volumes are deleted. The source archive is re-read and its checksum compared at the
-end, along with the source container's exact state, to prove it stayed untouched.
+Approval must explicitly cover starting the existing regular PostgreSQL container and
+applying this **compatibility SQL**, not the original EF data backfills. Keep all application
+and host-development writers stopped until data validation finishes. If source data changed
+since the backup, stop and obtain a new reviewed backup/rehearsal first.
 
-Current backup location and actual counts/results are recorded in
-[validation results](local-migration-results.md). No persistent migration has been executed.
-
-## Procedure after explicit approval only
-
-Request approval covering **both starting the existing PostgreSQL container and applying
-these five migrations**. Keep the app and any host-development writers stopped throughout.
-Do not run `scripts/dev.sh setup/migrate`, bare `compose up postgres`, SQL rollback scripts,
-or the reviewed SQL file directly: the base Compose file selects a different database image.
-
-1. Confirm the same feature branch, reviewed code and clean working tree. Check the existing
-   container is still stopped, its image/volume are unchanged, and the backup is current.
-   If records could have changed since the rehearsal, repeat the cold-backup validation first.
-   In the same Bash/Zsh terminal, with shell tracing disabled:
+1. From the reviewed feature branch with a clean working tree, verify backup and SQL hashes:
 
    ```sh
    cd /Users/galzada/VcProjects/ShiftFlow
    set +x
    export BACKUP_DIRECTORY="$PWD/.local-docker-private/20261110T191529Z-c448e80200b347f9991c31d1f3a70ff7"
+   export VALIDATION_DIRECTORY="$PWD/.local-docker-private/20261110T201222Z-f5dfb87cfd4d4a4da3e7616ed3572af0"
    python3 - <<'PY'
    import hashlib, json, os
    from pathlib import Path
-   p = Path(os.environ['BACKUP_DIRECTORY'])
-   result = json.loads((p / 'validation.json').read_text())
-   assert result['status'] == 'passed'
-   for name, key in [('cluster.tar','cluster_tar_sha256'), ('shiftmanager.dump','logical_dump_sha256')]:
-       with (p / name).open('rb') as backup:
-           assert hashlib.file_digest(backup,'sha256').hexdigest() == result[key]
-       assert (p / name).stat().st_mode & 0o077 == 0
-   print('Both backup checksums and restricted file permissions verified.')
+   b = Path(os.environ['BACKUP_DIRECTORY'])
+   r = json.loads((Path(os.environ['VALIDATION_DIRECTORY'])/'validation.json').read_text())
+   assert r['status'] == 'passed' and r['preserved_shift_definitions'] == 51
+   for path, key in [(b/'cluster.tar','cluster_tar_sha256'), (b/'shiftmanager.dump','logical_dump_sha256'),
+                     (Path('docs/local-migration-up.sql'),'compatibility_sql_sha256')]:
+       with path.open('rb') as f: assert hashlib.file_digest(f,'sha256').hexdigest() == r[key]
+   assert all((b/name).stat().st_mode & 0o077 == 0 for name in ('cluster.tar','shiftmanager.dump'))
+   print('Backup and reviewed SQL checksums verified.')
    PY
-   python3 scripts/local-docker.py config
-   python3 scripts/local-docker.py verify
+   python3 -B scripts/prepare-local-migrations.py
+   python3 -B scripts/local-docker.py config
+   python3 -B scripts/local-docker.py verify
    ```
 
-   `verify` is expected to exit nonzero and list **only the five audited migrations**. Any
-   other failure is a stop condition. Confirm no competing PostgreSQL process occupies 5432.
+   `verify` should refuse startup and list exactly the five pending migrations. Any other
+   discrepancy is a stop condition. Preserve the existing `.env` password. No new secret
+   variables are required: the wrapper uses `.env`, and the approved SQL runs inside the
+   verified container as its existing `shiftmanager` user. Do not source `.env` as shell code.
 
-2. **Only after approval**, start the existing container without recreation, then load the
-   connection from the existing ignored `.env` without printing it:
+2. **Only after approval**, start the verified container without recreation and apply SQL:
 
    ```sh
    (
@@ -182,65 +220,48 @@ or the reviewed SQL file directly: the base Compose file selects a different dat
      [ "$migration_health" != healthy ] || break
      sleep 2
    done
-   [ "$migration_health" = healthy ] || { echo 'Database did not become healthy; stop here.'; exit 1; }
-   ConnectionStrings__Database="$(
-     unset POSTGRES_PASSWORD
-     docker compose --project-name shiftflow --env-file .env -f compose.yaml config --format json |
-       node scripts/dev-config.mjs
-   )"
-   export ConnectionStrings__Database
-   export ASPNETCORE_ENVIRONMENT=Development
-   dotnet tool restore
-   dotnet build ShiftManager.slnx -c Release --no-restore --warnaserror
-   dotnet ef database update 20261106074419_SchedulingPriority \
-     --project src/ShiftManager --configuration Release --no-build
-   unset ConnectionStrings__Database
+   [ "$migration_health" = healthy ] || { echo 'Database not healthy; stop here.'; exit 1; }
+   docker exec -i shiftflow-postgres-1 psql -X -U shiftmanager -d shiftmanager \
+     -v ON_ERROR_STOP=1 < docs/local-migration-up.sql
    )
    ```
 
-   This command is pinned to the audited final migration, not any future head. Expected:
-   each of the five IDs is reported as applied, followed by `Done.` and exit status zero.
-   If it fails, stop. Keep the app stopped; inspect restricted diagnostics and history.
-   Do not reset/reseed, downgrade or retry destructive SQL automatically.
+   Expected: `BEGIN`, lock/check/schema operations, five `INSERT 0 1` history results,
+   and final `COMMIT`, with exit status zero. There should be **no UPDATE of shift definitions**.
+   All five migrations commit together; SQL failure rolls back the transaction. A rerun or
+   already-upgraded target is rejected by the history guard. Do not bypass it.
 
-3. Validate **before** app startup:
+3. Before app startup, verify authentication/schema/history and all preserved records:
 
    ```sh
-   python3 scripts/local-docker.py verify
+   python3 -B scripts/local-docker.py verify
    python3 - <<'PY'
    import importlib.util, json, os, subprocess
    from pathlib import Path
-   spec = importlib.util.spec_from_file_location('validation','scripts/validate-local-migrations.py')
+   spec = importlib.util.spec_from_file_location('v','scripts/validate-local-migrations.py')
    v = importlib.util.module_from_spec(spec); spec.loader.exec_module(v)
-   backup = Path(os.environ['BACKUP_DIRECTORY'])
-   before = json.loads((backup / 'before.json').read_text())
-   result = json.loads((backup / 'validation.json').read_text())
+   p = Path(os.environ['VALIDATION_DIRECTORY'])
+   before = json.loads((p/'before.json').read_text())
    def sql(query):
-       cmd = ['docker','exec','-i','shiftflow-postgres-1','psql','-X','-qAt',
-              '-U','shiftmanager','-d','shiftmanager','-v','ON_ERROR_STOP=1']
-       r = subprocess.run(cmd,input='BEGIN READ ONLY;\n'+query+';\nROLLBACK;\n',
-                          text=True,capture_output=True,check=True)
+       r = subprocess.run(['docker','exec','-i','shiftflow-postgres-1','psql','-X','-qAt',
+                           '-U','shiftmanager','-d','shiftmanager','-v','ON_ERROR_STOP=1'],
+                          input='BEGIN READ ONLY;\n'+query+';\nROLLBACK;\n',text=True,capture_output=True,check=True)
        return json.loads(r.stdout)
    tables = sql("SELECT json_agg(tablename ORDER BY tablename) FROM pg_tables WHERE schemaname='public'")
-   after = {t: sql(v.fingerprint_query(t,v.ADDED.get(t,()))) for t in tables}
-   v.compare(before,after,result['expected_definition_fingerprint'])
-   definitions = sql('SELECT json_agg(json_build_object(\'id\',"Id",\'mode\',"AssignmentMode",\'priority\',"SchedulingPriority")) FROM "ShiftTypeDefinition"')
-   manual = {f'40000000-0000-0000-0000-{i:012d}' for i in (12,13,14)}
-   critical = {f'40000000-0000-0000-0000-{i:012d}' for i in range(1,8)}
-   assert all(d['mode'] == ('ManualOnly' if d['id'] in manual else 'Automatic') and
-              d['priority'] == ('Critical' if d['id'] in critical else 'Normal') for d in definitions)
+   after = {t:sql(v.fingerprint_query(t,v.ADDED.get(t,()))) for t in tables}
+   v.compare(before,after)
+   assert sql('SELECT count(*) FROM "ShiftTypeDefinition" WHERE "AssignmentMode" <> \'Automatic\' OR "SchedulingPriority" <> \'Normal\'') == 0
    assert sql('SELECT count(*) FROM "ShiftAssignment" WHERE "Note" IS NOT NULL') == 0
    assert sql("SELECT count(*) FROM pg_constraint WHERE connamespace='public'::regnamespace AND NOT convalidated") == 0
    assert sql("SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid=i.indrelid WHERE c.relnamespace='public'::regnamespace AND NOT (i.indisvalid AND i.indisready AND i.indislive)") == 0
-   print('Existing records, expected configuration changes, new empty tables and schema validity verified.')
+   print('All existing records/51 definitions preserved; defaults, history and schema verified.')
    PY
    ```
 
-   The verification wrapper authenticates and requires no pending/unknown migrations. The
-   comparison must pass against the still-current backup while writers remain stopped.
-   No write-based smoke test or real-account password change belongs in this step.
+   This check must run before ordinary user writes or administrator priority edits.
+   Newly initialized priorities can subsequently be edited through the existing UI/API.
 
-4. Once all validation passes, start Docker normally:
+4. After successful validation, start normally:
 
    ```sh
    python3 scripts/local-docker.py up
@@ -249,18 +270,17 @@ or the reviewed SQL file directly: the base Compose file selects a different dat
    curl --fail http://127.0.0.1:5180/health/ready
    ```
 
-   Open `http://127.0.0.1:5180`. Use existing credentials for ordinary manual use.
-   Shut down without deleting data with `python3 scripts/local-docker.py stop`.
+   Open **http://127.0.0.1:5180**. Stop without deleting data using
+   `python3 scripts/local-docker.py stop`. Normal startup never migrates or seeds.
 
-## Recovery / restoration procedure
+## Recovery
 
-If migration or validation fails, keep the application stopped and preserve the failed
-database and all backups. Do not run `Down`: it would drop added data and cannot exactly
-undo the semantic/version updates. Record the actual migration history and error first.
+If SQL or validation fails, keep writers stopped and preserve the original database,
+backups and private diagnostics. Inspect migration history before any recovery. Do not run
+historical `Down` operations or restore over a running database. The atomic failure regression
+verifies schema, history and every old shift field roll back together.
 
-The following restores the **cold backup to a separate RAM-only recovery container** without
-overwriting the original database, deleting any volume, or publishing a port. It is a
-recovery inspection step; it does not switch the application to an old schema.
+For backup inspection/recovery, restore to a separate RAM-only container, not the original:
 
 ```sh
 export RECOVERY_CONTAINER="shiftflow-recovery-$(date -u +%Y%m%dT%H%M%SZ)-$$"
@@ -276,19 +296,12 @@ docker run -d --name "$RECOVERY_CONTAINER" --network none \
   --entrypoint sh "$RECOVERY_IMAGE" -ec \
   'test ! -e /var/lib/postgresql/data/PG_VERSION; tar -xf /backup/cluster.tar -C /var/lib/postgresql/data; exec /usr/local/bin/docker-entrypoint.sh postgres'
 docker exec "$RECOVERY_CONTAINER" pg_isready -h 127.0.0.1 -U shiftmanager -d shiftmanager
+# Wait for readiness before querying.
 docker exec "$RECOVERY_CONTAINER" psql -X -U shiftmanager -d shiftmanager -v ON_ERROR_STOP=1 \
   -c 'BEGIN READ ONLY; SELECT count(*) FROM "AspNetUsers"; SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY 1; ROLLBACK;'
 ```
 
-Wait for readiness before the final query. Expect eight accounts and the original 12
-migration IDs for the recorded backup. The backup contains original role/password hashes;
-no credential replacement or synthetic seeding is required. The logical backup was also
-restore-tested with `pg_restore --exit-on-error` into a fresh database, with all table
-fingerprints matching. It can be restored to another **new** database with the existing
-`shiftmanager` owner role after a separately reviewed recovery plan.
-
-Any replacement/restoration of the original database or cutover requires separate explicit
-approval. Preserve the failed database for diagnosis and post-backup writes. Do not copy
-cluster files into a running server, delete the persistent volume, or silently point the
-app to the recovery copy. The original-schema backup must be re-migrated after fixing the
-cause before the current application can use it.
+Expect eight accounts and the original 12 migration IDs for the recorded backup. The logical
+backup was also actually restored into a fresh database with matching fingerprints. Any
+replacement of the original database or cutover needs separate approval and a reviewed plan;
+no volume deletion, reset, synthetic demo data or silent replacement is part of recovery.

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Cold-backup and rehearse local migrations. Never starts or writes the source database."""
+"""Rehearse the compatible upgrade from a verified backup; never starts or writes the source."""
+import argparse
 import hashlib
 import importlib.util
 import json
@@ -36,36 +37,41 @@ def quote(identifier):
     return '"' + identifier.replace('"', '""') + '"'
 
 
-def fingerprint_query(table, excluded=(), expected_weekend=False):
+def fingerprint_query(table, excluded=()):
     value = "to_jsonb(t)"
     if excluded:
         value += " - ARRAY[" + ",".join("'" + c.replace("'", "''") + "'" for c in excluded) + "]"
-    if expected_weekend:
-        value = """CASE WHEN "Id" IN ('40000000-0000-0000-0000-000000000016', '40000000-0000-0000-0000-000000000026')
-          THEN to_jsonb(t) || jsonb_build_object('Semantic', CASE WHEN "Id" = '40000000-0000-0000-0000-000000000016'
-            THEN 'WEEKEND_ON_CALL' ELSE 'ORDINARY' END, 'Version', "Version" + 1) ELSE to_jsonb(t) END"""
     return f"""SELECT json_build_object('count',count(*), 'sha256',
       encode(sha256(convert_to(coalesce(string_agg(row::text, E'\\n' ORDER BY row::text COLLATE "C"),''),'UTF8')),'hex'))
       FROM (SELECT {value} AS row FROM public.{quote(table)} t) rows"""
 
 
-def compare(before, after, expected_definitions):
+def compare(before, after):
     require(set(after) - set(before) == NEW_TABLES, "Unexpected new tables")
     require(not set(before) - set(after), "An existing table disappeared")
     for table, original in before.items():
         if table == "__EFMigrationsHistory":
             require(after[table]["count"] == original["count"] + 5, "Migration history count mismatch")
         else:
-            expected = expected_definitions if table == "ShiftTypeDefinition" else original
-            require(after[table] == expected, f"Unexpected record change in {table}")
+            require(after[table] == original, f"Unexpected record change in {table}")
     require(all(after[table]["count"] == 0 for table in NEW_TABLES), "New tables must be empty; no seed data is permitted")
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--backup", type=Path, default=ROOT / ".local-docker-private/20261110T191529Z-c448e80200b347f9991c31d1f3a70ff7",
+                        help="Verified pre-migration backup directory (never overwritten)")
+    args = parser.parse_args()
     os.umask(0o077)
+    backup_directory = args.backup.resolve()
+    manifest = json.loads((backup_directory / "cold-backup.json").read_text())
+    backup_report = json.loads((backup_directory / "validation.json").read_text())
     source = guard.inspect("container", guard.CONTAINER)
     require(source["State"]["Status"] == "exited" and not source["State"]["Running"],
             "Source is not stopped. No source service will be started/stopped by this tool; arrange a reviewed consistent backup.")
+    require(source["Image"] == manifest["postgres_image"]
+            and source["State"]["StartedAt"] == manifest["source_started_at"]
+            and source["State"]["FinishedAt"] == manifest["source_finished_at"], "Source changed since the verified backup")
     env = {**os.environ}
     env.pop("POSTGRES_PASSWORD", None)
     base = ["docker", "compose", "--project-directory", str(ROOT), "--project-name", "shiftflow",
@@ -80,7 +86,7 @@ def main():
     require(not private_root.is_symlink() and private_root.stat().st_mode & 0o077 == 0, "Backup root must be a private directory (0700)")
     directory = private_root / (timestamp + "-" + run_id)
     directory.mkdir(mode=0o700)
-    print("Restricted backup directory: " + str(directory), flush=True)
+    print("Restricted validation directory: " + str(directory), flush=True)
 
     def save(name, value):
         path = directory / name
@@ -102,10 +108,7 @@ def main():
                 "--mount", f"type=volume,src={guard.VOLUME},dst=/source,readonly", source["Image"], "-ec"]
     clean = "test \"$(cat /source/PG_VERSION)\" = 17; test ! -e /source/postmaster.pid; pg_controldata /source | grep -q 'Database cluster state: *shut down$'"
     command(readonly + [clean])
-    archive = directory / "cluster.tar"
-    with archive.open("xb") as output:
-        result = subprocess.run(readonly + [clean + "; tar -cf - -C /source ."], stdout=output, stderr=subprocess.PIPE)
-    require(result.returncode == 0, "Cold backup failed; source was not started")
+    archive = backup_directory / "cluster.tar"
     with tarfile.open(archive) as backup:
         members = {m.name.removeprefix("./"): m for m in backup}
         require("global/pg_control" in members and "PG_VERSION" in members, "Cold backup lacks cluster control data")
@@ -115,10 +118,10 @@ def main():
         with path.open("rb") as input_file:
             return hashlib.file_digest(input_file, "sha256").hexdigest()
     cold_sha = sha(archive)
-    save("cold-backup.json", {"source_container": guard.CONTAINER, "source_volume": guard.VOLUME,
-                             "postgres_image": source["Image"], "source_started_at": source["State"]["StartedAt"],
-                             "source_finished_at": source["State"]["FinishedAt"], "cluster_tar_sha256": cold_sha})
-    print("Cold backup created; original volume mounted read-only and persistent container remains stopped.", flush=True)
+    logical = backup_directory / "shiftmanager.dump"
+    require(cold_sha == manifest["cluster_tar_sha256"] == backup_report["cluster_tar_sha256"]
+            and sha(logical) == backup_report["logical_dump_sha256"], "Existing backup checksum mismatch")
+    print("Existing cold/logical backups verified; neither backup nor persistent container was changed.", flush=True)
     project = "shiftflow-migration-test-" + run_id
     keys = directory / "test-keys"
     keys.mkdir(mode=0o777)
@@ -169,14 +172,9 @@ volumes:
         require(catalog["migrations"][-1] == BASELINE, "Unexpected source baseline")
         tables = json.loads(sql("SELECT json_agg(tablename ORDER BY tablename) FROM pg_tables WHERE schemaname='public'"))
         before = {table: json.loads(sql(fingerprint_query(table))) for table in tables}
-        expected_definitions = json.loads(sql(fingerprint_query("ShiftTypeDefinition", expected_weekend=True)))
+        before_definitions = json.loads(sql('SELECT json_agg(to_jsonb(t) ORDER BY "Slot") FROM "ShiftTypeDefinition" t'))
         save("before.json", before)
-        # Produce a conventional logical backup from the restored cold backup, before migration.
-        logical = directory / "shiftmanager.dump"
-        with logical.open("xb") as output:
-            result = subprocess.run(["docker", "exec", postgres, "pg_dump", "-U", "shiftmanager", "-d", "shiftmanager", "--format=custom"],
-                                    stdout=output, stderr=subprocess.PIPE)
-        require(result.returncode == 0, "Logical backup failed")
+        # Restore-test the existing logical backup; never overwrite previous backup artifacts.
         toc = command(["docker", "exec", "-i", postgres, "pg_restore", "--list"], data=logical.read_bytes(), binary=True)
         require(b"TABLE DATA public AspNetUsers" in toc, "Logical backup has no account data entry")
         command(["docker", "exec", postgres, "createdb", "-U", "shiftmanager", "-T", "template0", "backup_restore_check"])
@@ -189,11 +187,20 @@ volumes:
         require(re.fullmatch(r"127\.0\.0\.1:\d+", port) and port not in ("127.0.0.1:5432", "127.0.0.1:55432"), "Unsafe test port")
         connection = guard.connection_string(db_env).replace("Host=postgres;Port=5432;", "Host=127.0.0.1;Port=" + port.split(":")[1] + ";")
         migration_env = {**env, "ASPNETCORE_ENVIRONMENT": "Development", "ConnectionStrings__Database": connection}
-        output = command(["dotnet", "ef", "database", "update", TARGET, "--project", "src/ShiftManager", "--configuration", "Release", "--no-build"], command_env=migration_env)
+        command(["python3", "-B", "scripts/prepare-local-migrations.py"])
+        plan = (ROOT / "docs/local-migration-up.sql").read_text()
+        output = command(["docker", "exec", "-i", postgres, "psql", "-X", "-U", "shiftmanager", "-d", "shiftmanager",
+                          "-v", "ON_ERROR_STOP=1"], data=plan)
         (directory / "migration.log").write_text(output)
         after_tables = json.loads(sql("SELECT json_agg(tablename ORDER BY tablename) FROM pg_tables WHERE schemaname='public'"))
         after = {table: json.loads(sql(fingerprint_query(table, ADDED.get(table, ())))) for table in after_tables}
-        compare(before, after, expected_definitions)
+        compare(before, after)
+        after_definitions = json.loads(sql('SELECT json_agg(to_jsonb(t) ORDER BY "Slot") FROM "ShiftTypeDefinition" t'))
+        require(len(before_definitions) == len(after_definitions) == 51, "Expected all 51 shift definitions")
+        for old, new in zip(before_definitions, after_definitions):
+            require(all(new[key] == value for key, value in old.items()), "An existing shift field changed")
+            require(new["AssignmentMode"] == "Automatic" and new["SchedulingPriority"] == "Normal", "Unsafe new configuration defaults")
+        save("shift-definitions.json", {"before": before_definitions, "after": after_definitions})
         after_history = json.loads(sql('SELECT json_agg("MigrationId" ORDER BY "MigrationId") FROM "__EFMigrationsHistory"'))
         require(after_history == catalog["migrations"] + PENDING, "Migration history was unexpectedly rewritten")
         checks = json.loads(sql('''SELECT json_build_object(
@@ -201,13 +208,8 @@ volumes:
           'invalid_indexes',(SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid=i.indrelid
             WHERE c.relnamespace='public'::regnamespace AND NOT (i.indisvalid AND i.indisready AND i.indislive)),
           'non_null_added_notes',(SELECT count(*) FROM "ShiftAssignment" WHERE "Note" IS NOT NULL),
-          'wrong_assignment_modes',(SELECT count(*) FROM "ShiftTypeDefinition" WHERE "AssignmentMode" <>
-            CASE WHEN "Id"::text IN ('40000000-0000-0000-0000-000000000012','40000000-0000-0000-0000-000000000013','40000000-0000-0000-0000-000000000014') THEN 'ManualOnly' ELSE 'Automatic' END),
-          'wrong_priorities',(SELECT count(*) FROM "ShiftTypeDefinition" WHERE "SchedulingPriority" <>
-            CASE WHEN "Id"::text IN ('40000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000002',
-              '40000000-0000-0000-0000-000000000003','40000000-0000-0000-0000-000000000004',
-              '40000000-0000-0000-0000-000000000005','40000000-0000-0000-0000-000000000006',
-              '40000000-0000-0000-0000-000000000007') THEN 'Critical' ELSE 'Normal' END))'''))
+          'wrong_assignment_modes',(SELECT count(*) FROM "ShiftTypeDefinition" WHERE "AssignmentMode" <> 'Automatic'),
+          'wrong_priorities',(SELECT count(*) FROM "ShiftTypeDefinition" WHERE "SchedulingPriority" <> 'Normal'))'''))
         require(not any(checks.values()), "Schema or backfill integrity check failed")
         # Check every actual FK for orphan rows, including composite keys and nullable references.
         orphan_queries = sql('''SELECT format('SELECT count(*) FROM %s c WHERE %s AND NOT EXISTS (SELECT 1 FROM %s p WHERE %s)',
@@ -219,7 +221,12 @@ volumes:
           WHERE k.contype='f' AND k.connamespace='public'::regnamespace GROUP BY k.oid,k.conrelid,k.confrelid''').splitlines()
         require(all(sql(query) == "0" for query in orphan_queries), "Foreign key orphan found")
         save("after.json", after)
-        print("Five migrations applied only to the restored copy; row counts, projected fingerprints, backfills, FKs and indexes passed.", flush=True)
+        # EF must recognize the schema/history without replaying the original backfills.
+        command(["dotnet", "ef", "database", "update", TARGET, "--project", "src/ShiftManager", "--configuration", "Release", "--no-build"], command_env=migration_env)
+        command(["dotnet", "ef", "migrations", "has-pending-model-changes", "--project", "src/ShiftManager", "--configuration", "Release", "--no-build"], command_env=migration_env)
+        require(json.loads(sql('SELECT json_agg(to_jsonb(t) ORDER BY "Slot") FROM "ShiftTypeDefinition" t')) == after_definitions,
+                "EF replay changed the preserved configuration")
+        print("Compatible upgrade passed: all 51 definitions unchanged, safe defaults, EF/model consistency, FKs and indexes.", flush=True)
         command(compose + ["up", "-d", "--no-build", "--no-deps", "--wait", "--wait-timeout", "90", "app"])
         app = command(compose + ["ps", "-q", "app"]).strip()
         app_port = command(["docker", "port", app, "8080/tcp"]).strip()
@@ -241,7 +248,7 @@ volumes:
         # Separate fresh per-test databases; no fixtures write to the restored real-record copy.
         command(["docker", "exec", postgres, "createdb", "-U", "shiftmanager", "shiftflow_ci"])
         test_env = {**migration_env, "RUN_POSTGRES_TESTS": "1", "TEST_POSTGRES_CONNECTION_STRING": connection.replace("Database=shiftmanager;", "Database=shiftflow_ci;")}
-        test_filter = "|".join("FullyQualifiedName~" + name for name in ["AuthTests", "TeamIntegrationTests", "AvailabilityTests", "AvailabilityWorkflowIntegrationTests", "SchedulingTests", "PublicationIntegrationTests", "AbsenceIntegrationTests", "ConstraintMigrationTests"])
+        test_filter = "|".join("FullyQualifiedName~" + name for name in ["AuthTests", "TeamIntegrationTests", "AvailabilityTests", "AvailabilityWorkflowIntegrationTests", "SchedulingTests", "PublicationIntegrationTests", "AbsenceIntegrationTests", "ConstraintMigrationTests", "PrioritySchedulingTests", "PriorityOptimizationTests", "AdditionalSchedulingRulesTests", "AbsenceRulesTests", "ModelTests"])
         print("Copied-database app is healthy; running backend integration tests in separate disposable databases.", flush=True)
         tests = command(["dotnet", "test", "tests/ShiftManager.Tests", "-c", "Release", "--no-build", "--no-restore", "--filter", test_filter,
                          "--logger", "console;verbosity=quiet"], command_env=test_env)
@@ -256,9 +263,11 @@ volumes:
         require(source_hash.wait() == 0 and digest.hexdigest() == cold_sha, "Source physical bytes changed during validation")
         final_source = guard.inspect("container", guard.CONTAINER)
         require(final_source["State"] == source["State"] and final_source["Image"] == source["Image"], "Source container state changed")
-        report = {"status": "passed", "backup_directory": str(directory), "postgres_image": source["Image"],
+        require(sha(archive) == cold_sha and sha(logical) == backup_report["logical_dump_sha256"], "An existing backup changed")
+        report = {"status": "passed", "backup_directory": str(backup_directory), "validation_directory": str(directory), "postgres_image": source["Image"],
                   "cluster_tar_sha256": cold_sha, "logical_dump_sha256": sha(logical), "backup_restore_fingerprints_match": True,
-                  "before": before, "after_projected": after, "expected_definition_fingerprint": expected_definitions,
+                  "before": before, "after_projected": after, "preserved_shift_definitions": 51,
+                  "compatibility_sql_sha256": sha(ROOT / "docs/local-migration-up.sql"), "ef_replay_preserves_configuration": True,
                   "migrations_applied_to_copy": PENDING, "schema_checks": checks, "foreign_keys_checked": len(orphan_queries),
                   "copied_database_app_healthy": True, "copied_database_startup_no_record_writes": True,
                   "backend_tests": summary.strip(), "original_volume_bytes_unchanged": True, "original_container_state_unchanged": True}

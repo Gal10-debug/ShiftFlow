@@ -114,35 +114,27 @@ variables, so do not share raw `docker inspect` or resolved `compose config` out
 
 ## Explicit migrations
 
-See the [five-migration audit, backup rehearsal and approved execution plan](local-migration-validation.md)
-and [recorded validation results](local-migration-results.md) before requesting migration approval.
+The existing regular database needs the [legacy compatibility upgrade](local-migration-validation.md),
+not the historical EF backfills. Read [current results](local-migration-results.md) and the
+[comparison of all 51 definitions](local-shift-comparison.md) before requesting approval.
+The demo already has these migrations; its history/configuration is left unchanged.
 
-Pending migrations block `verify` and `up` **before** building or starting persistent
-services. Review the listed migrations and obtain the database owner's approval first.
-Take a verified backup and review the existing migration procedure before applying them.
-Neither this task nor normal local Docker startup grants migration permission.
+**Do not run `dotnet ef database update`, `scripts/dev.sh setup/migrate`, or bare
+`compose up postgres` against the unmigrated regular database.** They can apply the old
+fixed-ID backfills or change its existing PostgreSQL image. The approved runbook instead
+uses the reviewed, atomic compatibility SQL after verifying the backup and target.
 
-After approval, preserve the existing PostgreSQL container and image:
+Pending migrations still block `verify` and `up` before building or starting persistent
+services. Neither this task nor normal startup grants migration permission. After explicit
+approval, the runbook starts the exact verified PostgreSQL container, applies only the five
+schema migrations with safe defaults, validates preservation, then runs:
 
-1. Start that verified container with `docker start shiftflow-postgres-1`.
-2. Load the connection into the current shell without printing credentials:
+```sh
+python3 scripts/local-docker.py up
+```
 
-   ```sh
-   export ConnectionStrings__Database="$(
-     unset POSTGRES_PASSWORD
-     docker compose --project-name shiftflow --env-file .env -f compose.yaml config --format json |
-       node scripts/dev-config.mjs
-   )"
-   dotnet tool restore
-   dotnet ef database update --project src/ShiftManager
-   unset ConnectionStrings__Database
-   ```
-
-3. Rerun `python3 scripts/local-docker.py verify`, then `up`.
-
-Do not use `scripts/dev.sh setup` or `migrate` for this maintenance until its ordinary
-Compose startup's database image change has also been reviewed. Those host-development
-commands call `compose up postgres`, whereas this wrapper preserves the existing image.
+No startup path applies migrations or imports demo data. Existing `.env` credentials,
+database volume and image remain authoritative. No new required runtime variables exist.
 
 ## Environments and troubleshooting
 
@@ -205,7 +197,10 @@ ending at `20261027224058_AdditionalSchedulingConstraints`. Five migrations are 
 - `20261104135940_OperationalControls`
 - `20261106074419_SchedulingPriority`
 
-They were not applied. Regular-stack startup remains blocked until approved maintenance.
+They remain unapplied in the original database. A restored-backup rehearsal of the compatible
+upgrade preserves all 51 definitions, initializes `Automatic`/`Normal`, and verifies existing
+admin controls. See the current results/runbook above; the earlier unmodified-EF rehearsal
+was technically successful but its fixed-ID backfills were unsuitable for the customized rows.
 
 Validation completed: Compose configuration and image build; frontend production build
 and 155 tests; backend Release build with zero warnings; 491 backend correctness tests

@@ -1,36 +1,48 @@
-START TRANSACTION;
-ALTER TABLE "ShiftAssignment" ADD "Note" character varying(1000);
+-- Explicit compatibility upgrade for the reviewed legacy 12-migration baseline.
+-- Historical EF migrations/model remain unchanged: already-upgraded environments are not repaired/reseeded.
+-- Preserves every existing shift field; new AssignmentMode=Automatic and SchedulingPriority=Normal.
+-- Run only after approval, backup verification and writer shutdown. psql must use ON_ERROR_STOP=1.
+BEGIN;
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '5min';
+LOCK TABLE "__EFMigrationsHistory" IN ACCESS EXCLUSIVE MODE;
+LOCK TABLE "ShiftTypeDefinition" IN ACCESS EXCLUSIVE MODE;
+DO $compatibility$
+BEGIN
+    IF (SELECT array_agg("MigrationId"::text ORDER BY "MigrationId") FROM "__EFMigrationsHistory")
+       IS DISTINCT FROM ARRAY[
+        '20261024150456_InitialCreate',
+        '20261024154101_RequirePasswordChange',
+        '20261025205611_AvailabilitySubmissions',
+        '20261026063511_SchedulingBoardShiftTypes',
+        '20261026072225_ShiftTypeTimeRanges',
+        '20261026112320_AutomaticScheduling',
+        '20261026194457_ShiftLeadQualification',
+        '20261026195437_AllowMultipleShiftLeadRows',
+        '20261027112256_TeamManagement',
+        '20261027215951_SchedulePublicationWorkflow',
+        '20261027220339_PublicationAcknowledgments',
+        '20261027224058_AdditionalSchedulingConstraints'
+       ]::text[] THEN
+        RAISE EXCEPTION 'Expected exactly the reviewed 12 migration IDs; no changes applied';
+    END IF;
+    IF (SELECT count(*) FROM "ShiftTypeDefinition") <> 51 THEN
+        RAISE EXCEPTION 'Expected 51 existing shift definitions; no changes applied';
+    END IF;
+END; $compatibility$;
 
-UPDATE "ShiftTypeDefinition" SET "Semantic" = 'ORDINARY', "Version" = "Version" + 1
-WHERE "Id" = '40000000-0000-0000-0000-000000000026';
-UPDATE "ShiftTypeDefinition" SET "Semantic" = 'WEEKEND_ON_CALL', "Version" = "Version" + 1
-WHERE "Id" = '40000000-0000-0000-0000-000000000016';
+ALTER TABLE "ShiftAssignment" ADD "Note" character varying(1000);
 
 INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
 VALUES ('20261031164800_WeekendBoardNotes', '10.0.14');
 
-COMMIT;
-
-START TRANSACTION;
 ALTER TABLE "ShiftTypeDefinition" ADD "AssignmentMode" character varying(16) NOT NULL DEFAULT 'Automatic';
-
-UPDATE "ShiftTypeDefinition" SET "AssignmentMode" = 'ManualOnly'
-WHERE "Id" = '40000000-0000-0000-0000-000000000012';
-
-UPDATE "ShiftTypeDefinition" SET "AssignmentMode" = 'ManualOnly'
-WHERE "Id" = '40000000-0000-0000-0000-000000000013';
-
-UPDATE "ShiftTypeDefinition" SET "AssignmentMode" = 'ManualOnly'
-WHERE "Id" = '40000000-0000-0000-0000-000000000014';
 
 ALTER TABLE "ShiftTypeDefinition" ADD CONSTRAINT "CK_ShiftTypeDefinition_AssignmentMode" CHECK ("AssignmentMode" IN ('Automatic','ManualOnly'));
 
 INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
 VALUES ('20261103080334_Phase6AssignmentModes', '10.0.14');
 
-COMMIT;
-
-START TRANSACTION;
 CREATE TABLE "AbsenceRequest" (
     "Id" uuid NOT NULL,
     "UserId" uuid NOT NULL,
@@ -126,9 +138,6 @@ FOR EACH ROW EXECUTE FUNCTION immutable_absence_decision();
 INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
 VALUES ('20261103081004_Phase6Absences', '10.0.14');
 
-COMMIT;
-
-START TRANSACTION;
 CREATE TABLE "PublicationControl" (
     "PublicationId" uuid NOT NULL,
     "Hidden" boolean NOT NULL,
@@ -201,31 +210,7 @@ CREATE INDEX "IX_ShiftExchangeReservation_ShiftExchangeId" ON "ShiftExchangeRese
 INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
 VALUES ('20261104135940_OperationalControls', '10.0.14');
 
-COMMIT;
-
-START TRANSACTION;
 ALTER TABLE "ShiftTypeDefinition" ADD "SchedulingPriority" character varying(16) NOT NULL DEFAULT 'Normal';
-
-UPDATE "ShiftTypeDefinition" SET "SchedulingPriority" = 'Critical'
-WHERE "Id" = '40000000-0000-0000-0000-000000000001';
-
-UPDATE "ShiftTypeDefinition" SET "SchedulingPriority" = 'Critical'
-WHERE "Id" = '40000000-0000-0000-0000-000000000002';
-
-UPDATE "ShiftTypeDefinition" SET "SchedulingPriority" = 'Critical'
-WHERE "Id" = '40000000-0000-0000-0000-000000000003';
-
-UPDATE "ShiftTypeDefinition" SET "SchedulingPriority" = 'Critical'
-WHERE "Id" = '40000000-0000-0000-0000-000000000004';
-
-UPDATE "ShiftTypeDefinition" SET "SchedulingPriority" = 'Critical'
-WHERE "Id" = '40000000-0000-0000-0000-000000000005';
-
-UPDATE "ShiftTypeDefinition" SET "SchedulingPriority" = 'Critical'
-WHERE "Id" = '40000000-0000-0000-0000-000000000006';
-
-UPDATE "ShiftTypeDefinition" SET "SchedulingPriority" = 'Critical'
-WHERE "Id" = '40000000-0000-0000-0000-000000000007';
 
 ALTER TABLE "ShiftTypeDefinition" ADD CONSTRAINT "CK_ShiftTypeDefinition_SchedulingPriority" CHECK ("SchedulingPriority" IN ('Critical','High','Normal'));
 
