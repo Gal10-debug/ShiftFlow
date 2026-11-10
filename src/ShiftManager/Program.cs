@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -31,7 +32,9 @@ if (pilot is not null && bootstrap) { Console.Error.WriteLine("Use the target-co
 if (demo) builder.Configuration["ConnectionStrings:Database"] = Environment.GetEnvironmentVariable("SHIFTFLOW_DEMO_CONNECTION") ?? "";
 builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(
     builder.Configuration.GetConnectionString("Database") ?? "Host=localhost;Database=shiftmanager;Username=shiftmanager"));
-builder.Services.AddDataProtection();
+var dataProtection = builder.Services.AddDataProtection();
+if (builder.Environment.IsDevelopment() && builder.Configuration["LocalDocker:KeysDirectory"] is { Length: > 0 } localKeys)
+    dataProtection.PersistKeysToFileSystem(new DirectoryInfo(localKeys)).SetApplicationName("ShiftFlow.LocalDocker");
 builder.Services.AddHealthChecks().AddCheck<DatabaseReadiness>("database", tags: ["ready"]);
 builder.Services.AddScoped<DatabaseReadiness>();
 builder.Services.AddIdentityCore<ApplicationUser>(options =>

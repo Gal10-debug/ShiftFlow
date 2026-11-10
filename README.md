@@ -10,6 +10,17 @@ Manual assignment editing, publication and task-allocation features remain defer
 
 ## Local setup
 
+For the full application in Docker, see [Full local Docker environment](docs/local-docker.md).
+It reuses the existing regular database and builds React plus .NET in one app container:
+
+```sh
+python3 scripts/local-docker.py up
+```
+
+Open **http://127.0.0.1:5180**. Startup verifies database ownership and refuses pending
+migrations; it never upgrades the existing database image, applies migrations or seeds data.
+The host development workflow below remains available.
+
 Requirements: .NET 10 SDK, a supported Node.js LTS (24 recommended; minimum 22.12), npm,
 Docker Desktop and Bash (macOS/Linux). Start Docker Desktop first.
 
