@@ -1,6 +1,6 @@
 import { performance } from "node:perf_hooks";
 import { setTimeout as pause } from "node:timers/promises";
-import { test, expect, control, login, periodPath } from "../fixtures";
+import { test, expect, control, login, periodPath, userId } from "../fixtures";
 import type { APIRequestContext, APIResponse } from "@playwright/test";
 import type { Review } from "../../src/publication";
 import type { Generation } from "../../src/scheduling";
@@ -119,7 +119,7 @@ test("Pilot API concurrency, write workflows, query plans and monthly board rend
     await measure("publication-history", 1, () => send(admin, periodPath + "/publications"));
     for (const concurrency of levels) {
       const versions = await Promise.all(employees.slice(0, concurrency).map(c => checked<{ version: number }>(c, "/availability/2031/2")));
-      await measure("availability-submit", concurrency, worker => send(employees[worker], "/availability/2031/2", versions[worker].version ? "PUT" : "POST",
+      await measure("availability-submit", concurrency, worker => send(leader, `/team-availability/employees/${userId(worker + 10)}/2031/2`, versions[worker].version ? "PUT" : "POST",
         { expectedVersion: versions[worker].version, selections: [] }), false);
       const requests: { id: string; version: number }[] = [];
       await measure("absence-create", concurrency, async worker => {

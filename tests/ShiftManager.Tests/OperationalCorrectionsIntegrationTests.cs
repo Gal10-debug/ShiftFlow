@@ -72,7 +72,7 @@ public sealed partial class SchedulingTests
         Assert.False(me.IsTeamLeader); Assert.False(me.CanManageTeamAvailability);
         Assert.Equal(HttpStatusCode.Forbidden, (await legacy.GetAsync("/api/team-availability/members")).StatusCode);
         await ConfigureWindow(legacy, open: true);
-        Assert.Equal(HttpStatusCode.Conflict, (await Send(legacy, "/api/availability/2026/10", Choices(), "POST")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Send(legacy, "/api/availability/2026/10", Choices(), "POST")).StatusCode);
         using var read = factory.Services.CreateScope();
         Assert.DoesNotContain((await read.ServiceProvider.GetRequiredService<SchedulingInputs>().Read(2026, 10)).Employees, e => e.Id == ids["admin"]);
         Assert.Equal(4, await read.ServiceProvider.GetRequiredService<ApplicationDbContext>().Set<OrganizationalTeam>().CountAsync());

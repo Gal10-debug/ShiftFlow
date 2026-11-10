@@ -35,6 +35,8 @@ public sealed class TeamsAdminController(TeamService teams, ApplicationDbContext
 [ApiController, Route("api/team-availability"), Authorize]
 public sealed class TeamAvailabilityController(TeamService teams, AvailabilityService availability) : ControllerBase
 {
+    [HttpGet("{year:int}/{month:int}")]
+    public async Task<IActionResult> Summary(int year, int month) => Ok(await availability.Summary(year, month, User));
     [HttpGet("members")] public async Task<IActionResult> Members() => Ok(await teams.List(User, false));
     [HttpGet("employees/{userId:guid}/periods")] public async Task<IActionResult> Periods(Guid userId)
     {

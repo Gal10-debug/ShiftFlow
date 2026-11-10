@@ -72,7 +72,7 @@ public sealed partial class SchedulingTests
     {
         var (admin,d,r)=await ManualSetup();using(admin)
         {
-            await Semantic(d,SchedulingRules.OnCall);await ConfigureWindow(admin,open:true);using var employee=await Login("employee");await Send(employee,"/api/availability/2026/10",Choices(0,3),"POST");r=await Review(admin);
+            await Semantic(d,SchedulingRules.OnCall);await ConfigureWindow(admin,open:true);await SetupTeam(admin);using var deputy=await Login("coordinator");Assert.Equal(HttpStatusCode.Created,(await Send(deputy,Delegated(ids["employee"]),Choices(0,3),"POST")).StatusCode);r=await Review(admin);
             var blocked=await Pair(admin,r,"ASSIGN",new(2026,10,2),ids["employee"]);Assert.Equal("HARD_BLOCK_CONFLICT",(await blocked.Content.ReadFromJsonAsync<ApiError>())!.Code);Assert.Empty((await Review(admin)).Draft.Cells.SelectMany(c=>c.Employees));
             foreach(var day in new[]{9,16}){var response=await Pair(admin,await Review(admin),"ASSIGN",new(2026,10,day),ids["employee"]);Assert.Equal(HttpStatusCode.OK,response.StatusCode);}
             var third=await Pair(admin,await Review(admin),"ASSIGN",new(2026,10,23),ids["employee"]);Assert.Equal("WEEKEND_ALLOCATION_LIMIT",(await third.Content.ReadFromJsonAsync<ApiError>())!.Code);

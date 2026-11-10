@@ -19,9 +19,9 @@ import Absences from "./pages/Absences";
 import InfoPage from "./pages/InfoPage";
 function PersonalAvailability() {
   const { user } = useAuth();
-  if (user?.roles.includes("ADMIN")) return <section dir="rtl"><h1>הזמינות שלי</h1><p>מנהל המערכת אינו משתתף בסידור העבודה ואינו נדרש להגיש זמינות אישית.</p></section>;
+  if (user?.roles.includes("ADMIN")) return <section dir="rtl"><h1>אילוצי השיבוץ שלי</h1><p>מנהל המערכת אינו משתתף בסידור העבודה ואינו נדרש להזין אילוצי שיבוץ אישיים.</p></section>;
   return user?.isTeamLeader
-    ? <section dir="rtl"><h1>הזמינות שלי</h1><p>ראש צוות אינו משתתף בסידור האוטומטי ואינו נדרש להגיש זמינות אישית.</p></section>
+    ? <section dir="rtl"><h1>אילוצי השיבוץ שלי</h1><p>ראש צוות אינו משתתף בסידור האוטומטי ואינו נדרש להזין אילוצי שיבוץ אישיים.</p></section>
     : <Availability />;
 }
 function Start() {

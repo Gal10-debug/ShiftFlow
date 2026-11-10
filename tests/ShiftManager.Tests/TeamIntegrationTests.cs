@@ -119,7 +119,7 @@ public sealed partial class SchedulingTests
         clock.Now = clock.Now.AddMinutes(5);
         Assert.Equal(HttpStatusCode.OK, (await Send(deputy, Delegated(ids["employee"]), Choices(1, 2))).StatusCode);
         using var employee = await Login("employee");
-        Assert.Equal(HttpStatusCode.Conflict, (await Send(employee, "/api/availability/2026/10", Choices(2))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Send(employee, "/api/availability/2026/10", Choices(2))).StatusCode);
         using var scope = factory.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var audit = await db.Set<DelegatedAvailabilityAudit>().OrderBy(a => a.OccurredAt).ToArrayAsync(); Assert.Equal(2, audit.Length);
         Assert.True(audit[0].InitialSubmission); Assert.False(audit[1].InitialSubmission);
@@ -209,8 +209,8 @@ public sealed partial class SchedulingTests
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(); (await db.Users.SingleAsync(u => u.Id == ids["leader"])).IsShiftLeadQualified = true; await db.SaveChangesAsync();
         }
         using var leader = await Login("leader"); using var deputy = await Login("coordinator");
-        Assert.Equal(HttpStatusCode.Conflict, (await Send(leader, "/api/availability/2026/10", Choices(), "POST")).StatusCode);
-        Assert.Equal(HttpStatusCode.Created, (await Send(deputy, "/api/availability/2026/10", Choices(0, 1), "POST")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Send(leader, "/api/availability/2026/10", Choices(), "POST")).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await Send(deputy, Delegated(ids["coordinator"]), Choices(0, 1), "POST")).StatusCode);
         using var readScope = factory.Services.CreateScope(); var p = await readScope.ServiceProvider.GetRequiredService<SchedulingInputs>().Read(2026, 10);
         Assert.DoesNotContain(p.Employees, e => e.Id == ids["leader"]); Assert.Contains(p.Employees, e => e.Id == ids["coordinator"] && !e.IsShiftLeadQualified);
         var run = await Generate(admin); Assert.Equal("READY", run.State);

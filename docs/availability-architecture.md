@@ -1,5 +1,10 @@
 # Availability and preferences (Phase 3)
 
+> Phase 9A supersedes the historical employee self-submission workflow below.
+> Employees now have read-only availability; leads and deputies record constraints.
+> See [Phase 9A workflow](phase-9a-availability-workflow.md) for current permissions.
+
+
 ## Submission contract
 
 Only active users with EMPLOYEE may submit their own availability. ADMIN manages windows

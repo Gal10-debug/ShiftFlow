@@ -1,5 +1,10 @@
 # Phase 4C — Organizational teams and delegated availability
 
+> Phase 9A supersedes the historical employee self-submission workflow below.
+> Employees now have read-only availability; leads and deputies record constraints.
+> See [Phase 9A workflow](phase-9a-availability-workflow.md) for current permissions.
+
+
 ## Persistent model
 
 `OrganizationalTeam` contains four seeded, stable UUIDs, slots 1–4, editable Hebrew names, nullable leader/deputy user IDs and an optimistic version. Initialization occurs through EF migration seed data, once per database; restarting or applying migrations again never resets names or appointments. There are no create/delete team endpoints. A unique slot and range constraint cap the table at four rows. Empty leadership slots are permitted until administrators make appointments.
