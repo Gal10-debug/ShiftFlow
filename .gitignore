@@ -19,4 +19,6 @@ src/ShiftManager/wwwroot/
 frontend/e2e-report/
 frontend/e2e-workflow-report/
 .pilot-private/
+# Restricted local database backups and migration validation artifacts.
+.local-docker-private/
 **/__pycache__/

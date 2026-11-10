@@ -114,6 +114,9 @@ variables, so do not share raw `docker inspect` or resolved `compose config` out
 
 ## Explicit migrations
 
+See the [five-migration audit, backup rehearsal and approved execution plan](local-migration-validation.md)
+and [recorded validation results](local-migration-results.md) before requesting migration approval.
+
 Pending migrations block `verify` and `up` **before** building or starting persistent
 services. Review the listed migrations and obtain the database owner's approval first.
 Take a verified backup and review the existing migration procedure before applying them.
