@@ -113,5 +113,29 @@ class LocalDockerTests(unittest.TestCase):
         self.assertIn("Host=postgres;", result)
 
 
+class PostgresOutputTests(unittest.TestCase):
+    def test_plain_postgres_booleans(self):
+        self.assertIs(local.parse_psql_value("t\n"), True)
+        self.assertIs(local.parse_psql_value("  f\n"), False)
+
+    def test_json_values_remain_typed(self):
+        for raw, expected in [('true', True), ('false', False), ('0', 0), ('17', 17),
+                              ('null', None), ('[1,2]', [1, 2]), ('{"database":"shiftmanager"}', {"database": "shiftmanager"})]:
+            with self.subTest(raw=raw):
+                self.assertEqual(expected, local.parse_psql_value(raw))
+
+    def test_identity_requires_actual_true(self):
+        for raw in ['f', 'false', '0', '1', 'null', '"t"', '{}']:
+            with self.subTest(raw=raw):
+                self.assertIsNot(local.parse_psql_value(raw), True)
+
+    def test_malformed_or_multiple_results_fail_without_echoing_data(self):
+        for raw in ['', 't\nf', 't\n0', 'unexpected-sensitive-result', 'BEGIN\nt\nROLLBACK']:
+            with self.subTest(raw=raw), self.assertRaises(local.GuardError) as error:
+                local.parse_psql_value(raw)
+            if raw:
+                self.assertNotIn(raw, str(error.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

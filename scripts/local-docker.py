@@ -37,6 +37,19 @@ class GuardError(Exception):
     pass
 
 
+def parse_psql_value(output):
+    """Parse one psql scalar/JSON result without treating nonempty text as true."""
+    value = output.strip()
+    if value == "t":
+        return True
+    if value == "f":
+        return False
+    try:
+        return json.loads(value)
+    except ValueError:
+        raise GuardError("Expected one PostgreSQL boolean or JSON value; result contents withheld.") from None
+
+
 def run(args, *, env=None, data=None, stream=False):
     result = subprocess.run(args, cwd=ROOT, env=env, input=data, text=True,
                             stdout=None if stream else subprocess.PIPE,
@@ -119,7 +132,10 @@ def catalog(container):
                       "--mount", f"type=volume,src={VOLUME},dst=/source,readonly",
                       "--tmpfs", f"/snapshot:rw,size=512m,mode=700,uid={uid}",
                       "--tmpfs", "/tmp:rw,size=16m", "--entrypoint", "sh", container["Image"], "-ec", SNAPSHOT], data=SQL)
-    return json.loads(output)
+    result = parse_psql_value(output)
+    if not isinstance(result, dict):
+        raise GuardError("Expected database catalog metadata as a JSON object.")
+    return result
 
 
 def main():
