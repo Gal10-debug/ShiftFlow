@@ -1,5 +1,10 @@
 # Legacy-compatible local database upgrade
 
+This procedure was executed with explicit approval on the regular database on 2026-11-11;
+see the [completed execution report](local-docker-execution.md). That database now has all
+17 migration IDs. Do not reapply the SQL there; the instructions below remain the reviewed
+procedure for its original 12-migration baseline and are not a new execution authorization.
+
 The regular database must use the explicit compatibility upgrade below. **Do not run a
 normal `dotnet ef database update` against its current 12-migration baseline.** The
 historical EF migrations contain demo-layout backfills that do not match this database.

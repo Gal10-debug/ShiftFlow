@@ -1,5 +1,10 @@
 # Full local Docker environment
 
+The regular database was upgraded with explicit approval on 2026-11-11, and the full
+stack passed live checks at **http://127.0.0.1:5180**. See the
+[completed execution report](local-docker-execution.md). The historical pending-migration
+and isolated-rehearsal details below describe the pre-upgrade state.
+
 Run from the repository root with Docker Desktop, Docker Compose v2 and Python 3.10+
 installed. Node and .NET SDKs are needed only for host development, tests and explicitly
 approved migrations; the application image builds with Node 24 and .NET 10 itself.

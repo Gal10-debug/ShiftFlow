@@ -1,5 +1,9 @@
 # Legacy-compatible migration validation results
 
+**Current status (2026-11-11): the approved original-database upgrade and Docker startup
+are complete.** See the [execution report](local-docker-execution.md). The isolated
+rehearsal and approval-pending statements below are retained as historical evidence.
+
 **Result: the corrected compatibility path passed isolated validation. The original
 regular database remains untouched and still has five pending migrations.**
 
