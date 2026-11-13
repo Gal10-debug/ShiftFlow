@@ -1,0 +1,41 @@
+# Use scripts/local-docker.py; it verifies the existing database before startup.
+name: shiftflow
+services:
+  postgres:
+    # Preserve the image already attached to the verified development container.
+    # Never apply the base file's newer image to existing data implicitly.
+    image: ${LOCAL_POSTGRES_IMAGE:?Use scripts/local-docker.py}
+  app:
+    image: shiftflow-local:development
+    build:
+      context: .
+      dockerfile: deploy/pilot/Dockerfile
+    user: "1654:1654"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__Database: ${LOCAL_DATABASE_CONNECTION:?Use scripts/local-docker.py}
+      # The existing image prepares this directory for the unprivileged app user.
+      LocalDocker__KeysDirectory: /var/lib/shiftflow/keys
+    ports:
+      - "127.0.0.1:${LOCAL_HTTP_PORT:-5180}:8080"
+    volumes:
+      - local-keys:/var/lib/shiftflow/keys
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m,uid=1654,gid=1654,mode=700"]
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "dotnet", "ShiftManager.dll", "--healthcheck", "ready"]
+      interval: 10s
+      timeout: 4s
+      start_period: 20s
+      retries: 3
+volumes:
+  postgres-data:
+    # Missing data is an error, never permission to initialize an empty database.
+    external: true
+    name: shiftflow_postgres-data
+  local-keys:

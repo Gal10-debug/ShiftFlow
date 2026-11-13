@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ShiftManager\ShiftManager.csproj" />
+    <None Include="../../docs/local-migration-up.sql" Link="local-migration-up.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
