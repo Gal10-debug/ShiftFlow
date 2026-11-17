@@ -4,3 +4,5 @@ public enum ScheduleStatus { DRAFT, PUBLISHED, PRELIMINARY_PUBLISHED, UNDER_CORR
 public enum WindowStatus { OPEN, CLOSED }
 public enum ShiftType { DAY, NIGHT }
 public enum PreferenceType { BLOCKED, PREFERRED }
+
+public enum EmployeeType { REGULAR, DISPATCHER, MANAGER, RESERVIST, DUTY_MANAGER }

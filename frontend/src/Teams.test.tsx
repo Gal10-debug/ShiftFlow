@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import Teams from "./pages/Teams";
@@ -103,4 +103,55 @@ it("shows service validation errors on team management", async () => {
   mock.mockRejectedValueOnce(new Error("INVALID_TEAM_LEADERSHIP"));
   await user.click(screen.getAllByRole("button", { name: "שמירת הצוות" })[0]);
   expect(await screen.findByText(he.errors.INVALID_TEAM_LEADERSHIP)).toBeInTheDocument();
+});
+it("assigns a directory user from a later page inside a team and refreshes membership immediately", async () => {
+  const user = userEvent.setup();
+  const fallback = mock.getMockImplementation()!;
+  mock.mockImplementation(async (path, method = "GET", body) => {
+    if (path.startsWith("/users?")) return path.includes("page=1&")
+      ? { items: [{ id: "admin", firstName: "מנהל", lastName: "מערכת", roles: ["ADMIN"], isActive: true }], totalCount: 2 }
+      : { items: [{ id: "new", firstName: "משתמש", lastName: "קיים", roles: ["EMPLOYEE"], employeeType: "MANAGER", isActive: true, mustChangePassword: true }], totalCount: 2 };
+    if (path === "/admin/teams/members/new" && method === "PUT") {
+      expect(body).toEqual({ teamId: "t1" });
+      teams = teams.map(t => t.id === "t1" ? { ...t, version: t.version + 1, members: [...t.members, { id: "new", firstName: "משתמש", lastName: "קיים", isActive: true, isEmployee: true }] } : t);
+      return teams;
+    }
+    return fallback(path, method, body);
+  });
+  render(<Teams />);
+  const team = await screen.findByRole("region", { name: "צוות ב׳" });
+  const selector = await within(team).findByLabelText("הוספת עובד לצוות");
+  await within(selector).findByRole("option", { name: "משתמש קיים" });
+  expect(within(selector).queryByRole("option", { name: "מנהל מערכת" })).not.toBeInTheDocument();
+  await user.selectOptions(selector, "new");
+  await user.click(within(team).getByRole("button", { name: "שמירת שיוך לצוות" }));
+  expect(await screen.findByText("השינויים נשמרו.")).toBeVisible();
+  expect(within(team).getByRole("listitem")).toHaveTextContent("משתמש קיים");
+  expect(within(within(team).getByLabelText("ראש צוות")).getByRole("option", { name: "משתמש קיים" })).toBeInTheDocument();
+  expect(within(selector).queryByRole("option", { name: "משתמש קיים" })).not.toBeInTheDocument();
+  expect(mock).toHaveBeenCalledWith("/users?page=2&pageSize=100");
+});
+it("shows assignment failures and retains membership for retry", async () => {
+  const user = userEvent.setup(); render(<Teams />);
+  const team = await screen.findByRole("region", { name: "צוות ב׳" });
+  await user.selectOptions(await within(team).findByLabelText("הוספת עובד לצוות"), "employee");
+  mock.mockRejectedValueOnce(new Error("FORBIDDEN"));
+  await user.click(within(team).getByRole("button", { name: "שמירת שיוך לצוות" }));
+  expect(await screen.findByText(he.errors.FORBIDDEN)).toBeVisible();
+  expect(within(team).getByLabelText("הוספת עובד לצוות")).toHaveValue("employee");
+  expect(within(team).queryByRole("listitem")).not.toBeInTheDocument();
+});
+
+it("refreshes the directory on returning to the page after a user was created elsewhere", async () => {
+  render(<Teams />);
+  await screen.findAllByLabelText("שם הצוות");
+  await within(screen.getByLabelText("עובד")).findByRole("option", { name: /דנה כהן/ });
+  const fallback = mock.getMockImplementation()!;
+  mock.mockImplementation(async (path, method, body) => path.startsWith("/users?")
+    ? { items: [{ id: "new", firstName: "עובד", lastName: "חדש", roles: ["EMPLOYEE"], isActive: true }], totalCount: 1 }
+    : fallback(path, method, body));
+  expect(within(screen.getByLabelText("עובד")).queryByRole("option", { name: /עובד חדש/ })).not.toBeInTheDocument();
+  fireEvent.focus(window);
+  expect(await within(screen.getByLabelText("עובד")).findByRole("option", { name: /עובד חדש/ })).toBeInTheDocument();
+  expect(within(screen.getAllByLabelText("הוספת עובד לצוות")[0]).getByRole("option", { name: "עובד חדש" })).toBeInTheDocument();
 });
