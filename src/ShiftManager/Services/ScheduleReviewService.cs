@@ -20,7 +20,7 @@ public sealed partial class ScheduleReviewService(ApplicationDbContext db, Accou
     {
         var submissions = await db.Set<AvailabilitySubmission>().AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.Version }).ToArrayAsync();
         var preferences = await db.Set<ShiftPreference>().AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.UserId, x.ShiftId, x.PreferenceType, x.UpdatedAt }).ToArrayAsync();
-        var users = await db.Users.AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.IsActive, x.IsShiftLeadQualified }).ToArrayAsync();
+        var users = await db.Users.AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.IsActive, x.IsShiftLeadQualified, x.EmployeeType }).ToArrayAsync();
         var roles = await db.UserRoles.AsNoTracking().OrderBy(x => x.UserId).ThenBy(x => x.RoleId).Select(x => new { x.UserId, x.RoleId }).ToArrayAsync();
         var leadership = await db.Set<OrganizationalTeam>().AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.LeaderUserId }).ToArrayAsync();
         var definitions = await db.Set<ShiftTypeDefinition>().AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.Version, x.Semantic }).ToArrayAsync();

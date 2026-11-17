@@ -13,8 +13,13 @@ public sealed record CandidateCell(Guid DefinitionId, DateOnly Date, DateTime St
 public sealed record Employee(Guid Id, string Name, bool IsShiftLeadQualified = false, bool IsTeamLeader = false);
 public sealed record Preference(Guid UserId, DateOnly Date, ShiftType Type, PreferenceType State);
 public sealed record SchedulingProblem(int Year, int Month, string Fingerprint, CandidateCell[] Cells,
-    Employee[] Employees, Work[] Work, Preference[] Preferences, CandidateCell[]? StaffingCells = null, AbsenceRule[]? ApprovedAbsences = null, AbsenceRule[]? PendingAbsences = null)
+    Employee[] Employees, Work[] Work, Preference[] Preferences, CandidateCell[]? StaffingCells = null, AbsenceRule[]? ApprovedAbsences = null, AbsenceRule[]? PendingAbsences = null, Employee[]? ManualEmployees = null)
 {
+    // Fixed manual assignments need identity/qualification metadata, but these users
+    // never enter Employees, the automatic solver candidate pool.
+    public Employee? AssignedEmployee(Guid id) => Employees.FirstOrDefault(e => e.Id == id)
+        ?? ManualEmployees?.FirstOrDefault(e => e.Id == id);
+
     // Planning rows may exclude disabled/zero-demand definitions, but retained work in
     // every visible board cell must still fit that cell's effective displayed demand.
     public bool ExceedsCapacity(IEnumerable<Work> source)
@@ -48,11 +53,16 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
         var definitions = await db.Set<ShiftTypeDefinition>().AsNoTracking().OrderBy(x => x.Id).ToArrayAsync(ct);
         var periods = await db.Set<SchedulePeriod>().AsNoTracking().Where(p => p.Year >= from.Year && p.Year <= through.Year).OrderBy(x => x.Id).ToArrayAsync(ct);
         if (!review && periods.Any(p => p.Year == year && p.Month == month && p.Status != ScheduleStatus.DRAFT && p.Status != ScheduleStatus.UNDER_CORRECTION)) throw new ApiException("PERIOD_PUBLISHED", 409);
-        var users = await db.Users.AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.IsActive, x.IsShiftLeadQualified, x.FirstName, x.LastName, x.SecurityStamp }).ToArrayAsync(ct);
+        var users = await db.Users.AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.IsActive, x.IsShiftLeadQualified, x.EmployeeType, x.FirstName, x.LastName, x.SecurityStamp }).ToArrayAsync(ct);
         var roles = await (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id orderby ur.UserId, r.Name select new { ur.UserId, r.Name }).ToArrayAsync(ct);
         var teams = await db.Set<OrganizationalTeam>().AsNoTracking().OrderBy(t => t.Id).ToArrayAsync(ct);
-        var employees = users.Where(u => u.IsActive && !roles.Any(r => r.UserId == u.Id && r.Name == "ADMIN") && !teams.Any(t => t.LeaderUserId == u.Id) && roles.Any(r => r.UserId == u.Id && r.Name == "EMPLOYEE"))
+        var workforce = users.Where(u => u.IsActive && !roles.Any(r => r.UserId == u.Id && r.Name == "ADMIN") && !teams.Any(t => t.LeaderUserId == u.Id) && roles.Any(r => r.UserId == u.Id && r.Name == "EMPLOYEE"))
+            .ToArray();
+        var employees = workforce.Where(u => review || u.EmployeeType == EmployeeType.REGULAR)
             .Select(u => new Employee(u.Id, $"{u.FirstName} {u.LastName}", u.IsShiftLeadQualified)).ToArray();
+        var manualEmployees = workforce.Where(u => !review && u.EmployeeType != EmployeeType.REGULAR)
+            .Select(u => new Employee(u.Id, $"{u.FirstName} {u.LastName}", u.IsShiftLeadQualified)).ToArray();
+        var manualIds = users.Where(u => u.EmployeeType != EmployeeType.REGULAR).Select(u => u.Id).ToHashSet();
         var shifts = await db.Set<Shift>().AsNoTracking().Where(s => s.ShiftDate >= from && s.ShiftDate <= through).OrderBy(x => x.Id).ToArrayAsync(ct);
         foreach (var s in shifts)
         {
@@ -74,7 +84,7 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
             var shift = shifts.Single(s => s.Id == a.ShiftId);
             var cell = cells.SingleOrDefault(c => c.Id == a.SchedulingCellId);
             var definition = definitions.SingleOrDefault(d => d.Id == cell?.ShiftTypeDefinitionId);
-            var replaceable = a.GeneratedByRunId.HasValue && !a.IsLocked && !a.IsShiftLead && !a.HasTasks && a.Note == null && cell is not null
+            var replaceable = !manualIds.Contains(a.UserId) && a.GeneratedByRunId.HasValue && !a.IsLocked && !a.IsShiftLead && !a.HasTasks && a.Note == null && cell is not null
                 && cell.Date >= first && cell.Date < end && definition is { IncludeInAutomaticScheduling: true, AssignmentMode: AssignmentMode.Automatic } && SchedulingRules.HasDemand(definition.Id, definition.Semantic, definition.RequiredEmployees);
             return new Work(a.Id, a.UserId, cell?.ShiftTypeDefinitionId, cell?.Date ?? shift.ShiftDate,
                 cell?.StartsAt ?? shift.StartsAt, cell?.EndsAt ?? shift.EndsAt, shift.Id, replaceable, a.IsShiftLead, shift.ShiftType, definition?.Semantic ?? "ORDINARY", a.Note);
@@ -95,6 +105,6 @@ public sealed class SchedulingInputs(ApplicationDbContext db)
         var bytes = JsonSerializer.SerializeToUtf8Bytes(new { definitions, teams, approved, periods = periods.Select(p => new { p.Id, p.Year, p.Month, p.Status, p.UpdatedAt, p.Revision }), users, roles,
             shifts = shifts.Select(s => new { s.Id, s.SchedulePeriodId, s.ShiftDate, s.ShiftType, s.StartsAt, s.EndsAt, s.CoordinatorUserId }),
             cells = cells.Select(c => new { c.Id, c.ShiftTypeDefinitionId, c.Date, c.StartsAt, c.EndsAt, c.RequiredEmployees, c.ConfigurationVersion, c.SchedulingRunId }), assignments, submissions = submissions.Select(s => new { s.Id, s.UserId, s.SchedulePeriodId, s.Version, s.LastSubmittedAt }), preferences });
-        return new(year, month, Convert.ToHexString(SHA256.HashData(bytes)), proposed, employees, work, prefs, staffing, approved.Select(a => a.Rule).ToArray(), pending);
+        return new(year, month, Convert.ToHexString(SHA256.HashData(bytes)), proposed, employees, work, prefs, staffing, approved.Select(a => a.Rule).ToArray(), pending, manualEmployees);
     }
 }

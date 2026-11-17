@@ -17,7 +17,7 @@ namespace ShiftManager.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.9")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -391,6 +391,13 @@ namespace ShiftManager.Data.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("EmployeeType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("REGULAR");
+
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -454,6 +461,8 @@ namespace ShiftManager.Data.Migrations
 
                     b.ToTable("AspNetUsers", null, t =>
                         {
+                            t.HasCheckConstraint("CK_User_EmployeeType", "\"EmployeeType\" IN ('REGULAR', 'DISPATCHER', 'MANAGER', 'RESERVIST', 'DUTY_MANAGER')");
+
                             t.HasCheckConstraint("CK_User_FirstName", "btrim(\"FirstName\") <> ''");
 
                             t.HasCheckConstraint("CK_User_LastName", "btrim(\"LastName\") <> ''");

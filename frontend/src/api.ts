@@ -1,10 +1,13 @@
 import type { Role } from "./he";
+export type EmployeeType = "REGULAR" | "DISPATCHER" | "MANAGER" | "RESERVIST" | "DUTY_MANAGER";
+export const employeeTypeLabels: Record<EmployeeType, string> = { REGULAR: "עובד רגיל", DISPATCHER: "מוקדן/מוקדנית", MANAGER: "מנהל", RESERVIST: "מילואימניק", DUTY_MANAGER: "ת.מנהל" };
 export interface User {
   id: string;
   firstName: string;
   lastName: string;
   username: string;
   isActive: boolean;
+  employeeType?: EmployeeType;
   isShiftLeadQualified?: boolean;
   canManageTeamAvailability?: boolean;
   isTeamLeader?: boolean;

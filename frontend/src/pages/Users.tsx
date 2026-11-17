@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { api, type User, type UserPage } from "../api";
+import { api, employeeTypeLabels, type EmployeeType, type User, type UserPage } from "../api";
 import { he, message, type Role } from "../he";
 import { Field, Notice, Roles, RolePicker } from "../components/forms";
 interface EditorState {
@@ -22,6 +22,7 @@ function UserEditor({
   const [roles, setRoles] = useState<Role[]>(
     editor.user?.roles ?? ["EMPLOYEE"],
   );
+  const [employeeType, setEmployeeType] = useState<EmployeeType>(editor.user?.employeeType ?? "REGULAR");
   const [qualified, setQualified] = useState(editor.user?.isShiftLeadQualified ?? false);
   const [active, setActive] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -95,6 +96,7 @@ function UserEditor({
           lastName: submittedLast,
           username: submittedUsername,
           isShiftLeadQualified: qualified,
+          employeeType,
           initialPassword: submittedPassword,
           roles,
           isActive: active,
@@ -105,6 +107,7 @@ function UserEditor({
           lastName: submittedLast,
           username: submittedUsername,
           isShiftLeadQualified: qualified,
+          employeeType,
         });
       if (editor.mode === "roles")
         await api(`/users/${editor.user!.id}/roles`, "PUT", { roles });
@@ -167,6 +170,10 @@ function UserEditor({
               autoComplete="off"
             />
             <p className="help">{he.usernameHelp}</p>
+            <label className="field">סוג עובד<select value={employeeType} onChange={e => setEmployeeType(e.target.value as EmployeeType)}>
+              {Object.entries(employeeTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select></label>
+            <p className="help">סוג העובד נפרד מהרשאות המערכת. הסוגים החדשים זמינים לשיבוץ ידני בלבד; סוג מנהל אינו מעניק הרשאות מנהל מערכת.</p>
           </>
         )}
         {["create", "roles"].includes(editor.mode) && (
@@ -320,6 +327,7 @@ export default function Users() {
               <tr>
                 <th>{he.fullName}</th>
                 <th>{he.username}</th>
+                <th>סוג עובד</th>
                 <th>{he.roles}</th>
                 <th>{he.status}</th>
                 <th>{he.actions}</th>
@@ -340,6 +348,7 @@ export default function Users() {
                     </div>
                   </td>
                   <td dir="auto">{user.username}</td>
+                  <td>{employeeTypeLabels[user.employeeType ?? "REGULAR"]}</td>
                   <td>
                     <Roles roles={user.roles} />
                   </td>

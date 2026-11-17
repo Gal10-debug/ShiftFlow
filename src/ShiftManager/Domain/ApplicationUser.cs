@@ -5,6 +5,7 @@ public class ApplicationUser : IdentityUser<Guid>
 {
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
+    public EmployeeType EmployeeType { get; set; } = EmployeeType.REGULAR;
     public bool IsShiftLeadQualified { get; set; }
     public bool MustChangePassword { get; set; }
     public bool IsActive { get; set; } = true;

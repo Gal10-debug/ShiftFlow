@@ -402,3 +402,32 @@ it("distinguishes a CSRF error from user input validation", async () => {
     he.errors.CSRF_INVALID,
   );
 });
+
+it.each([
+  ["DISPATCHER", "מוקדן/מוקדנית"], ["MANAGER", "מנהל"],
+  ["RESERVIST", "מילואימניק"], ["DUTY_MANAGER", "ת.מנהל"],
+])("creates %s classification independently from system roles", async (type, label) => {
+  current = admin;
+  const user = userEvent.setup();
+  app("/users");
+  await user.click(await screen.findByRole("button", { name: he.createUser }));
+  const dialog = screen.getByRole("dialog");
+  await user.type(within(dialog).getByLabelText(he.firstName), "דנה");
+  await user.type(within(dialog).getByLabelText(he.lastName), "כהן");
+  await user.type(within(dialog).getByLabelText(he.username), "new.employee");
+  await user.type(within(dialog).getByLabelText(he.initialPassword), "TemporaryPass!2026");
+  await user.selectOptions(within(dialog).getByLabelText("סוג עובד"), label);
+  await user.click(within(dialog).getByRole("button", { name: he.create }));
+  await waitFor(() => expect(writes.find(w => w.path === "/api/users")?.body).toMatchObject({ employeeType: type, roles: ["EMPLOYEE"] }));
+});
+it("edits classification while preserving an existing user's system roles", async () => {
+  current = admin;
+  const user = userEvent.setup(); app("/users");
+  await user.click(await screen.findByRole("button", { name: he.editUser }));
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByLabelText("סוג עובד")).toHaveValue("REGULAR");
+  await user.selectOptions(within(dialog).getByLabelText("סוג עובד"), "MANAGER");
+  await user.click(within(dialog).getByRole("button", { name: he.save }));
+  await waitFor(() => expect(writes.find(w => w.path === `/api/users/${employee.id}`)?.body).toMatchObject({ employeeType: "MANAGER" }));
+  expect(writes.find(w => w.path === `/api/users/${employee.id}`)?.body).not.toHaveProperty("roles");
+});

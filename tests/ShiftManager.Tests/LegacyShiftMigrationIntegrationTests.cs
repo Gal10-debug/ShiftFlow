@@ -63,6 +63,8 @@ public sealed partial class SchedulingTests
         var before = await db.Database.SqlQueryRaw<string>(OldDefinitions).SingleAsync();
         var users = await db.Users.CountAsync();
         await ApplyCompatibility(CompatibilityPlan);
+        // The frozen compatibility plan upgrades to its reviewed baseline. Apply later additive migrations normally.
+        await db.Database.MigrateAsync();
         Assert.Equal(before, await db.Database.SqlQueryRaw<string>(ProjectedDefinitions).SingleAsync());
         Assert.Equal(users, await db.Users.CountAsync());
         Assert.False(db.Database.HasPendingModelChanges());
@@ -105,7 +107,7 @@ public sealed partial class SchedulingTests
         Assert.Equal(PostgresErrorCodes.DivisionByZero, error.SqlState);
         Assert.Equal(before, await db.Database.SqlQueryRaw<string>(OldDefinitions).SingleAsync());
         Assert.Equal(12, (await db.Database.GetAppliedMigrationsAsync()).Count());
-        Assert.Equal(5, (await db.Database.GetPendingMigrationsAsync()).Count());
+        Assert.Equal(6, (await db.Database.GetPendingMigrationsAsync()).Count());
         Assert.Equal(0, await db.Database.SqlQueryRaw<int>("""
             SELECT count(*)::int AS "Value" FROM information_schema.columns
             WHERE table_schema='public' AND table_name='ShiftTypeDefinition' AND column_name IN ('AssignmentMode','SchedulingPriority')

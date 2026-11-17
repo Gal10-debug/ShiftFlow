@@ -10,8 +10,10 @@ public sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Appl
     {
         b.Property(x => x.FirstName).IsRequired().HasMaxLength(100);
         b.Property(x => x.LastName).IsRequired().HasMaxLength(100);
+        b.Property(x => x.EmployeeType).HasConversion<string>().HasMaxLength(20).HasDefaultValue(EmployeeType.REGULAR);
         b.ToTable(t =>
         {
+            t.HasCheckConstraint("CK_User_EmployeeType", "\"EmployeeType\" IN ('REGULAR', 'DISPATCHER', 'MANAGER', 'RESERVIST', 'DUTY_MANAGER')");
             t.HasCheckConstraint("CK_User_FirstName", "btrim(\"FirstName\") <> ''");
             t.HasCheckConstraint("CK_User_LastName", "btrim(\"LastName\") <> ''");
         });

@@ -12,7 +12,7 @@ public sealed class AccountService(ApplicationDbContext db, UserManager<Applicat
     public async Task<UserResponse> Response(ApplicationUser user) => new(user.Id, user.FirstName, user.LastName,
         user.UserName!, user.IsActive, user.MustChangePassword, user.CreatedAt, (await users.GetRolesAsync(user)).Order().ToArray(), user.IsShiftLeadQualified,
         !await users.IsInRoleAsync(user, "ADMIN") && await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == user.Id || t.DeputyUserId == user.Id),
-        !await users.IsInRoleAsync(user, "ADMIN") && await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == user.Id));
+        !await users.IsInRoleAsync(user, "ADMIN") && await db.Set<OrganizationalTeam>().AnyAsync(t => t.LeaderUserId == user.Id), user.EmployeeType.ToString());
 
     public async Task<ApplicationUser> Find(Guid id) => await users.FindByIdAsync(id.ToString()) ?? throw new ApiException("USER_NOT_FOUND", 404);
 
@@ -22,6 +22,10 @@ public sealed class AccountService(ApplicationDbContext db, UserManager<Applicat
             throw new ApiException("INVALID_ROLES");
         return roles;
     }
+
+    private static EmployeeType ParseEmployeeType(string value) =>
+        Enum.TryParse<EmployeeType>(value, out var type) && Enum.IsDefined(type) && type.ToString() == value
+            ? type : throw new ApiException("VALIDATION_ERROR");
 
     // Account writes share one cross-process lock. This serializes final-admin checks and updates.
     public async Task Lock()
@@ -52,6 +56,7 @@ public sealed class AccountService(ApplicationDbContext db, UserManager<Applicat
             LastName = input.LastName.Trim(),
             UserName = input.Username,
             IsActive = input.IsActive,
+            EmployeeType = ParseEmployeeType(input.EmployeeType),
             IsShiftLeadQualified = input.IsShiftLeadQualified,
             MustChangePassword = true,
             LockoutEnabled = true
@@ -99,6 +104,7 @@ public sealed class AccountService(ApplicationDbContext db, UserManager<Applicat
             user.FirstName = profile.FirstName.Trim();
             user.LastName = profile.LastName.Trim();
             user.UserName = profile.Username;
+            if (profile.EmployeeType is not null) user.EmployeeType = ParseEmployeeType(profile.EmployeeType);
             if (profile.IsShiftLeadQualified is not null) user.IsShiftLeadQualified = profile.IsShiftLeadQualified.Value;
         }
         if (active is not null) user.IsActive = active.Value;

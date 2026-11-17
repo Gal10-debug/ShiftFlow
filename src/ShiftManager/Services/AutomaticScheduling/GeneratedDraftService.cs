@@ -90,7 +90,7 @@ public sealed class GeneratedDraftService(ApplicationDbContext db, GenerationQue
             if (!fixedMembers.Select(w => w.UserId).ToHashSet().SetEquals(output.Employees.Where(e => e.Protected).Select(e => e.UserId))) throw new ApiException("STALE_PREVIEW", 409);
             foreach (var e in output.Employees)
             {
-                var employee = p.Employees.SingleOrDefault(x => x.Id == e.UserId);
+                var employee = e.Protected ? p.AssignedEmployee(e.UserId) : p.Employees.SingleOrDefault(x => x.Id == e.UserId);
                 if (employee is null || employee.IsTeamLeader || (c.RequiresShiftLeadQualification && !employee.IsShiftLeadQualified) || p.Preferences.Any(b => b.UserId == e.UserId && b.State == PreferenceType.BLOCKED && SchedulingProblem.OverlapsAnchor(c, b))) throw new ApiException("STALE_PREVIEW", 409);
                 if (e.Protected)
                 {
